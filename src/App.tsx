@@ -1,7 +1,7 @@
 import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
 import { useEffect, useRef, useState } from 'react';
-import Draw from './tools/visibilityAnalysis/draw';
+import Draw from './tools/turntableSwing/turntableSwing';
 import './App.css';
 
 window.CESIUM_BASE_URL = '/Cesium/';
@@ -37,13 +37,14 @@ function App() {
         });
 
         const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        const draw = new Draw(viewer, handler);
+        const draw = new Draw(viewer);
         setStartDraw(draw);
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
     };
 
     const handleDraw = () => {
-        startDraw?.active();
+        // startDraw?.active();
+        startDraw?.initTurntable();
     };
 
     const handleClear = () => {

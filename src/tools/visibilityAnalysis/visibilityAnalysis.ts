@@ -77,6 +77,7 @@ export default class VisibilityAnalysis {
                 width: 2,
                 material: color,
                 depthFailMaterial: color,
+                // 是否贴地
                 clampToGround: true,
             },
         });

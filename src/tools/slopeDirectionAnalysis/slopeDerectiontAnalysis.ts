@@ -22,7 +22,7 @@ export default class SloopAspectAnalysis {
         this.result = [];
     }
 
-    startAnalysis = () => {
+    add = () => {
         const degrees = this.cartesian3ListToWGS84(this.positionAry);
         this.viewer.entities.remove(this.polygon);
         const boundary = [];

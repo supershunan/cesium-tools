@@ -1,30 +1,33 @@
-import * as Cesium from 'cesium';
+import * as Cesium from "cesium";
 
 /** 模拟雷达转台旋转 */
 export default class TurntableSwing {
     viewer: Cesium.Viewer;
+    position: Cesium.Cartesian3;
     radarEntity?: Cesium.Entity;
+    /** 扫描速度 */
     speed: number = 0.2;
+    /**
+     * false: 回摆模式
+     * true: 重复模式
+     */
     loop: boolean = false;
+    /** 摆动角度,默认 180 度 */
     maxAngle: number = 180;
     /** 回摆方向 */
     up: boolean = true;
-    // radii: number = 5000;
-    // innerRadii: number = 10;
-    // minimumClock: number = 0;
-    // maximumClock: number = 60;
-    // fillColor: string = 'rgba(255, 69, 0,  0.2)';
-    // outlineColor: string = 'rgba(255, 69, 0, 1)';
 
-    constructor(viewer: Cesium.Viewer) {
+    constructor(viewer: Cesium.Viewer, position: Cesium.Cartesian3) {
         this.viewer = viewer;
+        this.position = position;
     }
 
-    initTurntable(): void {
+    add(): void {
         let num = 0;
-        const position = Cesium.Cartesian3.fromDegrees(110, 40, 1);
+        const position = this.position;
         this.radarEntity = this.viewer.entities.add({
             position: position,
+            // 获取或设置相对于地心引力 (ECEF) 的方向。默认为实体位置的东北向上。
             orientation: new Cesium.CallbackProperty(() => {
                 const speed = this.speed;
                 if (this.loop) {
@@ -40,6 +43,7 @@ export default class TurntableSwing {
                     new Cesium.HeadingPitchRoll((num * Math.PI) / 180, 0, 0)
                 );
             }, false),
+            // 设置椭圆
             ellipsoid: {
                 radii: new Cesium.Cartesian3(5000.0, 5000.0, 1.0), // 外半径
                 innerRadii: new Cesium.Cartesian3(1.0, 1.0, 1.0), // 内半径
@@ -63,42 +67,54 @@ export default class TurntableSwing {
     /** 左偏角值 */
     minimumClock(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.minimumClock = Cesium.Math.toRadians(val);
+            this.radarEntity.ellipsoid.minimumClock =
+                Cesium.Math.toRadians(val);
         }
     }
 
     /** 右偏角值 */
     maximumClock(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.maximumClock = Cesium.Math.toRadians(val);
+            this.radarEntity.ellipsoid.maximumClock =
+                Cesium.Math.toRadians(val);
         }
     }
 
     /** 外径大小 */
     radii(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.radii = new Cesium.Cartesian3(val, val, 1);
+            this.radarEntity.ellipsoid.radii = new Cesium.Cartesian3(
+                val,
+                val,
+                1
+            );
         }
     }
 
     /** 内径大小 */
     innerRadii(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.innerRadii = new Cesium.Cartesian3(val, val, 1);
+            this.radarEntity.ellipsoid.innerRadii = new Cesium.Cartesian3(
+                val,
+                val,
+                1
+            );
         }
     }
 
-    /** 填充色 */
+    /** 填充色 rgba */
     fillColor(val: string) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.material = Cesium.Color.fromCssColorString(val);
+            this.radarEntity.ellipsoid.material =
+                Cesium.Color.fromCssColorString(val);
         }
     }
 
-    /** 边框色 */
+    /** 边框色 rgba */
     outlineColor(val: string) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.outlineColor = Cesium.Color.fromCssColorString(val);
+            this.radarEntity.ellipsoid.outlineColor =
+                Cesium.Color.fromCssColorString(val);
         }
     }
 }

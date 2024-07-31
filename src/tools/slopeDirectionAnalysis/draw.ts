@@ -83,7 +83,7 @@ export default class Draw extends MouseEvent {
                 this.distance,
                 this.positionAry
             );
-            slopeAspectAnalysis.startAnalysis();
+            slopeAspectAnalysis.add();
         }
     };
 

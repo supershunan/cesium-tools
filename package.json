@@ -2,6 +2,7 @@
   "name": "cesium-tools",
   "private": true,
   "version": "0.0.0",
+  "description": "cesium工具包",
   "type": "module",
   "scripts": {
     "dev": "vite",

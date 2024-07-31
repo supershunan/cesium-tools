@@ -21,7 +21,15 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    /* resolve.alias */
+    "baseUrl": "./",
+    "paths": {
+      "@src/*": ["src/*"],
+      "@tools/*": ["src/tools/*"],
+      "@components/*": ["src/components/*"]
+    }
   },
   "include": ["src"]
 }

@@ -1,7 +1,7 @@
 import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
 import { useEffect, useRef, useState } from 'react';
-import Draw from '../tools/turntableSwing/draw';
+import Draw from '@tools/turntableSwing/draw';
 import './App.css';
 
 window.CESIUM_BASE_URL = '/Cesium/';

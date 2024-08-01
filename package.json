@@ -1,6 +1,6 @@
 {
   "name": "cesium-tools",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "cesium工具包",
   "type": "module",
   "scripts": {

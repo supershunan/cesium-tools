@@ -8,12 +8,15 @@ interface TerrainCoordinate {
     alt: number;
 }
 export default class Draw extends MouseEvent {
-    viewer: Cesium.Viewer;
-    handler: Cesium.ScreenSpaceEventHandler;
+    protected viewer: Cesium.Viewer;
+    protected handler: Cesium.ScreenSpaceEventHandler;
+    /** 网格切割的精度 单位(km) 最小为20 精度越大越消耗性能 */
     distance: number;
+    private slopeAspectAnalysis?: SloopAspectAnalysis;
     private positionAry: Cesium.Cartesian3[] = [];
     private tempPositionAry: Cesium.Cartesian3 | undefined;
     private polygonEntity?: Cesium.Entity | undefined;
+    private pointEntitys: Cesium.Entity[] =[];
 
     constructor(
         viewer: Cesium.Viewer,
@@ -31,13 +34,21 @@ export default class Draw extends MouseEvent {
     }
 
     deactivate(): void {
+        this.clear();
         this.polygonEntity = undefined;
         this.positionAry = [];
         this.tempPositionAry = undefined;
+        this.pointEntitys = [];
         this.unRegisterEvents();
     }
 
-    leftClickEvent(): void {
+    clear(): void {
+        this.slopeAspectAnalysis && this.slopeAspectAnalysis.clear();
+        this.polygonEntity && this.viewer.entities.remove(this.polygonEntity);
+        this.pointEntitys.length && this.pointEntitys.forEach(entits => {return this.viewer.entities.remove(entits);});
+    }
+
+    protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             // 返回深度缓冲区和窗口位置重建的笛卡尔坐标
             const currentPosition = this.getCatesian3FromPX(
@@ -52,7 +63,7 @@ export default class Draw extends MouseEvent {
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 
-    rightClickEvent(): void {
+    protected rightClickEvent(): void {
         this.handler.setInputAction((e) => {
             if (this.positionAry.length < 3) return;
 
@@ -62,7 +73,7 @@ export default class Draw extends MouseEvent {
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
-    mouseMoveEvent(): void {
+    protected mouseMoveEvent(): void {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
             const currentPosition = this.getCatesian3FromPX(
                 this.viewer,
@@ -77,13 +88,13 @@ export default class Draw extends MouseEvent {
     protected analysisPolygon = () => {
         this.viewer.entities.removeAll();
         if (this.polygonEntity) {
-            const slopeAspectAnalysis = new SloopAspectAnalysis(
+            this.slopeAspectAnalysis = new SloopAspectAnalysis(
                 this.viewer,
                 this.polygonEntity,
                 this.distance,
                 this.positionAry
             );
-            slopeAspectAnalysis.add();
+            this.slopeAspectAnalysis.add();
         }
     };
 
@@ -107,17 +118,18 @@ export default class Draw extends MouseEvent {
     };
 
     protected createPoint = (positon: Cesium.Cartesian3) => {
-        return this.viewer.entities.add({
+        const curentPointEntity = this.viewer.entities.add({
             position: positon,
             point: {
-                pixelSize: 2,
+                pixelSize: 5,
                 color: Cesium.Color.ORANGE,
                 outlineWidth: 2,
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
                 disableDepthTestDistance: 99000000,
-                clampToGround: true,
             },
         });
+
+        this.pointEntitys.push(curentPointEntity);
     };
 
     protected getCatesian3FromPX = (

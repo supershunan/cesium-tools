@@ -1,14 +1,14 @@
 import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
 import { useEffect, useRef, useState } from 'react';
-import Draw from '@tools/turntableSwing/draw';
+import useSlopeDirectionAnalysis from '@tools/slopeDirectionAnalysis/index';
 import './App.css';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
 function App() {
-    const [startDraw, setStartDraw] = useState<Draw>();
     const viewerRef = useRef<Cesium.Viewer | null>(null);
+    const slopeDirectionAnalysis = useSlopeDirectionAnalysis(viewerRef.current);
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -35,20 +35,19 @@ function App() {
             ),
             duration: 2.0,
         });
-
-        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        const draw = new Draw(viewer, handler);
-        setStartDraw(draw);
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
+        if (viewerRef.current) {
+            slopeDirectionAnalysis.setInstance(viewer);
+        }
     };
 
     const handleDraw = () => {
-        startDraw?.active();
+        slopeDirectionAnalysis?.active();
     };
 
     const handleClear = () => {
-        startDraw?.radii(1000);
-        // startDraw?.clear();
+        // startDraw?.radii(1000);
+        slopeDirectionAnalysis?.clear();
     };
 
     return (

@@ -9,6 +9,7 @@ export default class SloopAspectAnalysis {
     positionAry: Cesium.Cartesian3[];
     private arrowWidth?: number;
     private result: Cesium.Primitive[];
+
     constructor(
         viewer: Cesium.Viewer,
         polygon: Cesium.Entity,
@@ -17,12 +18,14 @@ export default class SloopAspectAnalysis {
     ) {
         this.viewer = viewer;
         this.polygon = polygon;
-        this.distance = distance || 0.1;
+        this.distance = distance || 20;
         this.positionAry = positionAry;
         this.result = [];
     }
 
     add = () => {
+        this.clear();
+
         const degrees = this.cartesian3ListToWGS84(this.positionAry);
         this.viewer.entities.remove(this.polygon);
         const boundary = [];
@@ -59,6 +62,12 @@ export default class SloopAspectAnalysis {
 
         this.createEllipse(gridSquare);
     };
+
+    clear() {
+        this.result.forEach((primitive ) => {
+            this.viewer.scene.primitives.remove(primitive);
+        });
+    }
 
     /**
      * 笛卡尔坐标数组转WGS84

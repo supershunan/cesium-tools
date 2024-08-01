@@ -1,6 +1,6 @@
 {
   "name": "cesium-tools",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "cesium工具包",
   "type": "module",
   "scripts": {
@@ -28,4 +28,4 @@
     "typescript": "^5.2.2",
     "vite": "^5.3.4"
   }
-};
+}

@@ -5,8 +5,8 @@ interface ViewerWithElement extends Cesium.Viewer {
 }
 
 export default abstract class MouseDrawBase {
-    viewer: Cesium.Viewer;
-    handler: Cesium.ScreenSpaceEventHandler;
+    protected viewer: Cesium.Viewer;
+    protected handler: Cesium.ScreenSpaceEventHandler;
 
     constructor(
         viewer: Cesium.Viewer,
@@ -19,11 +19,10 @@ export default abstract class MouseDrawBase {
     active(): void {
         this.deactivate();
         this.registerEvents();
-        (this.viewer as ViewerWithElement)._element.style.cursor = 'crosshair';
     }
 
     deactivate(): void {
-        (this.viewer as ViewerWithElement)._element.style.cursor = 'default';
+        // TODO: over event
     }
 
     clear(): void {
@@ -31,19 +30,20 @@ export default abstract class MouseDrawBase {
         this.deactivate();
     }
 
-    leftClickEvent(): void {
+    protected leftClickEvent(): void {
         // TODO: Implement left click event
     }
-    rightClickEvent(): void {
+    protected rightClickEvent(): void {
         // TODO: Implement right click event
     }
 
-    mouseMoveEvent(): void {
+    protected mouseMoveEvent(): void {
         // TODO: Implement mouse move event
     }
 
     /** 注册鼠标事件 */
     protected registerEvents(): void {
+        (this.viewer as ViewerWithElement)._element.style.cursor = 'crosshair';
         this.leftClickEvent();
         this.rightClickEvent();
         this.mouseMoveEvent();
@@ -51,6 +51,7 @@ export default abstract class MouseDrawBase {
 
     /** 解除鼠标事件 */
     protected unRegisterEvents(): void {
+        (this.viewer as ViewerWithElement)._element.style.cursor = 'default';
         this.handler.removeInputAction(Cesium.ScreenSpaceEventType.LEFT_CLICK);
         this.handler.removeInputAction(Cesium.ScreenSpaceEventType.RIGHT_CLICK);
         this.handler.removeInputAction(Cesium.ScreenSpaceEventType.MOUSE_MOVE);

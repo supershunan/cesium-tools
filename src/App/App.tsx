@@ -1,14 +1,14 @@
 import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
-import { useEffect, useRef, useState } from 'react';
-import useSlopeDirectionAnalysis from '@tools/slopeDirectionAnalysis/index';
+import { useEffect, useRef } from 'react';
+import useVisualFieldAnalysis from '@tools/visualFieldAnalysis/index';
 import './App.css';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
 function App() {
     const viewerRef = useRef<Cesium.Viewer | null>(null);
-    const slopeDirectionAnalysis = useSlopeDirectionAnalysis(viewerRef.current);
+    const slopeDirectionAnalysis = useVisualFieldAnalysis();
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -48,6 +48,7 @@ function App() {
     const handleClear = () => {
         // startDraw?.radii(1000);
         slopeDirectionAnalysis?.clear();
+        slopeDirectionAnalysis?.setViewShedOptions({});
     };
 
     return (

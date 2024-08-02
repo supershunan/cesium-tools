@@ -1,5 +1,6 @@
 import glsl from './glsl';
 import * as Cesium from 'cesium';
+import { ViewShedOptions } from './type';
 
 class ViewShed {
     /** Cesium三维视窗 */
@@ -9,11 +10,11 @@ class ViewShed {
     /** 结束坐标 */
     viewPositionEnd: Cesium.Cartesian3;
     /** 观测距离（单位`米`，默认值100）*/
-    viewDistance: number;
+    private viewDistance: number;
     /** 航向角（单位`度`，默认值0） */
-    viewHeading: number;
+    private viewHeading: number;
     /** 俯仰角（单位`度`，默认值0） */
-    viewPitch: number;
+    private viewPitch: number;
     /** 可视域水平夹角（单位`度`，默认值90） */
     horizontalViewAngle: number;
     /** 可视域垂直夹角（单位`度`，默认值60） */
@@ -30,13 +31,13 @@ class ViewShed {
     size: number;
     /** 视锥线，是否显示 */
     isSketch: boolean;
-    sketch: any;
-    frustumOutline: any;
-    postStage: any;
-    lightCamera?: Cesium.Camera;
-    shadowMap: Cesium.ShadowMap;
+    private sketch?: Cesium.Entity;
+    private frustumOutline?: Cesium.Primitive;
+    private postStage?: Cesium.PostProcessStage | Cesium.PostProcessStageComposite;
+    private lightCamera?: Cesium.Camera;
+    private shadowMap?: Cesium.ShadowMap;
 
-    constructor(viewer: Cesium.Viewer, options: any) {
+    constructor(viewer: Cesium.Viewer, options: ViewShedOptions) {
         this.viewer = viewer;
         this.viewPosition = options.viewPosition;
         this.viewPositionEnd = options.viewPositionEnd;
@@ -102,29 +103,29 @@ class ViewShed {
     clear() {
         if (this.sketch) {
             this.viewer.entities.remove(this.sketch);
-            this.sketch = null;
+            this.sketch = undefined;
         }
         if (this.frustumOutline) {
             this.viewer.scene.primitives.destroy();
-            this.frustumOutline = null;
+            this.frustumOutline = undefined;
         }
         if (this.postStage) {
             this.viewer.scene.postProcessStages.remove(this.postStage);
-            this.postStage = null;
+            this.postStage = undefined;
         }
     }
 
-    clearSketch() {
+    private clearSketch() {
         if (this.sketch) {
             this.viewer.entities.remove(this.sketch);
-            this.sketch = null;
+            this.sketch = undefined;
         }
     }
 
     /**
      * @method 创建相机
      */
-    createLightCamera() {
+    private createLightCamera() {
         this.lightCamera = new Cesium.Camera(this.viewer.scene);
         this.lightCamera.position = this.viewPosition;
         if (!this.viewDistance) return;
@@ -156,7 +157,7 @@ class ViewShed {
     /**
      * @method 创建阴影贴图
      */
-    createShadowMap() {
+    private createShadowMap() {
         const shadowOption = {
             context: this.viewer.scene.context,
             lightCamera: this.lightCamera as Cesium.Camera,
@@ -177,7 +178,7 @@ class ViewShed {
      * @method 创建PostStage
      * 导入的glsl是做片元着色的
      */
-    createPostStage() {
+    private createPostStage() {
         const fs = glsl;
         const postStage = new Cesium.PostProcessStage({
             fragmentShader: fs, // 要使用的片段着色器
@@ -249,7 +250,7 @@ class ViewShed {
     /**
      * @method 创建视锥线
      */
-    drawFrustumOutline() {
+    private drawFrustumOutline() {
         const scratchRight = new Cesium.Cartesian3();
         const scratchRotation = new Cesium.Matrix3();
         const scratchOrientation = new Cesium.Quaternion();
@@ -296,25 +297,24 @@ class ViewShed {
      * @method 创建视网
      * 在实时绘制椭球实体时，其实不是一直创建entity，而是改变实体的方向(orientation)和改变椭球的半径(radii)
      */
-    drawSketch() {
+    private drawSketch() {
         // 添加实例
         this.sketch = this.viewer.entities.add({
             name: 'sketch',
             position: new Cesium.CallbackProperty(() => {
                 return this.viewPosition;
             }, false), // 动态属性 获取或设置位置
-            orientation: new Cesium.CallbackProperty(() =>
+            orientation: new Cesium.CallbackProperty(() => {
                 // 获取或设置相对于地形引力的方向，默认实体位置的东北向上
-                {
-                    return Cesium.Transforms.headingPitchRollQuaternion(
-                        this.viewPosition,
-                        Cesium.HeadingPitchRoll.fromDegrees(
-                            this.viewHeading - 90.0,
-                            this.viewPitch,
-                            0.0
-                        )
-                    );
-                }, false),
+                return Cesium.Transforms.headingPitchRollQuaternion(
+                    this.viewPosition,
+                    Cesium.HeadingPitchRoll.fromDegrees(
+                        this.viewHeading - 90.0,
+                        this.viewPitch,
+                        0.0
+                    )
+                );
+            }, false),
             ellipsoid: {
                 // 获取或设置椭圆体
                 radii: new Cesium.CallbackProperty(() => {
@@ -350,7 +350,7 @@ class ViewShed {
     /**
      * @method 获取偏航角
      */
-    getHeading(fromPosition: Cesium.Cartesian3, toPosition: Cesium.Cartesian3) {
+    private getHeading(fromPosition: Cesium.Cartesian3, toPosition: Cesium.Cartesian3) {
         const finalPosition = new Cesium.Cartesian3();
         const matrix4 = Cesium.Transforms.eastNorthUpToFixedFrame(fromPosition);
         Cesium.Matrix4.inverse(matrix4, matrix4);
@@ -364,7 +364,7 @@ class ViewShed {
     /**
      * @method 获取俯仰角
      */
-    getPitch(fromPosition: Cesium.Cartesian3, toPosition: Cesium.Cartesian3) {
+    private getPitch(fromPosition: Cesium.Cartesian3, toPosition: Cesium.Cartesian3) {
         const finalPosition = new Cesium.Cartesian3();
         const matrix4 = Cesium.Transforms.eastNorthUpToFixedFrame(fromPosition);
         Cesium.Matrix4.inverse(matrix4, matrix4);

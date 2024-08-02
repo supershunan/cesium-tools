@@ -12,7 +12,7 @@ export default class Draw extends MouseEvent {
     protected handler: Cesium.ScreenSpaceEventHandler;
     /** 网格切割的精度 单位(km) 最小为20 精度越大越消耗性能 */
     distance: number;
-    private slopeAspectAnalysis?: SloopAspectAnalysis;
+    slopeAspectAnalysis?: SloopAspectAnalysis;
     private positionAry: Cesium.Cartesian3[] = [];
     private tempPositionAry: Cesium.Cartesian3 | undefined;
     private polygonEntity?: Cesium.Entity | undefined;

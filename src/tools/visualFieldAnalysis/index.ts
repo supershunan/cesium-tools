@@ -1,27 +1,21 @@
 import * as Cesium from 'cesium';
 import Draw from './draw';
-import SloopAspectAnalysis from './slopeDerectiontAnalysis';
+import ViewShed from './visualFieldAnalysis';
+import { ViewShedOptionalOptions } from './type';
 
-interface SlopDerectionAnalysis {
+
+interface VisualFieldAnalysis {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
     setInstance: (viewer: Cesium.Viewer) =>void;
-    getInstance: () => SloopAspectAnalysis | null;
-    /** 设置网格切割的精度 单位(km) 最小为20 精度越大越消耗性能 */
-    setDistance: (value: number) => void;
+    getInstance: () => ViewShed | null;
+    /** 设置同事分析部分开外放参数 */
+    setViewShedOptions: (options: ViewShedOptionalOptions) => void;
 }
 
-type Minimum20 = number & { __minimum20__: void };
-
-function ensureMinimum20(value: number): asserts value is Minimum20 {
-    if (value < 20) {
-        throw new Error('坡向分析的精度最小为20km');
-    }
-}
-
-/** 坡向分析 */
-export default function useSlopDerectionAnalysis(): SlopDerectionAnalysis {
+/** 通视分析 */
+export default function useVisualFieldAnalysis(): VisualFieldAnalysis {
     let instance: Draw | null = null;
 
     function getInstance(viewer?: Cesium.Viewer): Draw | null {
@@ -48,16 +42,15 @@ export default function useSlopDerectionAnalysis(): SlopDerectionAnalysis {
         setInstance: (viewer: Cesium.Viewer) => {
             getInstance(viewer);
         },
-        getInstance: () => {
+        getInstance: (): ViewShed | null => {
             const draw = getInstance();
-            return draw?.slopeAspectAnalysis ? draw?.slopeAspectAnalysis : null;
+            return draw?.drawViewshedEntity ? draw.drawViewshedEntity : null;
         },
-        setDistance: (value: number) => {
-            ensureMinimum20(value);
+        setViewShedOptions: (options: ViewShedOptionalOptions) => {
             const draw = getInstance();
             if (draw) {
-                draw.distance = value;
+                draw.setViewShedOptions(options);
             }
-        },
+        }
     };
 }

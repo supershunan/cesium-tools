@@ -1,12 +1,7 @@
 import * as Cesium from 'cesium';
 import VisibilityAnalysis from './visibilityAnalysis';
 import MouseEvent from '../mouseBase/mouseBase';
-
-enum CurrentCountEnum {
-    padding,
-    start,
-    end,
-}
+import { CurrentCountEnum } from '@src/type/enum';
 export default class Draw extends MouseEvent {
     viewer: Cesium.Viewer;
     handler: Cesium.ScreenSpaceEventHandler;

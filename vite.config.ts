@@ -12,4 +12,18 @@ export default defineConfig({
             '@components': path.resolve(__dirname, './src/components')
           }
     },
+    build: {
+        rollupOptions: {
+            input: path.resolve(__dirname, './src/index.ts'),
+            output: {
+            file: path.resolve(__dirname, './dist/cesium-tools.min.js'),
+            format: 'umd',
+            name: 'CesiumToolsFXT',
+            globals: {
+                'cesium': 'Cesium',
+                'react': 'React'
+            }
+            }
+        }
+    }
 });

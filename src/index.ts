@@ -1,5 +1,7 @@
-import SloopAspectAnalysis from '@tools/slopeDirectionAnalysis/slopeDerectiontAnalysis';
+import useSlopeDirectionAnalysis from '@tools/slopeDirectionAnalysis/index';
+import useVisualFieldAnalysis from '@tools/visualFieldAnalysis/index';
 
 export {
-    SloopAspectAnalysis
+    useSlopeDirectionAnalysis,
+    useVisualFieldAnalysis
 };

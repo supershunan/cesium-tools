@@ -1,5 +1,8 @@
 {
   "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
     "composite": true,
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2020",
@@ -33,7 +36,7 @@
 
     "typeRoots": [
         "node_modules/@types"
-    ]
+    ],
   },
   "include": ["src"]
 }

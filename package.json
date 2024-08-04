@@ -1,11 +1,12 @@
 {
   "name": "cesium-tools-fxt",
-  "version": "1.0.1",
+  "version": "1.0.4",
   "description": "cesium工具包",
   "type": "module",
+  "main": "dist/cesium-tools.min.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },

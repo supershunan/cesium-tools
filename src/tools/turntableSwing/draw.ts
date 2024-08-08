@@ -2,19 +2,35 @@ import * as Cesium from 'cesium';
 import TurntableSwing from './turntableSwing';
 import MouseEvent from '../mouseBase/mouseBase';
 
+interface Params {
+    /** 扫描速度 */
+    speed?: number;
+    /**
+     * false: 回摆模式
+     * true: 重复模式
+     */
+    loop?: boolean;
+    /** 摆动角度,默认 180 度 */
+    maxAngle?: number;
+    /** 回摆方向 */
+    up?: boolean;
+}
 export default class Draw extends MouseEvent {
-    viewer: Cesium.Viewer;
-    handler: Cesium.ScreenSpaceEventHandler;
-    TurntableSwing: TurntableSwing | undefined;
+    protected viewer: Cesium.Viewer;
+    protected handler: Cesium.ScreenSpaceEventHandler;
+    params?: Params = undefined;
+    turntableSwing: TurntableSwing | undefined;
     pointEntity: Cesium.Entity | undefined;
 
     constructor(
         viewer: Cesium.Viewer,
-        handler: Cesium.ScreenSpaceEventHandler
+        handler: Cesium.ScreenSpaceEventHandler,
+        params?: Params
     ) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
+        this.params = params;
     }
 
     active(): void {
@@ -23,50 +39,54 @@ export default class Draw extends MouseEvent {
     }
 
     deactivate(): void {
+        this.turntableSwing?.clear();
         this.unRegisterEvents();
     }
 
-    leftClickEvent() {
+    protected leftClickEvent() {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
-            this.TurntableSwing = new TurntableSwing(this.viewer, currentPosition);
-            this.TurntableSwing.add();
-            this.TurntableSwing.radii(200);
+            this.turntableSwing = new TurntableSwing(
+                this.viewer,
+                currentPosition,
+                this.params
+            );
+            this.turntableSwing.add();
+            this.turntableSwing.radii(200);
 
-            this.deactivate();
+            this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 
     /** 左偏角值 */
     minimumClock(val: number) {
-        this.TurntableSwing?.minimumClock(val);
+        this.turntableSwing?.minimumClock(val);
     }
 
     /** 右偏角值 */
     maximumClock(val: number) {
-        this.TurntableSwing?.maximumClock(val);
+        this.turntableSwing?.maximumClock(val);
     }
 
     /** 外径大小 */
     radii(val: number) {
-        this.TurntableSwing?.radii(val);
+        this.turntableSwing?.radii(val);
     }
 
     /** 内径大小 */
     innerRadii(val: number) {
-        this.TurntableSwing?.innerRadii(val);
+        this.turntableSwing?.innerRadii(val);
     }
 
     /** 填充色 rgba */
     fillColor(val: string) {
-        this.TurntableSwing?.fillColor(val);
+        this.turntableSwing?.fillColor(val);
     }
 
     /** 边框色 rgba */
     outlineColor(val: string) {
-        this.TurntableSwing?.outlineColor(val);
+        this.turntableSwing?.outlineColor(val);
     }
 }

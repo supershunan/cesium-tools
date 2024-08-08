@@ -26,8 +26,15 @@ export default class VisibilityAnalysis {
     }
 
     update(): void {
-        this.clearLines();
+        this.clear();
         this.createRay();
+    }
+
+    clear(): void {
+        this.lineEntities.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
+        this.lineEntities = [];
     }
 
     updatePosition(endPosition: Cesium.Cartesian3): void {
@@ -82,12 +89,5 @@ export default class VisibilityAnalysis {
             },
         });
         this.lineEntities.push(lineEntity);
-    }
-
-    private clearLines(): void {
-        this.lineEntities.forEach((entity) => {
-            this.viewer.entities.remove(entity);
-        });
-        this.lineEntities = [];
     }
 }

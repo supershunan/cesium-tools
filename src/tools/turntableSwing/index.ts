@@ -1,37 +1,26 @@
 import * as Cesium from 'cesium';
 import Draw from './draw';
 import TurntableSwing from './turntableSwing';
-
-interface Params {
-    /** 扫描速度 */
-    speed?: number;
-    /**
-     * false: 回摆模式
-     * true: 重复模式
-     */
-    loop?: boolean;
-    /** 摆动角度,默认 180 度 */
-    maxAngle?: number;
-    /** 回摆方向 */
-    up?: boolean;
-}
+import { TurntableParams, GlobalTurntableMethods } from './type';
 
 interface TurntableSwingProps {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
-    setInstance: (viewer: Cesium.Viewer) =>void;
+    setInstance: (viewer: Cesium.Viewer, turntableParams?: TurntableParams) =>void;
     getInstance: () => TurntableSwing | null;
+    /** 返回所有可以对转角操作的方法 */
+    globalTurntableMethod: () => GlobalTurntableMethods | null;
 }
 
-/** 透视分析 */
-export default function useVisibilityAnalysis(): TurntableSwingProps {
+/** 模拟雷达转台旋转分析 */
+export default function useTurntableSwing(): TurntableSwingProps {
     let instance: Draw | null = null;
 
-    function getInstance(viewer?: Cesium.Viewer, params?: Params): Draw | null {
+    function getInstance(viewer?: Cesium.Viewer, turntableParams?: TurntableParams): Draw | null {
         if (!instance && viewer) {
             const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-            instance = new Draw(viewer, handler, params);
+            instance = new Draw(viewer, handler, turntableParams);
         }
         return instance;
     }
@@ -49,12 +38,19 @@ export default function useVisibilityAnalysis(): TurntableSwingProps {
             const draw = getInstance();
             draw?.clear();
         },
-        setInstance: (viewer: Cesium.Viewer, params?: Params) => {
-            getInstance(viewer, params);
+        setInstance: (viewer: Cesium.Viewer, turntableParams?: TurntableParams) => {
+            getInstance(viewer, turntableParams);
         },
         getInstance: () => {
             const draw = getInstance();
             return draw?.turntableSwing ? draw?.turntableSwing : null;
         },
+        globalTurntableMethod: (): GlobalTurntableMethods | null => {
+            const draw = getInstance();
+            if (draw) {
+                return draw.globalTurntableMethods();
+            }
+            return null;
+        }
     };
 }

@@ -1,36 +1,24 @@
 import * as Cesium from 'cesium';
 import TurntableSwing from './turntableSwing';
 import MouseEvent from '../mouseBase/mouseBase';
+import { TurntableParams, GlobalTurntableMethods } from './type';
 
-interface Params {
-    /** 扫描速度 */
-    speed?: number;
-    /**
-     * false: 回摆模式
-     * true: 重复模式
-     */
-    loop?: boolean;
-    /** 摆动角度,默认 180 度 */
-    maxAngle?: number;
-    /** 回摆方向 */
-    up?: boolean;
-}
 export default class Draw extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
-    params?: Params = undefined;
+    turntableParams?: TurntableParams = undefined;
     turntableSwing: TurntableSwing | undefined;
     pointEntity: Cesium.Entity | undefined;
 
     constructor(
         viewer: Cesium.Viewer,
         handler: Cesium.ScreenSpaceEventHandler,
-        params?: Params
+        turntableParams?: TurntableParams
     ) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
-        this.params = params;
+        this.turntableParams = turntableParams;
     }
 
     active(): void {
@@ -51,7 +39,7 @@ export default class Draw extends MouseEvent {
             this.turntableSwing = new TurntableSwing(
                 this.viewer,
                 currentPosition,
-                this.params
+                this.turntableParams
             );
             this.turntableSwing.add();
             this.turntableSwing.radii(200);
@@ -61,32 +49,43 @@ export default class Draw extends MouseEvent {
     }
 
     /** 左偏角值 */
-    minimumClock(val: number) {
+    private minimumClock(val: number) {
         this.turntableSwing?.minimumClock(val);
     }
 
     /** 右偏角值 */
-    maximumClock(val: number) {
+    private maximumClock(val: number) {
         this.turntableSwing?.maximumClock(val);
     }
 
     /** 外径大小 */
-    radii(val: number) {
+    private radii(val: number) {
         this.turntableSwing?.radii(val);
     }
 
     /** 内径大小 */
-    innerRadii(val: number) {
+    private innerRadii(val: number) {
         this.turntableSwing?.innerRadii(val);
     }
 
     /** 填充色 rgba */
-    fillColor(val: string) {
+    private fillColor(val: string) {
         this.turntableSwing?.fillColor(val);
     }
 
     /** 边框色 rgba */
-    outlineColor(val: string) {
+    private outlineColor(val: string) {
         this.turntableSwing?.outlineColor(val);
+    }
+
+    globalTurntableMethods(): GlobalTurntableMethods {
+        return {
+            minimumClock: this.minimumClock.bind(this),
+            maximumClock: this.maximumClock.bind(this),
+            radii: this.radii.bind(this),
+            innerRadii: this.innerRadii.bind(this),
+            fillColor: this.fillColor.bind(this),
+            outlineColor: this.outlineColor.bind(this),
+        };
     }
 }

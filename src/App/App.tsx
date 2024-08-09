@@ -1,14 +1,15 @@
 import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
-import { useEffect, useRef } from 'react';
-import useVisibilityAnalysis from '@tools/turntableSwing/index';
+import { useEffect, useRef, useState } from 'react';
+import LengthMeasurement from '@tools/measure/lengthMeasurement';
 import './App.css';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
 function App() {
     const viewerRef = useRef<Cesium.Viewer | null>(null);
-    const slopeDirectionAnalysis = useVisibilityAnalysis();
+    // const turntableSwing = useTurntableSwing();
+    const [measure, setMeasure] = useState();
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -36,17 +37,22 @@ function App() {
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
+        const measure = new LengthMeasurement(viewer, new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas));
+        setMeasure(measure);
         if (viewerRef.current) {
-            slopeDirectionAnalysis.setInstance(viewer);
+            // turntableSwing.setInstance(viewer);
         }
     };
 
     const handleDraw = () => {
-        slopeDirectionAnalysis?.active();
+        // turntableSwing?.active();
+        measure.active();
     };
 
     const handleClear = () => {
-        slopeDirectionAnalysis?.clear();
+        // turntableSwing?.clear();
+        // const globalMethod = turntableSwing.globalTurntableMethod();
+        // globalMethod?.fillColor('white');
     };
 
     return (

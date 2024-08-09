@@ -1,25 +1,12 @@
 import * as Cesium from 'cesium';
-
-interface Params {
-    /** 扫描速度 */
-    speed?: number;
-    /**
-     * false: 回摆模式
-     * true: 重复模式
-     */
-    loop?: boolean;
-    /** 摆动角度,默认 180 度 */
-    maxAngle?: number;
-    /** 回摆方向 */
-    up?: boolean;
-}
+import { TurntableParams } from './type';
 
 
 /** 模拟雷达转台旋转 */
 export default class TurntableSwing {
     viewer: Cesium.Viewer;
     position: Cesium.Cartesian3;
-    params?: Params;
+    turntableParams?: TurntableParams;
     radarEntity?: Cesium.Entity;
     /** 扫描速度 */
     speed: number = 0.2;
@@ -31,15 +18,15 @@ export default class TurntableSwing {
     /** 摆动角度,默认 180 度 */
     maxAngle: number = 180;
     /** 回摆方向 */
-    up: boolean = true;
+    up: boolean = false;
 
-    constructor(viewer: Cesium.Viewer, position: Cesium.Cartesian3, params?: Params) {
+    constructor(viewer: Cesium.Viewer, position: Cesium.Cartesian3, turntableParams?: TurntableParams) {
         this.viewer = viewer;
         this.position = position;
-        this.speed = this.params?.speed ?? this.speed;
-        this.loop = this.params?.loop ?? this.loop;
-        this.maxAngle = this.params?.maxAngle ?? this.maxAngle;
-        this.up = this.params?.up ?? this.up;
+        this.speed = turntableParams?.speed ?? this.speed;
+        this.loop = turntableParams?.loop ?? this.loop;
+        this.maxAngle = turntableParams?.maxAngle ?? this.maxAngle;
+        this.up = turntableParams?.up ?? this.up;
     }
 
     add(): void {

@@ -7,3 +7,8 @@ export enum CurrentCountEnum {
     /** 第二次点击 */
     end,
 }
+
+export enum MouseStatusEnum {
+    click = 'click',
+    move = 'move',
+}

@@ -50,7 +50,7 @@ function App() {
     };
 
     const handleClear = () => {
-        // turntableSwing?.clear();
+        measure?.clear();
         // const globalMethod = turntableSwing.globalTurntableMethod();
         // globalMethod?.fillColor('white');
     };

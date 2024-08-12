@@ -1,4 +1,4 @@
-/* eslint-disable id-length */
+import * as Cesium from 'cesium';
 
 /** 鞋带（Shoelace）公式计算面积 */
 const polygonArea = (points) => {
@@ -17,22 +17,14 @@ const polygonArea = (points) => {
   /**
    * 获取球体曲面两点的距离-3d
    * @param {*} Cesium cesium 实例
-   * @param {number[]} start 开始点
-   * @param {number[]} end 结束点
+   * @param start 开始点
+   * @param end 结束点
    * @returns { number } 测地距
    */
-  export const compute_geodesicaDistance_3d = (Cesium, start, end) => {
+  export const compute_geodesicaDistance_3d = (Cesium: typeof import('cesium'), start: Cesium.Cartesian3, end: Cesium.Cartesian3): number => {
     const { Ellipsoid, EllipsoidGeodesic } = Cesium;
-    const pickedPointCartographic = Ellipsoid.WGS84.cartesianToCartographic({
-      x: start[0],
-      y: start[1],
-      z: start[2],
-    });
-    const lastPointCartographic = Ellipsoid.WGS84.cartesianToCartographic({
-      x: end[0],
-      y: end[1],
-      z: end[2],
-    });
+    const pickedPointCartographic = Ellipsoid.WGS84.cartesianToCartographic(start);
+    const lastPointCartographic = Ellipsoid.WGS84.cartesianToCartographic(end);
     const geodesic = new EllipsoidGeodesic(pickedPointCartographic, lastPointCartographic);
     return geodesic.surfaceDistance;
   };
@@ -40,14 +32,12 @@ const polygonArea = (points) => {
   /**
    * 获取球体平面两点的距离-2d
    * @param {*} Cesium cesium 实例
-   * @param {number[]} start 开始点
-   * @param {number[]} end 结束点
+   * @param start 开始点
+   * @param end 结束点
    * @returns { number } 平面距离
    */
-  export const compute_placeDistance_2d = (Cesium, start, end) => {
-    const left = new Cesium.Cartesian3(start[0], start[1], start[2]);
-    const right = new Cesium.Cartesian3(end[0], end[1], end[2]);
-    const distance = Cesium.Cartesian2.distance(left, right);
+  export const compute_placeDistance_2d = (Cesium: typeof import('cesium'), start: Cesium.Cartesian3, end: Cesium.Cartesian3): number => {
+    const distance = Cesium.Cartesian2.distance(start, end);
     return distance;
   };
 
@@ -57,7 +47,7 @@ const polygonArea = (points) => {
    * @param {{ x: number, y: number, z: number }} positions 笛卡尔3d坐标
    * @returns {number} 曲面面积
    */
-  export const compute_3DPolygonArea = (Cesium, positions) => {
+  export const compute_3DPolygonArea = (Cesium: typeof import('cesium'), positions) => {
     if (positions.length < 3) {
       return 0;
     }

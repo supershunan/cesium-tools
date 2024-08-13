@@ -47,7 +47,7 @@ const polygonArea = (points) => {
    * @param {{ x: number, y: number, z: number }} positions 笛卡尔3d坐标
    * @returns {number} 曲面面积
    */
-  export const compute_3DPolygonArea = (Cesium: typeof import('cesium'), positions) => {
+  export const compute_3DPolygonArea = (Cesium: typeof import('cesium'), positions: Cesium.Cartesian3[]) => {
     if (positions.length < 3) {
       return 0;
     }
@@ -85,7 +85,7 @@ const polygonArea = (points) => {
    * @param {{ x: number, y: number, z: number }} positions 笛卡尔3d坐标
    * @returns {number} 平面面积
    */
-  export const compute_2DPolygonArea = (positions) => {
+  export const compute_2DPolygonArea = (positions: Cesium.Cartesian3[]) => {
     const projected = positions.map((pos) => {
       return [pos.x, pos.y];
     });

@@ -4,22 +4,20 @@ import {
     compute_geodesicaDistance_3d,
     compute_placeDistance_2d,
 } from './compute';
-import { MeasureMentTypeEnum } from './type';
 import { MouseStatusEnum } from '@src/type/enum';
 
 export default class LengthMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
-    measureType: MeasureMentTypeEnum;
     private pointEntityAry: Cesium.Entity[];
     private lineEntityAry: Cesium.Entity[];
     private tipEntity: Cesium.Entity | undefined = undefined;
     private positonsAry: Cesium.Cartesian3[] = [];
-    polyRayAry: Cesium.Entity[];
-    currentMouseType: string;
-    polyTipAry: Cesium.Entity[];
-    distanceAry: { distance2d: number; distance3d: number }[];
-    polylineTip: Cesium.Entity | undefined = undefined;
+    private polyRayAry: Cesium.Entity[];
+    private currentMouseType: string;
+    private polyTipAry: Cesium.Entity[];
+    private distanceAry: { distance2d: number; distance3d: number }[];
+    private polylineTip: Cesium.Entity | undefined = undefined;
 
     constructor(
         viewer: Cesium.Viewer,
@@ -28,7 +26,6 @@ export default class LengthMeasurement extends MouseEvent {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
-        this.measureType = MeasureMentTypeEnum.distance;
         this.pointEntityAry = [];
         this.lineEntityAry = [];
         this.positonsAry = [];

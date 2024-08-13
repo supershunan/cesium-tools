@@ -1,7 +1,7 @@
 import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
 import { useEffect, useRef, useState } from 'react';
-import LengthMeasurement from '@tools/measure/lengthMeasurement';
+import AreaMeasurement from '@tools/measure/areaMeasurement';
 import './App.css';
 
 window.CESIUM_BASE_URL = '/Cesium/';
@@ -30,14 +30,14 @@ function App() {
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
         viewer.scene.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(
-                122.0708,
-                37.4199,
+                108.976043,
+                34.213954,
                 10000.0
             ),
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
-        const measure = new LengthMeasurement(viewer, new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas));
+        const measure = new AreaMeasurement(viewer, new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas));
         setMeasure(measure);
         if (viewerRef.current) {
             // turntableSwing.setInstance(viewer);
@@ -50,7 +50,7 @@ function App() {
     };
 
     const handleClear = () => {
-        measure?.clear();
+        // turntableSwing?.clear();
         // const globalMethod = turntableSwing.globalTurntableMethod();
         // globalMethod?.fillColor('white');
     };

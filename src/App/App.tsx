@@ -1,14 +1,14 @@
 import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
 import { useEffect, useRef, useState } from 'react';
-import AreaMeasurement from '@tools/measure/areaMeasurement';
+import useMeasure from '@tools/measure/index';
 import './App.css';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
 function App() {
     const viewerRef = useRef<Cesium.Viewer | null>(null);
-    // const turntableSwing = useTurntableSwing();
+    const { measureDistance, measureArea, measureAngle } = useMeasure();
     const [measure, setMeasure] = useState();
 
     useEffect(() => {
@@ -32,24 +32,26 @@ function App() {
             destination: Cesium.Cartesian3.fromDegrees(
                 108.976043,
                 34.213954,
-                10000.0
+                1000.0
             ),
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
-        const measure = new AreaMeasurement(viewer, new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas));
-        setMeasure(measure);
+        // const measure = new AreaMeasurement(viewer, new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas));
+        // setMeasure(measure);
         if (viewerRef.current) {
             // turntableSwing.setInstance(viewer);
         }
     };
 
     const handleDraw = () => {
+        measureDistance(viewerRef.current).active()
         // turntableSwing?.active();
-        measure.active();
+        // measure.active();
     };
 
     const handleClear = () => {
+        // measure.clear()
         // turntableSwing?.clear();
         // const globalMethod = turntableSwing.globalTurntableMethod();
         // globalMethod?.fillColor('white');

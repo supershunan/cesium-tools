@@ -1,85 +1,50 @@
 import * as Cesium from 'cesium';
 import LengthMeasurement from './lengthMeasurement';
 import AreaMeasurement from './areaMeasurement';
-import AngleMeasurement from './angleMeasure';
+import AngleMeasurement from './angleMeasurement';
+
+interface MeasurementActions {
+    /** 激活 */
+    active: () => void;
+    /** 注销 */
+    deactivate: () => void;
+    /** 清除图层 */
+    clear: () => void;
+}
 
 interface Measure {
     /** 距离测量 */
-    measureDistance: (viewer: Cesium.Viewer) => {
-        active: () => void;
-        deactivate: () => void;
-        clear: () => void;
-    }
-    /** 距离面积 */
-    measureArea: (viewer: Cesium.Viewer) => {
-        active: () => void;
-        deactivate: () => void;
-        clear: () => void;
-    }
-    /** 距离角度 */
-    measureAngle: (viewer: Cesium.Viewer) => {
-        active: () => void;
-        deactivate: () => void;
-        clear: () => void;
-    }
+    measureDistance: () => MeasurementActions;
+    /** 面积测量 */
+    measureArea: () => MeasurementActions;
+    /** 角度测量 */
+    measureAngle: () => MeasurementActions;
 }
-export default function useMeasure(): Measure {
-    const measureDistance = (viewer: Cesium.Viewer) => {
-        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        const lengthMeasurement = new LengthMeasurement(viewer, handler);
+
+export default function useMeasure(viewer: Cesium.Viewer): Measure {
+    // 通用的创建测量方法
+    const createMeasurement = (MeasurementClass: new (viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) => MeasurementActions): MeasurementActions => {
+        const handler = new Cesium.ScreenSpaceEventHandler(viewer?.scene.canvas);
+        const measurement = new MeasurementClass(viewer, handler);
 
         return {
             active: () => {
-                lengthMeasurement.active();
+                measurement.active();
             },
             deactivate: () => {
-                lengthMeasurement.deactivate();
+                measurement.deactivate();
                 handler.destroy();
             },
             clear: () => {
-                lengthMeasurement.clear();
-                handler.destroy();
+                measurement.clear();
             }
         };
     };
 
-    const measureArea = (viewer: Cesium.Viewer) => {
-        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        const lengthMeasurement = new AreaMeasurement(viewer, handler);
-
-        return {
-            active: () => {
-                lengthMeasurement.active();
-            },
-            deactivate: () => {
-                lengthMeasurement.deactivate();
-                handler.destroy();
-            },
-            clear: () => {
-                lengthMeasurement.clear();
-                handler.destroy();
-            }
-        };
-    };
-
-    const measureAngle = (viewer: Cesium.Viewer) => {
-        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        const lengthMeasurement = new AngleMeasurement(viewer, handler);
-
-        return {
-            active: () => {
-                lengthMeasurement.active();
-            },
-            deactivate: () => {
-                lengthMeasurement.deactivate();
-                handler.destroy();
-            },
-            clear: () => {
-                lengthMeasurement.clear();
-                handler.destroy();
-            }
-        };
-    };
+    // 使用通用方法创建不同的测量类型
+    const measureDistance = () => {return createMeasurement(LengthMeasurement);};
+    const measureArea = () => {return createMeasurement(AreaMeasurement);};
+    const measureAngle = () => {return createMeasurement(AngleMeasurement);};
 
     return { measureDistance, measureArea, measureAngle };
 }

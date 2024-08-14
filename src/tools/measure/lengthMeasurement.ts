@@ -47,23 +47,23 @@ export default class LengthMeasurement extends MouseEvent {
     }
 
     clear(): void {
+        this.positonsAry = [];
+        this.distanceAry = [];
+        this.currentMouseType = '';
+        this.tipEntity && this.viewer.entities.remove(this.tipEntity);
+        this.polylineTip && this.viewer.entities.remove(this.polylineTip);
         this.pointEntityAry.forEach((entity) => {
             return this.viewer.entities.remove(entity);
         });
         this.lineEntityAry.forEach((entity) => {
             return this.viewer.entities.remove(entity);
         });
-        this.tipEntity && this.viewer.entities.remove(this.tipEntity);
-        this.positonsAry = [];
         this.polyRayAry.forEach((entity) => {
             return this.viewer.entities.remove(entity);
         });
-        this.currentMouseType = '';
         this.polyTipAry.forEach((entity) => {
             return this.viewer.entities.remove(entity);
         });
-        this.distanceAry = [];
-        this.polylineTip && this.viewer.entities.remove(this.polylineTip);
     }
 
     protected leftClickEvent() {
@@ -71,7 +71,6 @@ export default class LengthMeasurement extends MouseEvent {
             this.currentMouseType = MouseStatusEnum.click;
 
             const currentPosition = this.viewer.scene.pickPosition(e.position);
-
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
             this.positonsAry.push(currentPosition);
@@ -94,7 +93,6 @@ export default class LengthMeasurement extends MouseEvent {
             this.currentMouseType = MouseStatusEnum.click;
 
             const currentPosition = this.viewer.scene.pickPosition(e.position);
-
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
             if (this.positonsAry.length > 2) {
@@ -116,9 +114,7 @@ export default class LengthMeasurement extends MouseEvent {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
             this.currentMouseType = MouseStatusEnum.move;
 
-            const currentPosition = this.viewer.scene.pickPosition(
-                e.endPosition
-            );
+            const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
             if (this.positonsAry.length > 0 && this.lineEntityAry) {

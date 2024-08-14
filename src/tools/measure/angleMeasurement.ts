@@ -37,12 +37,12 @@ export default class AngleMeasurement extends MouseEvent {
     }
 
     clear(): void {
-        this.positonsAry = [];
-        this.tempMovePosition = undefined;
-        this.lineEntity = undefined;
         this.pointEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
         this.angleTipEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
         this.lineEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
+        this.positonsAry = [];
+        this.tempMovePosition = undefined;
+        this.lineEntity = undefined;
     }
 
     protected leftClickEvent(): void {

@@ -8,8 +8,9 @@ window.CESIUM_BASE_URL = '/Cesium/';
 
 function App() {
     const viewerRef = useRef<Cesium.Viewer | null>(null);
-    const { measureDistance, measureArea, measureAngle } = useMeasure();
-    const [measure, setMeasure] = useState();
+    const [measure, setMeasure] = useState<Cesium.Viewer>();
+    const { measureDistance, measureArea, measureAngle } = useMeasure(measure as Cesium.Viewer);
+    const { active, clear }  = measureArea();
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -37,6 +38,7 @@ function App() {
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
+        setMeasure(viewer);
         // const measure = new AreaMeasurement(viewer, new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas));
         // setMeasure(measure);
         if (viewerRef.current) {
@@ -45,13 +47,13 @@ function App() {
     };
 
     const handleDraw = () => {
-        measureDistance(viewerRef.current).active()
+        active();
         // turntableSwing?.active();
         // measure.active();
     };
 
     const handleClear = () => {
-        // measure.clear()
+        clear();
         // turntableSwing?.clear();
         // const globalMethod = turntableSwing.globalTurntableMethod();
         // globalMethod?.fillColor('white');

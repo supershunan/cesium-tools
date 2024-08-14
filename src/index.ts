@@ -2,10 +2,12 @@ import useSlopeDirectionAnalysis from '@tools/slopeDirectionAnalysis/index';
 import useVisualFieldAnalysis from '@tools/visualFieldAnalysis/index';
 import useVisibilityAnalysis from '@tools/visibilityAnalysis/index';
 import useTurntableSwing from '@tools/turntableSwing/index';
+import useMeasure from '@tools/measure/index';
 
 export {
     useSlopeDirectionAnalysis,
     useVisualFieldAnalysis,
     useVisibilityAnalysis,
-    useTurntableSwing
+    useTurntableSwing,
+    useMeasure
 };

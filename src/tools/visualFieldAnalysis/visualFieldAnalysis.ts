@@ -46,7 +46,7 @@ class ViewShed {
                   this.viewPosition,
                   this.viewPositionEnd
               )
-            : options.viewDistance || 100.0;
+            : options.viewDistance || 1000.0;
         this.viewHeading = this.viewPositionEnd
             ? this.getHeading(this.viewPosition, this.viewPositionEnd)
             : options.viewHeading || 0.0;
@@ -129,6 +129,15 @@ class ViewShed {
         this.lightCamera = new Cesium.Camera(this.viewer.scene);
         this.lightCamera.position = this.viewPosition;
         if (!this.viewDistance) return;
+        // 避免 viewDistance 太小，导致 cesium 报错
+        if (this.viewDistance < 1) {
+            const stringDistanceView = this.viewDistance.toString();
+            let index;
+            if (stringDistanceView.includes('.')) {
+                index = stringDistanceView.split('.')[1].length;
+            }
+            this.viewDistance = this.viewDistance * Math.pow(10, Number(index) + 1);
+        }
         this.lightCamera.frustum.near = this.viewDistance * 0.001; //近截面距离
         this.lightCamera.frustum.far = this.viewDistance; // 远截面距离
         const hr = Cesium.Math.toRadians(this.horizontalViewAngle);

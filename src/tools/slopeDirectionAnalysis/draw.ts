@@ -86,7 +86,7 @@ export default class Draw extends MouseEvent {
     }
 
     protected analysisPolygon = () => {
-        this.viewer.entities.removeAll();
+        this.clear();
         if (this.polygonEntity) {
             this.slopeAspectAnalysis = new SloopAspectAnalysis(
                 this.viewer,

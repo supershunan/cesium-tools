@@ -16,8 +16,7 @@ function App() {
     const viewerRef = useRef<Cesium.Viewer | null>(null);
     const [measure, setMeasure] = useState<Cesium.Viewer>();
     const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(measure as Cesium.Viewer);
-    // const { active, clear, setInstance }  = useSlopeDirectionAnalysis();
-    // const { active, clear, setInstance, cleanInstance }  = useVisibilityAnalysis();
+    const { active, clear, setInstance, cleanInstance }  = useSlopeDirectionAnalysis();
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -38,28 +37,28 @@ function App() {
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
         viewer.scene.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(
-                108.976043,
+                109.976043,
                 34.213954,
-                1000.0
+                10000.0
             ),
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
-        // setInstance(viewer);
+        setInstance(viewer);
         setMeasure(viewer);
     };
 
     const handleDraw = () => {
-        // active();
-        measureDistance().active();
+        active();
+        // measureDistance().active();
     };
 
     const handleClear = () => {
-        // clear();
+        clear();
     };
 
     const handleInstanceClear = () => {
-        // cleanInstance();
+        cleanInstance();
     };
 
     return (

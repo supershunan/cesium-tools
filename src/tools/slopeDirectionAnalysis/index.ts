@@ -6,58 +6,62 @@ interface SlopDerectionAnalysis {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
-    setInstance: (viewer: Cesium.Viewer) =>void;
+    setInstance: (viewer: Cesium.Viewer) => void;
     getInstance: () => SloopAspectAnalysis | null;
     /** 设置网格切割的精度 单位(km) 最小为20 精度越大越消耗性能 */
     setDistance: (value: number) => void;
+    cleanInstance: () => void;
 }
 
-type Minimum20 = number & { __minimum20__: void };
+const MIN_DISTANCE = 20;
 
-function ensureMinimum20(value: number): asserts value is Minimum20 {
-    if (value < 20) {
-        throw new Error('坡向分析的精度最小为20km');
+let instance: Draw | null = null;
+let currentViewer: Cesium.Viewer | null = null;
+
+function ensureInstance(): Draw {
+    if (!instance && currentViewer) {
+        const handler = new Cesium.ScreenSpaceEventHandler(currentViewer.scene.canvas);
+        instance = new Draw(currentViewer, handler);
     }
+    if (!instance) {
+        throw new Error('SlopDerectionAnalysis instance not initialized. Call setInstance first.');
+    }
+    return instance;
 }
+
+const slopDerectionAnalysis: SlopDerectionAnalysis = {
+    active: () => {
+        ensureInstance().active();
+    },
+    deactivate: () => {
+        instance?.deactivate();
+    },
+    clear: () => {
+        instance?.clear();
+    },
+    setInstance: (viewer: Cesium.Viewer) => {
+        currentViewer = viewer;
+        instance = null; // Reset instance when viewer changes
+    },
+    getInstance: () => {
+        return instance?.slopeAspectAnalysis ?? null;
+    },
+    setDistance: (value: number) => {
+        if (value < MIN_DISTANCE) {
+            throw new Error(`坡向分析的精度最小为${MIN_DISTANCE}km`);
+        }
+        ensureInstance().distance = value;
+    },
+    cleanInstance: () => {
+        if (instance) {
+            instance.handler.destroy();
+            instance = null;
+        }
+        currentViewer = null;
+    }
+};
 
 /** 坡向分析 */
-export default function useSlopDerectionAnalysis(): SlopDerectionAnalysis {
-    let instance: Draw | null = null;
-
-    function getInstance(viewer?: Cesium.Viewer): Draw | null {
-        if (!instance && viewer) {
-            const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-            instance = new Draw(viewer, handler);
-        }
-        return instance;
-    }
-
-    return {
-        active: () => {
-            const draw = getInstance();
-            draw?.active();
-        },
-        deactivate: () => {
-            const draw = getInstance();
-            draw?.deactivate();
-        },
-        clear: () => {
-            const draw = getInstance();
-            draw?.clear();
-        },
-        setInstance: (viewer: Cesium.Viewer) => {
-            getInstance(viewer);
-        },
-        getInstance: () => {
-            const draw = getInstance();
-            return draw?.slopeAspectAnalysis ? draw?.slopeAspectAnalysis : null;
-        },
-        setDistance: (value: number) => {
-            ensureMinimum20(value);
-            const draw = getInstance();
-            if (draw) {
-                draw.distance = value;
-            }
-        },
-    };
+export default function useSlopeDirectionAnalysis(): SlopDerectionAnalysis {
+    return slopDerectionAnalysis;
 }

@@ -42,7 +42,7 @@ export default class LengthMeasurement extends MouseEvent {
     }
 
     deactivate(): void {
-        this.positonsAry = [];
+        this.clear();
         this.unRegisterEvents();
     }
 
@@ -106,7 +106,7 @@ export default class LengthMeasurement extends MouseEvent {
 
             this.createPoint(currentPosition);
             this.distanceAry = [];
-            this.deactivate();
+            this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 

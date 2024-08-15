@@ -5,9 +5,9 @@ import useTurntableSwing from '@tools/turntableSwing/index';
 import useMeasure from '@tools/measure/index';
 
 export {
-    useSlopeDirectionAnalysis,
-    useVisualFieldAnalysis,
-    useVisibilityAnalysis,
+    useMeasure,
     useTurntableSwing,
-    useMeasure
+    useVisibilityAnalysis,
+    useVisualFieldAnalysis,
+    useSlopeDirectionAnalysis,
 };

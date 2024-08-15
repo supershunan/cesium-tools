@@ -2,6 +2,7 @@ import * as Cesium from 'cesium';
 import LengthMeasurement from './lengthMeasurement';
 import AreaMeasurement from './areaMeasurement';
 import AngleMeasurement from './angleMeasurement';
+import TheHeightOfTheGround from './theHeightOfTheGround';
 
 interface MeasurementActions {
     /** 激活 */
@@ -19,6 +20,8 @@ interface Measure {
     measureArea: () => MeasurementActions;
     /** 角度测量 */
     measureAngle: () => MeasurementActions;
+    /** 地表高度测量 */
+    measureTheHeightOfTheGround: () => MeasurementActions;
 }
 
 export default function useMeasure(viewer: Cesium.Viewer): Measure {
@@ -45,6 +48,7 @@ export default function useMeasure(viewer: Cesium.Viewer): Measure {
     const measureDistance = () => {return createMeasurement(LengthMeasurement);};
     const measureArea = () => {return createMeasurement(AreaMeasurement);};
     const measureAngle = () => {return createMeasurement(AngleMeasurement);};
+    const measureTheHeightOfTheGround = () => {return createMeasurement(TheHeightOfTheGround);};
 
-    return { measureDistance, measureArea, measureAngle };
+    return { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround };
 }

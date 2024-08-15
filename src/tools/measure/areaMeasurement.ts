@@ -43,6 +43,7 @@ export default class AreaMeasurement extends MouseEvent {
     }
 
     deactivate(): void {
+        this.clear();
         this.unRegisterEvents();
     }
 

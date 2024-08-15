@@ -1,7 +1,13 @@
 import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
 import { useEffect, useRef, useState } from 'react';
-import useMeasure from '@tools/measure/index';
+import {
+    useSlopeDirectionAnalysis,
+    useVisualFieldAnalysis,
+    useVisibilityAnalysis,
+    useTurntableSwing,
+    useMeasure
+} from '../index';
 import './App.css';
 
 window.CESIUM_BASE_URL = '/Cesium/';
@@ -9,8 +15,9 @@ window.CESIUM_BASE_URL = '/Cesium/';
 function App() {
     const viewerRef = useRef<Cesium.Viewer | null>(null);
     const [measure, setMeasure] = useState<Cesium.Viewer>();
-    const { measureDistance, measureArea, measureAngle } = useMeasure(measure as Cesium.Viewer);
-    const { active, clear }  = measureArea();
+    const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(measure as Cesium.Viewer);
+    // const { active, clear, setInstance }  = useSlopeDirectionAnalysis();
+    // const { active, clear, setInstance, cleanInstance }  = useVisibilityAnalysis();
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -38,25 +45,21 @@ function App() {
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
+        // setInstance(viewer);
         setMeasure(viewer);
-        // const measure = new AreaMeasurement(viewer, new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas));
-        // setMeasure(measure);
-        if (viewerRef.current) {
-            // turntableSwing.setInstance(viewer);
-        }
     };
 
     const handleDraw = () => {
-        active();
-        // turntableSwing?.active();
-        // measure.active();
+        // active();
+        measureDistance().active();
     };
 
     const handleClear = () => {
-        clear();
-        // turntableSwing?.clear();
-        // const globalMethod = turntableSwing.globalTurntableMethod();
-        // globalMethod?.fillColor('white');
+        // clear();
+    };
+
+    const handleInstanceClear = () => {
+        // cleanInstance();
     };
 
     return (
@@ -69,7 +72,10 @@ function App() {
                 测试功能按钮
             </button>
             <button className="btn2" onClick={handleClear}>
-                测试清除
+                测试图层清除
+            </button>
+            <button className="btn3" onClick={handleInstanceClear}>
+                测试实例清除
             </button>
         </div>
     );

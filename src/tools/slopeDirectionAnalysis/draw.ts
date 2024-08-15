@@ -64,7 +64,7 @@ export default class Draw extends MouseEvent {
     }
 
     protected rightClickEvent(): void {
-        this.handler.setInputAction((e) => {
+        this.handler.setInputAction(() => {
             if (this.positionAry.length < 3) return;
 
             this.positionAry.push(this.positionAry[0]);

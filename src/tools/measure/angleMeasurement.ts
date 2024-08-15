@@ -33,6 +33,7 @@ export default class AngleMeasurement extends MouseEvent {
     }
 
     deactivate(): void {
+        this.clear();
         this.unRegisterEvents();
     }
 

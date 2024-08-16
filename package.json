@@ -1,9 +1,21 @@
 {
   "name": "cesium-tools-fxt",
-  "version": "1.0.4",
+  "version": "1.0.10",
   "description": "cesium工具包",
   "type": "module",
-  "main": "dist/cesium-tools.min.js",
+  "main": "./dist/cesium-tools.umd.js",
+  "module": "./dist/cesium-tools.es.js",
+  "files": [
+    "package.json",
+    "README.md",
+    "dist"
+  ],
+  "exports": {
+    ".": {
+      "import": "./dist/cesium-tools.es.js",
+      "require": "./dist/cesium-tools.umd.js"
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -28,6 +40,7 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.7",
     "typescript": "^5.2.2",
-    "vite": "^5.3.4"
+    "vite": "^5.3.4",
+    "vite-plugin-dts": "^4.0.3"
   }
 }

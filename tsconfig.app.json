@@ -13,11 +13,11 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
+    // "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
     "moduleDetection": "force",
-    "noEmit": true,
+    "noEmit": false,
     "jsx": "react-jsx",
 
     /* Linting */
@@ -38,5 +38,10 @@
         "node_modules/@types"
     ],
   },
-  "include": ["src"]
+ "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/global.d.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
 }

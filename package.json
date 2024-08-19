@@ -10,6 +10,7 @@
     "README.md",
     "dist"
   ],
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "import": "./dist/cesium-tools.es.js",
@@ -18,7 +19,8 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && tsc",
+    "tsc": "tsc",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },

@@ -43,10 +43,7 @@ class ViewShed {
         this.viewPosition = options.viewPosition;
         this.viewPositionEnd = options.viewPositionEnd;
         this.viewDistance = this.viewPositionEnd
-            ? Cesium.Cartesian3.distance(
-                  this.viewPosition,
-                  this.viewPositionEnd
-              )
+            ? Cesium.Cartesian3.distance(this.viewPosition, this.viewPositionEnd)
             : options.viewDistance || 1000.0;
         this.viewHeading = this.viewPositionEnd
             ? this.getHeading(this.viewPosition, this.viewPositionEnd)
@@ -57,14 +54,9 @@ class ViewShed {
         this.horizontalViewAngle = options.horizontalViewAngle || 90.0;
         this.verticalViewAngle = options.verticalViewAngle || 60.0;
         this.visibleAreaColor = options.visibleAreaColor || Cesium.Color.GREEN;
-        this.invisibleAreaColor =
-            options.invisibleAreaColor || Cesium.Color.RED;
-        this.enabled =
-            typeof options.enabled === 'boolean' ? options.enabled : true;
-        this.softShadows =
-            typeof options.softShadows === 'boolean'
-                ? options.softShadows
-                : true;
+        this.invisibleAreaColor = options.invisibleAreaColor || Cesium.Color.RED;
+        this.enabled = typeof options.enabled === 'boolean' ? options.enabled : true;
+        this.softShadows = typeof options.softShadows === 'boolean' ? options.softShadows : true;
         this.size = options.size || 2048;
         this.isSketch = true;
     }
@@ -90,14 +82,8 @@ class ViewShed {
      */
     updatePosition(viewPositionEnd: Cesium.Cartesian3) {
         this.viewPositionEnd = viewPositionEnd;
-        this.viewDistance = Cesium.Cartesian3.distance(
-            this.viewPosition,
-            this.viewPositionEnd
-        );
-        this.viewHeading = this.getHeading(
-            this.viewPosition,
-            this.viewPositionEnd
-        );
+        this.viewDistance = Cesium.Cartesian3.distance(this.viewPosition, this.viewPositionEnd);
+        this.viewHeading = this.getHeading(this.viewPosition, this.viewPositionEnd);
         this.viewPitch = this.getPitch(this.viewPosition, this.viewPositionEnd);
     }
 
@@ -144,8 +130,7 @@ class ViewShed {
         const hr = Cesium.Math.toRadians(this.horizontalViewAngle);
         const vr = Cesium.Math.toRadians(this.verticalViewAngle);
         const aspectRatio =
-            (this.viewDistance * Math.tan(hr / 2) * 2) /
-            (this.viewDistance * Math.tan(vr / 2) * 2);
+            (this.viewDistance * Math.tan(hr / 2) * 2) / (this.viewDistance * Math.tan(vr / 2) * 2);
         if (this.lightCamera.frustum instanceof Cesium.PerspectiveFrustum) {
             this.lightCamera.frustum.aspectRatio = aspectRatio; // 截面宽高比
         }
@@ -195,41 +180,30 @@ class ViewShed {
             fragmentShader: fs, // 要使用的片段着色器
             uniforms: {
                 shadowMap_textureCube: () => {
-                    this.shadowMap.update(
-                        Reflect.get(this.viewer.scene, '_frameState')
-                    );
+                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
                     return Reflect.get(this.shadowMap, '_shadowMapTexture');
                 },
                 shadowMap_matrix: () => {
-                    this.shadowMap.update(
-                        Reflect.get(this.viewer.scene, '_frameState')
-                    );
+                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
                     return Reflect.get(this.shadowMap, '_shadowMapMatrix');
                 },
                 shadowMap_lightPositionEC: () => {
-                    this.shadowMap.update(
-                        Reflect.get(this.viewer.scene, '_frameState')
-                    );
+                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
                     return Reflect.get(this.shadowMap, '_lightPositionEC');
                 },
-                shadowMap_normalOffsetScaleDistanceMaxDistanceAndDarkness:
-                    () => {
-                        this.shadowMap.update(
-                            Reflect.get(this.viewer.scene, '_frameState')
-                        );
-                        const bias = this.shadowMap._pointBias;
-                        return Cesium.Cartesian4.fromElements(
-                            bias.normalOffsetScale,
-                            this.shadowMap._distance,
-                            this.shadowMap.maximumDistance,
-                            0.0,
-                            new Cesium.Cartesian4()
-                        );
-                    },
-                shadowMap_texelSizeDepthBiasAndNormalShadingSmooth: () => {
-                    this.shadowMap.update(
-                        Reflect.get(this.viewer.scene, '_frameState')
+                shadowMap_normalOffsetScaleDistanceMaxDistanceAndDarkness: () => {
+                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
+                    const bias = this.shadowMap._pointBias;
+                    return Cesium.Cartesian4.fromElements(
+                        bias.normalOffsetScale,
+                        this.shadowMap._distance,
+                        this.shadowMap.maximumDistance,
+                        0.0,
+                        new Cesium.Cartesian4()
                     );
+                },
+                shadowMap_texelSizeDepthBiasAndNormalShadingSmooth: () => {
+                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
                     const bias = this.shadowMap._pointBias;
                     const scratchTexelStepSize = new Cesium.Cartesian2();
                     const texelStepSize = scratchTexelStepSize;
@@ -244,10 +218,9 @@ class ViewShed {
                         new Cesium.Cartesian4()
                     );
                 },
-                camera_projection_matrix: (this.lightCamera as Cesium.Camera)
-                    .frustum.projectionMatrix,
-                camera_view_matrix: (this.lightCamera as Cesium.Camera)
-                    .viewMatrix,
+                camera_projection_matrix: (this.lightCamera as Cesium.Camera).frustum
+                    .projectionMatrix,
+                camera_view_matrix: (this.lightCamera as Cesium.Camera).viewMatrix,
                 helsing_viewDistance: () => {
                     return this.viewDistance;
                 },
@@ -274,10 +247,7 @@ class ViewShed {
         Cesium.Matrix3.setColumn(rotation, 0, right, rotation);
         Cesium.Matrix3.setColumn(rotation, 1, up, rotation);
         Cesium.Matrix3.setColumn(rotation, 2, direction, rotation);
-        const orientation = Cesium.Quaternion.fromRotationMatrix(
-            rotation,
-            scratchOrientation
-        );
+        const orientation = Cesium.Quaternion.fromRotationMatrix(rotation, scratchOrientation);
 
         const instance = new Cesium.GeometryInstance({
             geometry: new Cesium.FrustumOutlineGeometry({
@@ -287,9 +257,7 @@ class ViewShed {
             }),
             id: Math.random().toString(36).substr(2),
             attributes: {
-                color: Cesium.ColorGeometryInstanceAttribute.fromColor(
-                    Cesium.Color.YELLOWGREEN
-                ),
+                color: Cesium.ColorGeometryInstanceAttribute.fromColor(Cesium.Color.YELLOWGREEN),
                 show: new Cesium.ShowGeometryInstanceAttribute(true),
             },
         });
@@ -336,18 +304,10 @@ class ViewShed {
                     );
                 }, false),
                 innerRadii: new Cesium.Cartesian3(2.0, 2.0, 2.0),
-                minimumClock: Cesium.Math.toRadians(
-                    -this.horizontalViewAngle / 2
-                ),
-                maximumClock: Cesium.Math.toRadians(
-                    this.horizontalViewAngle / 2
-                ),
-                minimumCone: Cesium.Math.toRadians(
-                    this.verticalViewAngle + 7.75
-                ),
-                maximumCone: Cesium.Math.toRadians(
-                    180 - this.verticalViewAngle - 7.75
-                ),
+                minimumClock: Cesium.Math.toRadians(-this.horizontalViewAngle / 2),
+                maximumClock: Cesium.Math.toRadians(this.horizontalViewAngle / 2),
+                minimumCone: Cesium.Math.toRadians(this.verticalViewAngle + 7.75),
+                maximumCone: Cesium.Math.toRadians(180 - this.verticalViewAngle - 7.75),
                 fill: false,
                 outline: true,
                 subdivisions: 256,
@@ -367,9 +327,7 @@ class ViewShed {
         Cesium.Matrix4.inverse(matrix4, matrix4);
         Cesium.Matrix4.multiplyByPoint(matrix4, toPosition, finalPosition);
         Cesium.Cartesian3.normalize(finalPosition, finalPosition);
-        return Cesium.Math.toDegrees(
-            Math.atan2(finalPosition.x, finalPosition.y)
-        );
+        return Cesium.Math.toDegrees(Math.atan2(finalPosition.x, finalPosition.y));
     }
 
     /**

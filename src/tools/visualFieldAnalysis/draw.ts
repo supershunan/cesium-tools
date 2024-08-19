@@ -12,10 +12,7 @@ export default class Draw extends MouseDrawBase {
     drawViewshedEntity?: ViewShed;
     private plotDrawTip?: PlotDrawTip;
 
-    constructor(
-        viewer: Cesium.Viewer,
-        handler: Cesium.ScreenSpaceEventHandler
-    ) {
+    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
@@ -70,17 +67,12 @@ export default class Draw extends MouseDrawBase {
 
     protected mouseMoveEvent(): void {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
-            const currentPosition = this.viewer.scene.pickPosition(
-                e.endPosition
-            );
+            const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition) return;
 
             this.plotDrawTip?.updatePosition(currentPosition);
 
-            if (
-                this.currentClickCount === CurrentCountEnum.start &&
-                this.drawViewshedEntity
-            ) {
+            if (this.currentClickCount === CurrentCountEnum.start && this.drawViewshedEntity) {
                 this.drawViewshedEntity.updatePosition(currentPosition);
                 this.drawViewshedEntity.update();
             }
@@ -89,7 +81,7 @@ export default class Draw extends MouseDrawBase {
 
     setViewShedOptions(options: ViewShedOptionalOptions) {
         if (this.drawViewshedEntity) {
-            Object.keys(options).forEach(key => {
+            Object.keys(options).forEach((key) => {
                 const typedKey = key as keyof ViewShedOptionalOptions;
                 if (this.drawViewshedEntity && typedKey in this.drawViewshedEntity) {
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any

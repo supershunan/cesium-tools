@@ -10,10 +10,7 @@ export default class Draw extends MouseEvent {
     drawViewshedEntity: VisibilityAnalysis | undefined;
     private currentClickCount: number;
 
-    constructor(
-        viewer: Cesium.Viewer,
-        handler: Cesium.ScreenSpaceEventHandler
-    ) {
+    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
@@ -55,13 +52,10 @@ export default class Draw extends MouseEvent {
 
             if (this.currentClickCount === CurrentCountEnum.start) {
                 if (!this.drawViewshedEntity) {
-                    this.drawViewshedEntity = new VisibilityAnalysis(
-                        this.viewer,
-                        {
-                            startPosition: currentPosition,
-                            endPosition: currentPosition,
-                        }
-                    );
+                    this.drawViewshedEntity = new VisibilityAnalysis(this.viewer, {
+                        startPosition: currentPosition,
+                        endPosition: currentPosition,
+                    });
                 } else {
                     this.drawViewshedEntity.startPosition = currentPosition;
                     this.drawViewshedEntity.endPosition = currentPosition;
@@ -69,10 +63,7 @@ export default class Draw extends MouseEvent {
                 this.drawViewshedEntity.add();
             }
 
-            if (
-                this.currentClickCount === CurrentCountEnum.end &&
-                this.drawViewshedEntity
-            ) {
+            if (this.currentClickCount === CurrentCountEnum.end && this.drawViewshedEntity) {
                 this.drawViewshedEntity.endPosition = currentPosition;
                 this.currentClickCount = CurrentCountEnum.padding;
                 this.unRegisterEvents();
@@ -82,15 +73,10 @@ export default class Draw extends MouseEvent {
 
     protected mouseMoveEvent() {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
-            const currentPosition = this.viewer.scene.pickPosition(
-                e.endPosition
-            );
+            const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
-            if (
-                this.currentClickCount === CurrentCountEnum.start &&
-                this.drawViewshedEntity
-            ) {
+            if (this.currentClickCount === CurrentCountEnum.start && this.drawViewshedEntity) {
                 this.drawViewshedEntity.updatePosition(currentPosition);
             }
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
@@ -109,10 +95,7 @@ export default class Draw extends MouseEvent {
                 // clampToGround: true,
             },
             label: {
-                text:
-                    this.currentClickCount === CurrentCountEnum.start
-                        ? '观测点'
-                        : '结束点',
+                text: this.currentClickCount === CurrentCountEnum.start ? '观测点' : '结束点',
                 fillColor: Cesium.Color.WHITE,
                 font: '14px',
                 pixelOffset: new Cesium.Cartesian2(10, 10),

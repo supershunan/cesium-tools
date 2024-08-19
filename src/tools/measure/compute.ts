@@ -1,6 +1,5 @@
 import * as Cesium from 'cesium';
 
-
 /** 鞋带（Shoelace）公式计算面积 */
 const polygonArea = (points: number[][]) => {
     let area = 0.0;
@@ -22,7 +21,11 @@ const polygonArea = (points: number[][]) => {
  * @param end 结束点
  * @returns { number } 地球表面的实际距离
  */
-export const compute_geodesicaDistance_3d = (Cesium: typeof import('cesium'), start: Cesium.Cartesian3, end: Cesium.Cartesian3): number => {
+export const compute_geodesicaDistance_3d = (
+    Cesium: typeof import('cesium'),
+    start: Cesium.Cartesian3,
+    end: Cesium.Cartesian3
+): number => {
     const { Ellipsoid, EllipsoidGeodesic } = Cesium;
     const pickedPointCartographic = Ellipsoid.WGS84.cartesianToCartographic(start);
     const lastPointCartographic = Ellipsoid.WGS84.cartesianToCartographic(end);
@@ -37,7 +40,11 @@ export const compute_geodesicaDistance_3d = (Cesium: typeof import('cesium'), st
  * @param end 结束点
  * @returns { number } 直线空间距离
  */
-export const compute_placeDistance_2d = (Cesium: typeof import('cesium'), start: Cesium.Cartesian3, end: Cesium.Cartesian3): number => {
+export const compute_placeDistance_2d = (
+    Cesium: typeof import('cesium'),
+    start: Cesium.Cartesian3,
+    end: Cesium.Cartesian3
+): number => {
     const distance = Cesium.Cartesian3.distance(start, end);
     return distance;
 };
@@ -48,7 +55,10 @@ export const compute_placeDistance_2d = (Cesium: typeof import('cesium'), start:
  * @param {{ x: number, y: number, z: number }} positions 笛卡尔3d坐标
  * @returns {number} 曲面面积
  */
-export const compute_3DPolygonArea = (Cesium: typeof import('cesium'), positions: { x: number, y: number, z: number }[]) => {
+export const compute_3DPolygonArea = (
+    Cesium: typeof import('cesium'),
+    positions: { x: number; y: number; z: number }[]
+) => {
     if (positions.length < 3) {
         return 0;
     }
@@ -87,7 +97,7 @@ export const compute_3DPolygonArea = (Cesium: typeof import('cesium'), positions
  * @param {{ x: number, y: number, z: number }} positions 笛卡尔3d坐标
  * @returns {number} 平面面积
  */
-export const compute_2DPolygonArea = (positions: { x: number, y: number, z: number }[]) => {
+export const compute_2DPolygonArea = (positions: { x: number; y: number; z: number }[]) => {
     const projected = positions.map((pos) => {
         return [pos.x, pos.y];
     });
@@ -101,7 +111,12 @@ export const compute_2DPolygonArea = (positions: { x: number, y: number, z: numb
  * @param middle positions 笛卡尔3d坐标
  * @param end positions 笛卡尔3d坐标
  */
-export const compute_Angle = (Cesium: typeof import('cesium'), start: Cesium.Cartesian3, middle: Cesium.Cartesian3, end: Cesium.Cartesian3) => {
+export const compute_Angle = (
+    Cesium: typeof import('cesium'),
+    start: Cesium.Cartesian3,
+    middle: Cesium.Cartesian3,
+    end: Cesium.Cartesian3
+) => {
     // 定义三个点的笛卡尔坐标
     const pointA = start;
     const pointB = middle;

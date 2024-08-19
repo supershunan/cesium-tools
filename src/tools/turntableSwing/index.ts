@@ -7,7 +7,7 @@ interface TurntableSwingProps {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
-    setInstance: (viewer: Cesium.Viewer, turntableParams?: TurntableParams) =>void;
+    setInstance: (viewer: Cesium.Viewer, turntableParams?: TurntableParams) => void;
     getInstance: () => TurntableSwing | null;
     /** 返回所有可以对转角操作的方法 */
     globalTurntableMethod: () => GlobalTurntableMethods | null;
@@ -58,7 +58,7 @@ const turntableSwingProps: TurntableSwingProps = {
             instance = null;
         }
         currentViewer = null;
-    }
+    },
 };
 
 /** 模拟雷达转台旋转分析 */

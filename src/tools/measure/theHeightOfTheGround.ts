@@ -6,10 +6,7 @@ export default class TheHeightOfTheGround extends MouseEvent {
     private pointEntityAry: Cesium.Entity[];
     private surfaceLineEntityAry: Cesium.Entity[];
 
-    constructor(
-        viewer: Cesium.Viewer,
-        handler: Cesium.ScreenSpaceEventHandler
-    ) {
+    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
@@ -28,8 +25,12 @@ export default class TheHeightOfTheGround extends MouseEvent {
     }
 
     clear(): void {
-        this.pointEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
-        this.surfaceLineEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
+        this.pointEntityAry.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
+        this.surfaceLineEntityAry.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
     }
 
     protected leftClickEvent(): void {
@@ -43,7 +44,7 @@ export default class TheHeightOfTheGround extends MouseEvent {
 
     protected rightClickEvent(): void {
         this.handler.setInputAction(() => {
-           this.unRegisterEvents();
+            this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
@@ -74,7 +75,6 @@ export default class TheHeightOfTheGround extends MouseEvent {
         this.pointEntityAry.push(pointEntity);
     }
 
-
     private async drawSurfaceLine(position: Cesium.Cartesian3) {
         // 获取地形数据提供者
         const terrainProvider = this.viewer.terrainProvider;
@@ -83,10 +83,9 @@ export default class TheHeightOfTheGround extends MouseEvent {
         const cartographicPosition = Cesium.Cartographic.fromCartesian(position);
 
         // 获取该位置的地表高度
-        const [updatedPosition] = await Cesium.sampleTerrainMostDetailed(
-            terrainProvider,
-            [cartographicPosition]
-        );
+        const [updatedPosition] = await Cesium.sampleTerrainMostDetailed(terrainProvider, [
+            cartographicPosition,
+        ]);
 
         const surfaceHeight = updatedPosition.height;
         const pointHeight = cartographicPosition.height;
@@ -110,8 +109,8 @@ export default class TheHeightOfTheGround extends MouseEvent {
                 polyline: {
                     positions: heightLinePositions,
                     width: 2,
-                    material: Cesium.Color.CHARTREUSE
-                }
+                    material: Cesium.Color.CHARTREUSE,
+                },
             });
 
             this.surfaceLineEntityAry.push(surfaceLineEntity);

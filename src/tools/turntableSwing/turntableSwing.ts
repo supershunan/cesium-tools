@@ -1,7 +1,6 @@
 import * as Cesium from 'cesium';
 import { TurntableParams } from './type';
 
-
 /** 模拟雷达转台旋转 */
 export default class TurntableSwing {
     viewer: Cesium.Viewer;
@@ -20,7 +19,11 @@ export default class TurntableSwing {
     /** 回摆方向 */
     up: boolean = false;
 
-    constructor(viewer: Cesium.Viewer, position: Cesium.Cartesian3, turntableParams?: TurntableParams) {
+    constructor(
+        viewer: Cesium.Viewer,
+        position: Cesium.Cartesian3,
+        turntableParams?: TurntableParams
+    ) {
         this.viewer = viewer;
         this.position = position;
         this.speed = turntableParams?.speed ?? this.speed;
@@ -58,13 +61,9 @@ export default class TurntableSwing {
                 maximumClock: Cesium.Math.toRadians(60),
                 minimumCone: Cesium.Math.toRadians(90), //建议设置上下偏角为90
                 maximumCone: Cesium.Math.toRadians(90),
-                material: Cesium.Color.fromCssColorString(
-                    'rgba(255, 69, 0,  0.2)'
-                ),
+                material: Cesium.Color.fromCssColorString('rgba(255, 69, 0,  0.2)'),
                 outline: true,
-                outlineColor: Cesium.Color.fromCssColorString(
-                    'rgba(255, 69, 0, 1)'
-                ),
+                outlineColor: Cesium.Color.fromCssColorString('rgba(255, 69, 0, 1)'),
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             },
         });
@@ -80,43 +79,54 @@ export default class TurntableSwing {
     /** 左偏角值 */
     minimumClock(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.minimumClock = new Cesium.ConstantProperty(Cesium.Math.toRadians(val));
+            this.radarEntity.ellipsoid.minimumClock = new Cesium.ConstantProperty(
+                Cesium.Math.toRadians(val)
+            );
         }
     }
 
     /** 右偏角值 */
     maximumClock(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.maximumClock =
-                new Cesium.ConstantProperty(Cesium.Math.toRadians(val));
+            this.radarEntity.ellipsoid.maximumClock = new Cesium.ConstantProperty(
+                Cesium.Math.toRadians(val)
+            );
         }
     }
 
     /** 外径大小 */
     radii(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.radii = new Cesium.ConstantProperty(new Cesium.Cartesian3(val, val, 1));
+            this.radarEntity.ellipsoid.radii = new Cesium.ConstantProperty(
+                new Cesium.Cartesian3(val, val, 1)
+            );
         }
     }
 
     /** 内径大小 */
     innerRadii(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.innerRadii = new Cesium.ConstantProperty(new Cesium.Cartesian3(val, val, 1));
+            this.radarEntity.ellipsoid.innerRadii = new Cesium.ConstantProperty(
+                new Cesium.Cartesian3(val, val, 1)
+            );
         }
     }
 
     /** 填充色 rgba */
     fillColor(val: string) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.material = new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString(val));
+            this.radarEntity.ellipsoid.material = new Cesium.ColorMaterialProperty(
+                Cesium.Color.fromCssColorString(val)
+            );
         }
     }
 
     /** 边框色 rgba */
     outlineColor(val: string) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.outlineColor = new Cesium.ConstantProperty(Cesium.Color.fromCssColorString(val));
+            this.radarEntity.ellipsoid.outlineColor = new Cesium.ConstantProperty(
+                Cesium.Color.fromCssColorString(val)
+            );
         }
     }
 }

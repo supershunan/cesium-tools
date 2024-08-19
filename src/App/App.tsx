@@ -6,7 +6,7 @@ import {
     useVisualFieldAnalysis,
     useVisibilityAnalysis,
     useTurntableSwing,
-    useMeasure
+    useMeasure,
 } from '../index';
 import './App.css';
 
@@ -15,8 +15,10 @@ window.CESIUM_BASE_URL = '/Cesium/';
 function App() {
     const viewerRef = useRef<Cesium.Viewer | null>(null);
     const [measure, setMeasure] = useState<Cesium.Viewer>();
-    const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(measure as Cesium.Viewer);
-    const { active, clear, setInstance, cleanInstance }  = useSlopeDirectionAnalysis();
+    const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
+        measure as Cesium.Viewer
+    );
+    const { active, clear, setInstance, cleanInstance } = useSlopeDirectionAnalysis();
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -36,11 +38,7 @@ function App() {
         viewer.scene.globe.enableLighting = true;
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
         viewer.scene.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(
-                109.976043,
-                34.213954,
-                10000.0
-            ),
+            destination: Cesium.Cartesian3.fromDegrees(109.976043, 34.213954, 10000.0),
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
@@ -63,10 +61,7 @@ function App() {
 
     return (
         <div>
-            <div
-                id="cesiumContainer"
-                style={{ width: '100%', height: '100vh' }}
-            ></div>
+            <div id="cesiumContainer" style={{ width: '100%', height: '100vh' }}></div>
             <button className="btn" onClick={handleDraw}>
                 测试功能按钮
             </button>

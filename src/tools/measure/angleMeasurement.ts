@@ -12,10 +12,7 @@ export default class AngleMeasurement extends MouseEvent {
     private lineEntityAry: Cesium.Entity[] = [];
     private angleTipEntityAry: Cesium.Entity[];
 
-    constructor(
-        viewer: Cesium.Viewer,
-        handler: Cesium.ScreenSpaceEventHandler
-    ) {
+    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
@@ -38,16 +35,22 @@ export default class AngleMeasurement extends MouseEvent {
     }
 
     clear(): void {
-        this.pointEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
-        this.angleTipEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
-        this.lineEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
+        this.pointEntityAry.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
+        this.angleTipEntityAry.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
+        this.lineEntityAry.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
         this.positonsAry = [];
         this.tempMovePosition = undefined;
         this.lineEntity = undefined;
     }
 
     protected leftClickEvent(): void {
-        this.handler.setInputAction((e: { position: Cesium.Cartesian2}) => {
+        this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
@@ -58,7 +61,11 @@ export default class AngleMeasurement extends MouseEvent {
 
             const currentIndex: number = this.positonsAry.indexOf(currentPosition);
             if (this.positonsAry.length > 2) {
-                this.computedAngle(this.positonsAry[currentIndex-2], this.positonsAry[currentIndex-1], currentPosition);
+                this.computedAngle(
+                    this.positonsAry[currentIndex - 2],
+                    this.positonsAry[currentIndex - 1],
+                    currentPosition
+                );
             }
 
             if (this.positonsAry.length > 1) {
@@ -67,9 +74,8 @@ export default class AngleMeasurement extends MouseEvent {
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 
-
     protected rightClickEvent(): void {
-        this.handler.setInputAction((e: { position: Cesium.Cartesian2}) => {
+        this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
@@ -83,31 +89,34 @@ export default class AngleMeasurement extends MouseEvent {
             this.createPoint(currentPosition);
             this.lineEntity && this.viewer.entities.remove(this.lineEntity);
             const currentIndex: number = this.positonsAry.indexOf(currentPosition);
-            this.computedAngle(this.positonsAry[currentIndex-2], this.positonsAry[currentIndex-1], currentPosition);
+            this.computedAngle(
+                this.positonsAry[currentIndex - 2],
+                this.positonsAry[currentIndex - 1],
+                currentPosition
+            );
             this.computedDistance(this.positonsAry[currentIndex - 1], currentPosition);
 
             this.lineEntity && this.viewer.entities.remove(this.lineEntity);
-            this.lineEntityAry.push(this.viewer.entities.add({
-                polyline: {
-                    positions: this.positonsAry,
-                    width: 2,
-                    material: Cesium.Color.CHARTREUSE,
-                    depthFailMaterial: Cesium.Color.CHARTREUSE,
-                    // 是否贴地
-                    clampToGround: true,
-                },
-            }));
+            this.lineEntityAry.push(
+                this.viewer.entities.add({
+                    polyline: {
+                        positions: this.positonsAry,
+                        width: 2,
+                        material: Cesium.Color.CHARTREUSE,
+                        depthFailMaterial: Cesium.Color.CHARTREUSE,
+                        // 是否贴地
+                        clampToGround: true,
+                    },
+                })
+            );
             this.positonsAry = [];
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
-
     protected mouseMoveEvent(): void {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
-            const currentPosition = this.viewer.scene.pickPosition(
-                e.endPosition
-            );
+            const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
             this.tempMovePosition = currentPosition;
@@ -150,7 +159,11 @@ export default class AngleMeasurement extends MouseEvent {
         this.lineEntity = lineEntity;
     }
 
-    private computedAngle(start: Cesium.Cartesian3, middle: Cesium.Cartesian3, end: Cesium.Cartesian3) {
+    private computedAngle(
+        start: Cesium.Cartesian3,
+        middle: Cesium.Cartesian3,
+        end: Cesium.Cartesian3
+    ) {
         const angle = compute_Angle(Cesium, start, middle, end);
         const angleEntity = this.viewer.entities.add({
             position: middle,

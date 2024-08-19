@@ -6,7 +6,7 @@ interface VisibilityAnalysisProps {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
-    setInstance: (viewer: Cesium.Viewer) =>void;
+    setInstance: (viewer: Cesium.Viewer) => void;
     getInstance: () => VisibilityAnalysis | null;
     cleanInstance: () => void;
 }
@@ -20,7 +20,9 @@ function ensureInstance(): Draw {
         instance = new Draw(currentViewer, handler);
     }
     if (!instance) {
-        throw new Error('VisibilityAnalysisProps instance not initialized. Call setInstance first.');
+        throw new Error(
+            'VisibilityAnalysisProps instance not initialized. Call setInstance first.'
+        );
     }
     return instance;
 }
@@ -48,7 +50,7 @@ const visibilityAnalysisProps: VisibilityAnalysisProps = {
             instance = null;
         }
         currentViewer = null;
-    }
+    },
 };
 
 /** 透视分析 */

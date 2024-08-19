@@ -64,7 +64,7 @@ export default class SloopAspectAnalysis {
     };
 
     clear() {
-        this.result.forEach((primitive ) => {
+        this.result.forEach((primitive) => {
             this.viewer.scene.primitives.remove(primitive);
         });
     }
@@ -113,19 +113,13 @@ export default class SloopAspectAnalysis {
             for (let i = 0; i < coordinates.length; i++) {
                 // 将每个坐标转换为 Cartographic
                 const coord = coordinates[i];
-                const cartographic = Cesium.Cartographic.fromDegrees(
-                    coord[0],
-                    coord[1]
-                );
+                const cartographic = Cesium.Cartographic.fromDegrees(coord[0], coord[1]);
                 boxResults.push(cartographic);
 
                 // 如果当前坐标 coord 存在下一个坐标 coord1，则计算这两个坐标的中间点，并将中间点转换为 Cartographic 坐标，并添加到 boxResults。
                 const coord1 = coordinates[i + 1];
                 if (coord1) {
-                    const newCoord = [
-                        (coord[0] + coord1[0]) / 2,
-                        (coord[1] + coord1[1]) / 2,
-                    ];
+                    const newCoord = [(coord[0] + coord1[0]) / 2, (coord[1] + coord1[1]) / 2];
                     const newCartographic = Cesium.Cartographic.fromDegrees(
                         newCoord[0],
                         newCoord[1]
@@ -137,29 +131,27 @@ export default class SloopAspectAnalysis {
 
         // 使用 Cesium.sampleTerrainMostDetailed 函数对 boxResults 中的所有坐标进行地形采样，以获取最详细的高程数据。
         // 然后将结果 updatePositions 分片处理，每10个坐标为一组，存储到 tempAry 中,之后进行坡度计算
-        Cesium.sampleTerrainMostDetailed(
-            this.viewer.scene.terrainProvider,
-            boxResults
-        ).then((updatePositions) => {
-            const tempAry: any = [];
-            const ellipseResults = updatePositions.reduce(function (
-                _pre,
-                _item,
-                index,
-                updatePositions
-            ) {
-                const begin = index * 10;
-                const end = begin + 10;
-                const res = updatePositions.slice(begin, end);
-                if (res.length !== 0) {
-                    tempAry[index] = res;
-                }
-                return tempAry;
-            },
-            []);
+        Cesium.sampleTerrainMostDetailed(this.viewer.scene.terrainProvider, boxResults).then(
+            (updatePositions) => {
+                const tempAry: any = [];
+                const ellipseResults = updatePositions.reduce(function (
+                    _pre,
+                    _item,
+                    index,
+                    updatePositions
+                ) {
+                    const begin = index * 10;
+                    const end = begin + 10;
+                    const res = updatePositions.slice(begin, end);
+                    if (res.length !== 0) {
+                        tempAry[index] = res;
+                    }
+                    return tempAry;
+                }, []);
 
-            this.calculateSlope(ellipseResults);
-        });
+                this.calculateSlope(ellipseResults);
+            }
+        );
     };
 
     /** 坡度计算 */
@@ -191,11 +183,7 @@ export default class SloopAspectAnalysis {
              * 计算两个点之间的水平距离 distance。
              * 计算坡度 curSlope，即高度差与距离之比的绝对值。
              */
-            const pos0 = new Cesium.Cartographic(
-                center.longitude,
-                center.latitude,
-                0
-            );
+            const pos0 = new Cesium.Cartographic(center.longitude, center.latitude, 0);
             const pos1 = new Cesium.Cartographic(
                 ellipse[maxIndex].longitude,
                 ellipse[maxIndex].latitude,
@@ -213,10 +201,7 @@ export default class SloopAspectAnalysis {
              * 使用 createPolygonInsrance 方法，创建一个带颜色的多边形实例 curPolygonInstance，并添加到 polygonInstance 数组。
              */
             const curColor = this.calculateSlopeColor(curSlope, 0.4);
-            const curPolygonInstance = this.createPolygonInsrance(
-                ellipse,
-                curColor
-            );
+            const curPolygonInstance = this.createPolygonInsrance(ellipse, curColor);
             polygonInstance.push(curPolygonInstance);
 
             /** 创建箭头实例
@@ -224,8 +209,7 @@ export default class SloopAspectAnalysis {
              * 获取最大高度差点 targetPoint。
              * 使用 createArrowInstance 方法，创建一个箭头实例 arrowInstance，并添加到 instances 数组。
              */
-            const diagonalPoint =
-                maxIndex > 4 ? ellipse[maxIndex - 4] : ellipse[maxIndex + 4]; //对角点
+            const diagonalPoint = maxIndex > 4 ? ellipse[maxIndex - 4] : ellipse[maxIndex + 4]; //对角点
             const targetPoint = ellipse[maxIndex];
             const arrowInstance = this.createArrowInstance(
                 targetPoint,

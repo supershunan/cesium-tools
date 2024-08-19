@@ -26,7 +26,12 @@ interface Measure {
 
 export default function useMeasure(viewer: Cesium.Viewer): Measure {
     // 通用的创建测量方法
-    const createMeasurement = (MeasurementClass: new (viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) => MeasurementActions): MeasurementActions => {
+    const createMeasurement = (
+        MeasurementClass: new (
+            viewer: Cesium.Viewer,
+            handler: Cesium.ScreenSpaceEventHandler
+        ) => MeasurementActions
+    ): MeasurementActions => {
         const handler = new Cesium.ScreenSpaceEventHandler(viewer?.scene.canvas);
         const measurement = new MeasurementClass(viewer, handler);
 
@@ -40,15 +45,23 @@ export default function useMeasure(viewer: Cesium.Viewer): Measure {
             },
             clear: () => {
                 measurement.clear();
-            }
+            },
         };
     };
 
     // 使用通用方法创建不同的测量类型
-    const measureDistance = () => {return createMeasurement(LengthMeasurement);};
-    const measureArea = () => {return createMeasurement(AreaMeasurement);};
-    const measureAngle = () => {return createMeasurement(AngleMeasurement);};
-    const measureTheHeightOfTheGround = () => {return createMeasurement(TheHeightOfTheGround);};
+    const measureDistance = () => {
+        return createMeasurement(LengthMeasurement);
+    };
+    const measureArea = () => {
+        return createMeasurement(AreaMeasurement);
+    };
+    const measureAngle = () => {
+        return createMeasurement(AngleMeasurement);
+    };
+    const measureTheHeightOfTheGround = () => {
+        return createMeasurement(TheHeightOfTheGround);
+    };
 
     return { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround };
 }

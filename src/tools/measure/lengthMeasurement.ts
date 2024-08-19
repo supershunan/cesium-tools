@@ -1,9 +1,6 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
-import {
-    compute_geodesicaDistance_3d,
-    compute_placeDistance_2d,
-} from './compute';
+import { compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
 import { MouseStatusEnum } from '@src/enum/enum';
 
 export default class LengthMeasurement extends MouseEvent {
@@ -19,10 +16,7 @@ export default class LengthMeasurement extends MouseEvent {
     private distanceAry: { distance2d: number; distance3d: number }[];
     private polylineTip: Cesium.Entity | undefined = undefined;
 
-    constructor(
-        viewer: Cesium.Viewer,
-        handler: Cesium.ScreenSpaceEventHandler
-    ) {
+    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
@@ -77,11 +71,11 @@ export default class LengthMeasurement extends MouseEvent {
 
             if (this.positonsAry.length > 1) {
                 // 由于第二次点击又推进来一个元素，所以需要取的开始点位是推进来的倒数第二个元素
-                this.computedDistance(this.positonsAry[this.positonsAry.length - 2], currentPosition);
-                this.createRay(
+                this.computedDistance(
                     this.positonsAry[this.positonsAry.length - 2],
                     currentPosition
                 );
+                this.createRay(this.positonsAry[this.positonsAry.length - 2], currentPosition);
             }
 
             this.createPoint(currentPosition);
@@ -96,11 +90,11 @@ export default class LengthMeasurement extends MouseEvent {
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
             if (this.positonsAry.length > 2) {
-                this.computedDistance(this.positonsAry[this.positonsAry.length - 1], currentPosition);
-                this.createRay(
+                this.computedDistance(
                     this.positonsAry[this.positonsAry.length - 1],
                     currentPosition
                 );
+                this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
                 this.createPolylineTip(currentPosition);
             }
 
@@ -118,11 +112,11 @@ export default class LengthMeasurement extends MouseEvent {
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
             if (this.positonsAry.length > 0 && this.lineEntityAry) {
-                this.computedDistance(this.positonsAry[this.positonsAry.length - 1], currentPosition);
-                this.createRay(
+                this.computedDistance(
                     this.positonsAry[this.positonsAry.length - 1],
                     currentPosition
                 );
+                this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
             }
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     }
@@ -141,10 +135,7 @@ export default class LengthMeasurement extends MouseEvent {
         this.pointEntityAry.push(pointEntity);
     }
 
-    private createRay(
-        startPosition: Cesium.Cartesian3,
-        endPosition: Cesium.Cartesian3
-    ): void {
+    private createRay(startPosition: Cesium.Cartesian3, endPosition: Cesium.Cartesian3): void {
         if (this.currentMouseType === MouseStatusEnum.move) {
             this.lineEntityAry.forEach((entity) => {
                 this.viewer.entities.remove(entity);
@@ -161,22 +152,13 @@ export default class LengthMeasurement extends MouseEvent {
         // 创建射线
         const ray = new Cesium.Ray(startPosition, direction);
         // pick 方法可以获取到射线与地球表面的交线 https://cesium.com/learn/cesiumjs/ref-doc/Globe.html
-        const intersection = this.viewer.scene.globe.pick(
-            ray,
-            this.viewer.scene
-        );
+        const intersection = this.viewer.scene.globe.pick(ray, this.viewer.scene);
 
         if (intersection) {
-            this.createPolylin(
-                [startPosition, intersection],
-                Cesium.Color.CHARTREUSE
-            );
+            this.createPolylin([startPosition, intersection], Cesium.Color.CHARTREUSE);
             this.createPolylin([intersection, endPosition], Cesium.Color.RED);
         } else {
-            this.createPolylin(
-                [startPosition, endPosition],
-                Cesium.Color.CHARTREUSE
-            );
+            this.createPolylin([startPosition, endPosition], Cesium.Color.CHARTREUSE);
         }
     }
 
@@ -216,11 +198,7 @@ export default class LengthMeasurement extends MouseEvent {
     ) {
         this.tipEntity && this.viewer.entities.remove(this.tipEntity);
         // 计算线的中点位置
-        const midPoint = Cesium.Cartesian3.midpoint(
-            start,
-            end,
-            new Cesium.Cartesian3()
-        );
+        const midPoint = Cesium.Cartesian3.midpoint(start, end, new Cesium.Cartesian3());
 
         // 将中点向下移动一小段距离，以便将标签显示在线的下方
         const offset = Cesium.Cartesian3.multiplyByScalar(
@@ -228,11 +206,7 @@ export default class LengthMeasurement extends MouseEvent {
             -0.0005,
             new Cesium.Cartesian3()
         );
-        const labelPosition = Cesium.Cartesian3.add(
-            midPoint,
-            offset,
-            new Cesium.Cartesian3()
-        );
+        const labelPosition = Cesium.Cartesian3.add(midPoint, offset, new Cesium.Cartesian3());
 
         const tipEntity = this.viewer.entities.add({
             position: labelPosition,
@@ -264,19 +238,13 @@ export default class LengthMeasurement extends MouseEvent {
     }
 
     private createPolylineTip(positions: Cesium.Cartesian3) {
-        const total2dDistance = this.distanceAry.reduce(
-            (accumulator, currentValue) => {
-                return accumulator + currentValue.distance2d;
-            },
-            0
-        );
+        const total2dDistance = this.distanceAry.reduce((accumulator, currentValue) => {
+            return accumulator + currentValue.distance2d;
+        }, 0);
 
-        const total3dDistance = this.distanceAry.reduce(
-            (accumulator, currentValue) => {
-                return accumulator + currentValue.distance3d;
-            },
-            0
-        );
+        const total3dDistance = this.distanceAry.reduce((accumulator, currentValue) => {
+            return accumulator + currentValue.distance3d;
+        }, 0);
 
         this.polylineTip = this.viewer.entities.add({
             position: positions,
@@ -296,21 +264,8 @@ export default class LengthMeasurement extends MouseEvent {
     }
 
     private computedDistance = (start: Cesium.Cartesian3, end: Cesium.Cartesian3) => {
-        const distance_2d = compute_placeDistance_2d(
-            Cesium,
-            start,
-            end
-        );
-        const ditance_3d = compute_geodesicaDistance_3d(
-            Cesium,
-            start,
-            end
-        );
-        this.createTip(
-            start,
-            end,
-            distance_2d.toFixed(2),
-            ditance_3d.toFixed(2)
-        );
+        const distance_2d = compute_placeDistance_2d(Cesium, start, end);
+        const ditance_3d = compute_geodesicaDistance_3d(Cesium, start, end);
+        this.createTip(start, end, distance_2d.toFixed(2), ditance_3d.toFixed(2));
     };
 }

@@ -1,4 +1,3 @@
-
 import * as Cesium from 'cesium';
 
 export enum CurrentCountEnum {
@@ -35,4 +34,7 @@ export interface ViewShedOptions {
     size?: number;
 }
 
-export type ViewShedOptionalOptions = Omit<ViewShedOptions, 'viewPosition' | 'viewPositionEnd' | 'viewDistance' | 'viewHeading' | 'viewPitch'>;
+export type ViewShedOptionalOptions = Omit<
+    ViewShedOptions,
+    'viewPosition' | 'viewPositionEnd' | 'viewDistance' | 'viewHeading' | 'viewPitch'
+>;

@@ -53,25 +53,16 @@ export default class VisibilityAnalysis {
         // 创建射线
         const ray = new Cesium.Ray(this.startPosition, direction);
         // pick 方法可以获取到射线与地球表面的交线 https://cesium.com/learn/cesiumjs/ref-doc/Globe.html
-        const intersection = this.viewer.scene.globe.pick(
-            ray,
-            this.viewer.scene
-        );
+        const intersection = this.viewer.scene.globe.pick(ray, this.viewer.scene);
 
         if (intersection) {
             // Visible part
-            this.drawLine(
-                [this.startPosition, intersection],
-                Cesium.Color.GREEN
-            );
+            this.drawLine([this.startPosition, intersection], Cesium.Color.GREEN);
             // Invisible part
             this.drawLine([intersection, this.endPosition], Cesium.Color.RED);
         } else {
             // Fully visible
-            this.drawLine(
-                [this.startPosition, this.endPosition],
-                Cesium.Color.GREEN
-            );
+            this.drawLine([this.startPosition, this.endPosition], Cesium.Color.GREEN);
         }
     }
 

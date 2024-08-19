@@ -1,4 +1,4 @@
-import * as Cesium from "cesium";
+import * as Cesium from 'cesium';
 
 interface Options {
     /** 转动角度 */
@@ -22,7 +22,7 @@ export default class TurntableSwing {
             Cesium.Cartographic.fromDegrees(110, 60, 1),
             2000,
             Cesium.Color.YELLOW,
-            2000,
+            2000
         );
         this.viewer.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(110, 60, 10000),
@@ -33,7 +33,7 @@ export default class TurntableSwing {
         cartographicCenter: Cesium.Cartographic,
         radius: number,
         scanColor: Cesium.Color,
-        duration: number,
+        duration: number
     ) {
         const size = 30;
         const ScanSegmentShader = `
@@ -83,7 +83,7 @@ export default class TurntableSwing {
                 float angle = acos(dot(centerToPixel, u_scanLineNormalEC));
 
                 // 扇形为 30 度
-                float maxAngle = radians(${size/2}.0);
+                float maxAngle = radians(${size / 2}.0);
 
                 // 仅当像素在30度圆弧内时, 进行颜色混合
                 if (dis < u_radius && angle < maxAngle) {
@@ -93,8 +93,7 @@ export default class TurntableSwing {
             }
         `;
 
-        const _Cartesian3Center =
-            Cesium.Cartographic.toCartesian(cartographicCenter);
+        const _Cartesian3Center = Cesium.Cartographic.toCartesian(cartographicCenter);
         const _Cartesian4Center = new Cesium.Cartesian4(
             _Cartesian3Center.x,
             _Cartesian3Center.y,
@@ -107,8 +106,7 @@ export default class TurntableSwing {
             cartographicCenter.latitude,
             cartographicCenter.height + 100
         );
-        const _Cartesian3Center1 =
-            Cesium.Cartographic.toCartesian(_CartographicCenter1);
+        const _Cartesian3Center1 = Cesium.Cartographic.toCartesian(_CartographicCenter1);
         const _Cartesian4Center1 = new Cesium.Cartesian4(
             _Cartesian3Center1.x,
             _Cartesian3Center1.y,
@@ -121,8 +119,7 @@ export default class TurntableSwing {
             cartographicCenter.latitude,
             cartographicCenter.height
         );
-        const _Cartesian3Center2 =
-            Cesium.Cartographic.toCartesian(_CartographicCenter2);
+        const _Cartesian3Center2 = Cesium.Cartographic.toCartesian(_CartographicCenter2);
         const _Cartesian4Center2 = new Cesium.Cartesian4(
             _Cartesian3Center2.x,
             _Cartesian3Center2.y,
@@ -166,10 +163,7 @@ export default class TurntableSwing {
                     _scratchCartesian3Normal.y = temp1.y - temp.y;
                     _scratchCartesian3Normal.z = temp1.z - temp.z;
 
-                    Cesium.Cartesian3.normalize(
-                        _scratchCartesian3Normal,
-                        _scratchCartesian3Normal
-                    );
+                    Cesium.Cartesian3.normalize(_scratchCartesian3Normal, _scratchCartesian3Normal);
                     return _scratchCartesian3Normal;
                 },
                 u_radius: radius,
@@ -194,10 +188,7 @@ export default class TurntableSwing {
                     _scratchCartesian3Normal.y = temp1.y - temp.y;
                     _scratchCartesian3Normal.z = temp1.z - temp.z;
 
-                    Cesium.Cartesian3.normalize(
-                        _scratchCartesian3Normal,
-                        _scratchCartesian3Normal
-                    );
+                    Cesium.Cartesian3.normalize(_scratchCartesian3Normal, _scratchCartesian3Normal);
 
                     _scratchCartesian3Normal1.x = temp2.x - temp.x;
                     _scratchCartesian3Normal1.y = temp2.y - temp.y;
@@ -208,11 +199,7 @@ export default class TurntableSwing {
                     const tempTime = ((new Date().getTime() - _time) % duration) / duration;
                     const angle = Math.sin(tempTime * Math.PI) * customAngleInRadians;
 
-                    Cesium.Quaternion.fromAxisAngle(
-                        _scratchCartesian3Normal,
-                        angle,
-                        _RotateQ
-                    );
+                    Cesium.Quaternion.fromAxisAngle(_scratchCartesian3Normal, angle, _RotateQ);
                     Cesium.Matrix3.fromQuaternion(_RotateQ, _RotateM);
                     Cesium.Matrix3.multiplyByVector(
                         _RotateM,
@@ -231,5 +218,4 @@ export default class TurntableSwing {
 
         return this.viewer.scene.postProcessStages.add(ScanPostStage);
     }
-
 }

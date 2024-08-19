@@ -18,7 +18,7 @@ export interface GlobalTurntableMethods {
     minimumClock: (value: number) => void;
     /** 右偏角值 */
     maximumClock: (value: number) => void;
-     /** 外径大小 */
+    /** 外径大小 */
     radii: (value: number) => void;
     /** 内径大小 */
     innerRadii: (value: number) => void;

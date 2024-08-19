@@ -1,6 +1,11 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
-import { compute_2DPolygonArea, compute_3DPolygonArea, compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
+import {
+    compute_2DPolygonArea,
+    compute_3DPolygonArea,
+    compute_geodesicaDistance_3d,
+    compute_placeDistance_2d,
+} from './compute';
 import { MouseStatusEnum } from '@src/enum/enum';
 
 export default class AreaMeasurement extends MouseEvent {
@@ -19,10 +24,7 @@ export default class AreaMeasurement extends MouseEvent {
     private polyTipAry: Cesium.Entity[];
     private areaTipAry: Cesium.Entity[];
 
-    constructor(
-        viewer: Cesium.Viewer,
-        handler: Cesium.ScreenSpaceEventHandler
-    ) {
+    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
@@ -51,10 +53,18 @@ export default class AreaMeasurement extends MouseEvent {
         this.copyPosition3dAry = [];
         this.position3dAry = [];
         this.tempMovePosition = undefined;
-        this.pointEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
-        this.polygonEntityAry.forEach((entity) => {this.viewer.entities.remove(entity);});
-        this.polyTipAry.forEach((entity) => {this.viewer.entities.remove(entity);});
-        this.areaTipAry.forEach((entity) => {this.viewer.entities.remove(entity);});
+        this.pointEntityAry.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
+        this.polygonEntityAry.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
+        this.polyTipAry.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
+        this.areaTipAry.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+        });
         this.polygonEntity && this.viewer.entities.remove(this.polygonEntity);
     }
 
@@ -72,7 +82,10 @@ export default class AreaMeasurement extends MouseEvent {
             this.createPolygon();
             if (this.position3dAry.length > 1) {
                 // 由于第二次点击又推进来一个元素，所以需要取的开始点位是推进来的倒数第二个元素
-                this.computedDistance(JSON.parse(this.copyPosition3dAry[this.copyPosition3dAry.length - 2]), currentPosition);
+                this.computedDistance(
+                    JSON.parse(this.copyPosition3dAry[this.copyPosition3dAry.length - 2]),
+                    currentPosition
+                );
             }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
@@ -91,17 +104,22 @@ export default class AreaMeasurement extends MouseEvent {
 
             this.createPoint(currentPosition);
             // 由于第二次点击又推进来一个元素，所以需要取的开始点位是推进来的倒数第二个元素
-            this.computedDistance(JSON.parse(this.copyPosition3dAry[this.copyPosition3dAry.length - 2]), currentPosition);
+            this.computedDistance(
+                JSON.parse(this.copyPosition3dAry[this.copyPosition3dAry.length - 2]),
+                currentPosition
+            );
             this.computedDistance(JSON.parse(this.copyPosition3dAry[0]), currentPosition);
             this.creteAreaTip();
-            this.polygonEntityAry.push(this.viewer.entities.add({
-                polygon: {
-                    hierarchy: this.position3dAry,
-                    material: Cesium.Color.YELLOW.withAlpha(0.3),
-                    // 位置被限制在地形和 3D Tiles 上
-                    classificationType: Cesium.ClassificationType.BOTH
-                },
-            }));
+            this.polygonEntityAry.push(
+                this.viewer.entities.add({
+                    polygon: {
+                        hierarchy: this.position3dAry,
+                        material: Cesium.Color.YELLOW.withAlpha(0.3),
+                        // 位置被限制在地形和 3D Tiles 上
+                        classificationType: Cesium.ClassificationType.BOTH,
+                    },
+                })
+            );
 
             this.polygonEntity = undefined;
             this.position3dAry = [];
@@ -118,7 +136,10 @@ export default class AreaMeasurement extends MouseEvent {
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
             if (this.position3dAry.length > 0 && this.polygonEntity) {
-                this.computedDistance(JSON.parse(this.copyPosition3dAry[this.copyPosition3dAry.length - 1]), currentPosition);
+                this.computedDistance(
+                    JSON.parse(this.copyPosition3dAry[this.copyPosition3dAry.length - 1]),
+                    currentPosition
+                );
             }
             this.tempMovePosition = currentPosition;
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
@@ -151,7 +172,7 @@ export default class AreaMeasurement extends MouseEvent {
                         return new Cesium.PolygonHierarchy(tempPositions);
                     }, false),
                     material: Cesium.Color.YELLOW.withAlpha(0.3),
-                    classificationType: Cesium.ClassificationType.BOTH
+                    classificationType: Cesium.ClassificationType.BOTH,
                 },
             });
             this.polygonEntity = polygonEntity;
@@ -159,22 +180,9 @@ export default class AreaMeasurement extends MouseEvent {
     }
 
     private computedDistance = (start: Cesium.Cartesian3, end: Cesium.Cartesian3) => {
-        const distance_2d = compute_placeDistance_2d(
-            Cesium,
-            start,
-            end
-        );
-        const ditance_3d = compute_geodesicaDistance_3d(
-            Cesium,
-            start,
-            end
-        );
-        this.createTip(
-            start,
-            end,
-            distance_2d.toFixed(2),
-            ditance_3d.toFixed(2)
-        );
+        const distance_2d = compute_placeDistance_2d(Cesium, start, end);
+        const ditance_3d = compute_geodesicaDistance_3d(Cesium, start, end);
+        this.createTip(start, end, distance_2d.toFixed(2), ditance_3d.toFixed(2));
     };
 
     private createTip(
@@ -185,11 +193,7 @@ export default class AreaMeasurement extends MouseEvent {
     ) {
         this.tipEntity && this.viewer.entities.remove(this.tipEntity);
         // 计算线的中点位置
-        const midPoint = Cesium.Cartesian3.midpoint(
-            start,
-            end,
-            new Cesium.Cartesian3()
-        );
+        const midPoint = Cesium.Cartesian3.midpoint(start, end, new Cesium.Cartesian3());
 
         // 将中点向下移动一小段距离，以便将标签显示在线的下方
         const offset = Cesium.Cartesian3.multiplyByScalar(
@@ -197,11 +201,7 @@ export default class AreaMeasurement extends MouseEvent {
             -0.0005,
             new Cesium.Cartesian3()
         );
-        const labelPosition = Cesium.Cartesian3.add(
-            midPoint,
-            offset,
-            new Cesium.Cartesian3()
-        );
+        const labelPosition = Cesium.Cartesian3.add(midPoint, offset, new Cesium.Cartesian3());
 
         const tipEntity = this.viewer.entities.add({
             position: labelPosition,
@@ -248,7 +248,7 @@ export default class AreaMeasurement extends MouseEvent {
                 verticalOrigin: Cesium.VerticalOrigin.TOP,
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-            }
+            },
         });
         this.areaTipAry.push(areaTipEntity);
     }

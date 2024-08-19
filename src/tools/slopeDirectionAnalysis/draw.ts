@@ -16,12 +16,9 @@ export default class Draw extends MouseEvent {
     private positionAry: Cesium.Cartesian3[] = [];
     private tempPositionAry: Cesium.Cartesian3 | undefined;
     private polygonEntity?: Cesium.Entity | undefined;
-    private pointEntitys: Cesium.Entity[] =[];
+    private pointEntitys: Cesium.Entity[] = [];
 
-    constructor(
-        viewer: Cesium.Viewer,
-        handler: Cesium.ScreenSpaceEventHandler
-    ) {
+    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
@@ -45,16 +42,16 @@ export default class Draw extends MouseEvent {
     clear(): void {
         this.slopeAspectAnalysis && this.slopeAspectAnalysis.clear();
         this.polygonEntity && this.viewer.entities.remove(this.polygonEntity);
-        this.pointEntitys.length && this.pointEntitys.forEach(entits => {return this.viewer.entities.remove(entits);});
+        this.pointEntitys.length &&
+            this.pointEntitys.forEach((entits) => {
+                return this.viewer.entities.remove(entits);
+            });
     }
 
     protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             // 返回深度缓冲区和窗口位置重建的笛卡尔坐标
-            const currentPosition = this.getCatesian3FromPX(
-                this.viewer,
-                e.position
-            );
+            const currentPosition = this.getCatesian3FromPX(this.viewer, e.position);
             if (!currentPosition) return;
 
             this.positionAry.push(currentPosition);
@@ -75,10 +72,7 @@ export default class Draw extends MouseEvent {
 
     protected mouseMoveEvent(): void {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
-            const currentPosition = this.getCatesian3FromPX(
-                this.viewer,
-                e.endPosition
-            );
+            const currentPosition = this.getCatesian3FromPX(this.viewer, e.endPosition);
             if (!currentPosition) return;
 
             this.tempPositionAry = currentPosition;
@@ -144,8 +138,7 @@ export default class Draw extends MouseEvent {
         for (const i in picks) {
             const pick = picks[i];
             if (
-                (pick &&
-                    pick.primitive instanceof Cesium.Cesium3DTileFeature) ||
+                (pick && pick.primitive instanceof Cesium.Cesium3DTileFeature) ||
                 (pick && pick.primitive instanceof Cesium.Cesium3DTileset) ||
                 (pick && pick.primitive instanceof Cesium.Model)
             ) {
@@ -157,8 +150,7 @@ export default class Draw extends MouseEvent {
                 viewer.scene.pick(px);
                 cartesian = viewer.scene.pickPosition(px);
                 if (cartesian) {
-                    const cartographic =
-                        Cesium.Cartographic.fromCartesian(cartesian);
+                    const cartographic = Cesium.Cartographic.fromCartesian(cartesian);
                     if (cartographic.height < 0) cartographic.height = 0;
                     const lon = Cesium.Math.toDegrees(cartographic.longitude),
                         lat = Cesium.Math.toDegrees(cartographic.latitude),
@@ -172,8 +164,7 @@ export default class Draw extends MouseEvent {
             }
         }
         // 地形
-        const boolTerrain =
-            viewer.terrainProvider instanceof Cesium.EllipsoidTerrainProvider;
+        const boolTerrain = viewer.terrainProvider instanceof Cesium.EllipsoidTerrainProvider;
         // Terrain
         if (!isOn3dtiles && !boolTerrain) {
             const ray = viewer.scene.camera.getPickRay(px);
@@ -183,10 +174,7 @@ export default class Draw extends MouseEvent {
         }
         // 地球
         if (!isOn3dtiles && !isOnTerrain && boolTerrain) {
-            cartesian = viewer.scene.camera.pickEllipsoid(
-                px,
-                viewer.scene.globe.ellipsoid
-            );
+            cartesian = viewer.scene.camera.pickEllipsoid(px, viewer.scene.globe.ellipsoid);
         }
         if (cartesian) {
             const position = this.transformCartesianToWGS84(cartesian);
@@ -222,9 +210,7 @@ export default class Draw extends MouseEvent {
      * @param cartesian 三维位置坐标
      * @return 地理坐标
      */
-    protected transformCartesianToWGS84 = (
-        cartesian: Cesium.Cartesian3
-    ): TerrainCoordinate => {
+    protected transformCartesianToWGS84 = (cartesian: Cesium.Cartesian3): TerrainCoordinate => {
         const ellipsoid = Cesium.Ellipsoid.WGS84;
         const cartographic = ellipsoid.cartesianToCartographic(cartesian);
         return {

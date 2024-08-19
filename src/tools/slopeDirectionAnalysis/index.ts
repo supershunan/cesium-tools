@@ -58,7 +58,7 @@ const slopDerectionAnalysis: SlopDerectionAnalysis = {
             instance = null;
         }
         currentViewer = null;
-    }
+    },
 };
 
 /** 坡向分析 */

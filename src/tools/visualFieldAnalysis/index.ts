@@ -3,18 +3,16 @@ import Draw from './draw';
 import ViewShed from './visualFieldAnalysis';
 import { ViewShedOptionalOptions } from './type';
 
-
 interface VisualFieldAnalysis {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
-    setInstance: (viewer: Cesium.Viewer) =>void;
+    setInstance: (viewer: Cesium.Viewer) => void;
     getInstance: () => ViewShed | null;
     /** 设置通视分析部分开外放参数 */
     setViewShedOptions: (options: ViewShedOptionalOptions) => void;
     cleanInstance: () => void;
 }
-
 
 let instance: Draw | null = null;
 let currentViewer: Cesium.Viewer | null = null;
@@ -25,7 +23,9 @@ function ensureInstance(): Draw {
         instance = new Draw(currentViewer, handler);
     }
     if (!instance) {
-        throw new Error('ScreenSpaceEventHandler instance not initialized. Call setInstance first.');
+        throw new Error(
+            'ScreenSpaceEventHandler instance not initialized. Call setInstance first.'
+        );
     }
     return instance;
 }
@@ -48,7 +48,7 @@ const screenSpaceEventHandler: VisualFieldAnalysis = {
         return instance?.drawViewshedEntity ?? null;
     },
     setViewShedOptions: (options: ViewShedOptionalOptions) => {
-        const draw = ensureInstance() ;
+        const draw = ensureInstance();
         if (draw) {
             draw.setViewShedOptions(options);
         }
@@ -59,7 +59,7 @@ const screenSpaceEventHandler: VisualFieldAnalysis = {
             instance = null;
         }
         currentViewer = null;
-    }
+    },
 };
 
 /** 通视分析 */

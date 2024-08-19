@@ -4,10 +4,7 @@ import path from 'path';
 import dts from 'vite-plugin-dts';
 
 export default defineConfig({
-    plugins: [
-        react(),
-        dts()
-    ],
+    plugins: [react(), dts()],
     resolve: {
         alias: {
             '@src': path.resolve(__dirname, './src'),
@@ -20,14 +17,12 @@ export default defineConfig({
             entry: path.resolve(__dirname, './src/index.ts'),
             name: 'cesium-tools-fxt',
             formats: ['es', 'umd'],
-            fileName: (format) => {return `cesium-tools.${format}.js`;},
+            fileName: (format) => {
+                return `cesium-tools.${format}.js`;
+            },
         },
         rollupOptions: {
-            external: [
-                'react',
-                'cesium',
-                '@turf/turf',
-            ],
+            external: ['react', 'cesium', '@turf/turf'],
             output: {
                 globals: {
                     cesium: 'Cesium',
@@ -38,6 +33,6 @@ export default defineConfig({
         },
         // sourcemap: true,
         copyPublicDir: false,
-        minify: 'esbuild'
+        minify: 'esbuild',
     },
 });

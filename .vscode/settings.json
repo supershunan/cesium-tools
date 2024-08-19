@@ -1,0 +1,5 @@
+{
+    "editor.formatOnSave": true, // 保存时自动格式化
+    "editor.formatOnType": true, // 输入时自动格式化（比如换行时）
+    "editor.defaultFormatter": "esbenp.prettier-vscode" // 设置默认格式化工具为 Prettier
+}

@@ -143,8 +143,8 @@ export default class SloopAspectAnalysis {
         ).then((updatePositions) => {
             const tempAry: any = [];
             const ellipseResults = updatePositions.reduce(function (
-                pre,
-                item,
+                _pre,
+                _item,
                 index,
                 updatePositions
             ) {

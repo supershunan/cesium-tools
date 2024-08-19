@@ -4,7 +4,7 @@ import {
     compute_geodesicaDistance_3d,
     compute_placeDistance_2d,
 } from './compute';
-import { MouseStatusEnum } from '@src/type/enum';
+import { MouseStatusEnum } from '@src/enum/enum';
 
 export default class LengthMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;

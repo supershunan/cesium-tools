@@ -9,7 +9,7 @@ interface TerrainCoordinate {
 }
 export default class Draw extends MouseEvent {
     protected viewer: Cesium.Viewer;
-    protected handler: Cesium.ScreenSpaceEventHandler;
+    handler: Cesium.ScreenSpaceEventHandler;
     /** 网格切割的精度 单位(km) 最小为20 精度越大越消耗性能 */
     distance: number;
     slopeAspectAnalysis?: SloopAspectAnalysis;

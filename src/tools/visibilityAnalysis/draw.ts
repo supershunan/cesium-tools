@@ -1,10 +1,10 @@
 import * as Cesium from 'cesium';
 import VisibilityAnalysis from './visibilityAnalysis';
 import MouseEvent from '../mouseBase/mouseBase';
-import { CurrentCountEnum } from '@src/type/enum';
+import { CurrentCountEnum } from '@src/enum/enum';
 export default class Draw extends MouseEvent {
     protected viewer: Cesium.Viewer;
-    protected handler: Cesium.ScreenSpaceEventHandler;
+    handler: Cesium.ScreenSpaceEventHandler;
     private initId: number = new Date().getTime();
     private pointEntitys: Cesium.Entity[] = [];
     drawViewshedEntity: VisibilityAnalysis | undefined;

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import glsl from './glsl';
 import * as Cesium from 'cesium';
 import { ViewShedOptions } from './type';
@@ -145,12 +146,13 @@ class ViewShed {
         const aspectRatio =
             (this.viewDistance * Math.tan(hr / 2) * 2) /
             (this.viewDistance * Math.tan(vr / 2) * 2);
-        this.lightCamera.frustum.aspectRatio = aspectRatio; // 截面宽高比
+        if (this.lightCamera.frustum instanceof Cesium.PerspectiveFrustum) {
+            this.lightCamera.frustum.aspectRatio = aspectRatio; // 截面宽高比
+        }
         // 视场角
-        if (hr > vr) {
-            this.lightCamera.frustum.fov = hr;
-        } else {
-            this.lightCamera.frustum.fov = vr;
+        if (this.lightCamera.frustum instanceof Cesium.PerspectiveFrustum) {
+            // 计算视场角并设置 fov
+            this.lightCamera.frustum.fov = hr > vr ? hr : vr;
         }
         this.lightCamera.setView({
             destination: this.viewPosition, // 相机最终的位置

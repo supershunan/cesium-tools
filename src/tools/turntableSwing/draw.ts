@@ -5,7 +5,7 @@ import { TurntableParams, GlobalTurntableMethods } from './type';
 
 export default class Draw extends MouseEvent {
     protected viewer: Cesium.Viewer;
-    protected handler: Cesium.ScreenSpaceEventHandler;
+    handler: Cesium.ScreenSpaceEventHandler;
     turntableParams?: TurntableParams = undefined;
     turntableSwing: TurntableSwing | undefined;
     pointEntity: Cesium.Entity | undefined;

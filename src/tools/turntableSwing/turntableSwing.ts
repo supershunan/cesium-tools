@@ -80,8 +80,7 @@ export default class TurntableSwing {
     /** 左偏角值 */
     minimumClock(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.minimumClock =
-                Cesium.Math.toRadians(val);
+            this.radarEntity.ellipsoid.minimumClock = new Cesium.ConstantProperty(Cesium.Math.toRadians(val));
         }
     }
 
@@ -89,45 +88,35 @@ export default class TurntableSwing {
     maximumClock(val: number) {
         if (this.radarEntity?.ellipsoid) {
             this.radarEntity.ellipsoid.maximumClock =
-                Cesium.Math.toRadians(val);
+                new Cesium.ConstantProperty(Cesium.Math.toRadians(val));
         }
     }
 
     /** 外径大小 */
     radii(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.radii = new Cesium.Cartesian3(
-                val,
-                val,
-                1
-            );
+            this.radarEntity.ellipsoid.radii = new Cesium.ConstantProperty(new Cesium.Cartesian3(val, val, 1));
         }
     }
 
     /** 内径大小 */
     innerRadii(val: number) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.innerRadii = new Cesium.Cartesian3(
-                val,
-                val,
-                1
-            );
+            this.radarEntity.ellipsoid.innerRadii = new Cesium.ConstantProperty(new Cesium.Cartesian3(val, val, 1));
         }
     }
 
     /** 填充色 rgba */
     fillColor(val: string) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.material =
-                Cesium.Color.fromCssColorString(val);
+            this.radarEntity.ellipsoid.material = new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString(val));
         }
     }
 
     /** 边框色 rgba */
     outlineColor(val: string) {
         if (this.radarEntity?.ellipsoid) {
-            this.radarEntity.ellipsoid.outlineColor =
-                Cesium.Color.fromCssColorString(val);
+            this.radarEntity.ellipsoid.outlineColor = new Cesium.ConstantProperty(Cesium.Color.fromCssColorString(val));
         }
     }
 }

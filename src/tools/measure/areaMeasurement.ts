@@ -1,7 +1,7 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
 import { compute_2DPolygonArea, compute_3DPolygonArea, compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
-import { MouseStatusEnum } from '@src/type/enum';
+import { MouseStatusEnum } from '@src/enum/enum';
 
 export default class AreaMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;

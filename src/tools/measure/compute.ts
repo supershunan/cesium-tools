@@ -52,14 +52,15 @@ export const compute_3DPolygonArea = (Cesium: typeof import('cesium'), positions
     if (positions.length < 3) {
         return 0;
     }
-    const indices = Cesium.PolygonPipeline.triangulate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const indices = (Cesium as any).PolygonPipeline.triangulate(
         positions.map((pos) => {
             return new Cesium.Cartesian2(pos.x, pos.y);
         })
     );
 
     // 计算三角形面积
-    function triangleArea(a, b, c) {
+    function triangleArea(a: Cesium.Cartesian3, b: Cesium.Cartesian3, c: Cesium.Cartesian3) {
         // 得到向量的模长
         const ab = Cesium.Cartesian3.subtract(b, a, new Cesium.Cartesian3());
         const ac = Cesium.Cartesian3.subtract(c, a, new Cesium.Cartesian3());
@@ -72,9 +73,9 @@ export const compute_3DPolygonArea = (Cesium: typeof import('cesium'), positions
     // 计算地表面积
     let surfaceArea = 0.0;
     for (let i = 0; i < indices.length; i += 3) {
-        const a = positions[indices[i]];
-        const b = positions[indices[i + 1]];
-        const c = positions[indices[i + 2]];
+        const a = positions[indices[i]] as Cesium.Cartesian3;
+        const b = positions[indices[i + 1]] as Cesium.Cartesian3;
+        const c = positions[indices[i + 2]] as Cesium.Cartesian3;
         surfaceArea += triangleArea(a, b, c);
     }
 

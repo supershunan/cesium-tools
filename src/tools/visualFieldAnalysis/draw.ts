@@ -3,11 +3,11 @@ import ViewShed from './visualFieldAnalysis';
 import PlotDrawTip from '../mouseRemove/PlotDrawTip';
 import MouseDrawBase from '../mouseBase/mouseBase';
 import { ViewShedOptionalOptions } from './type';
-import { CurrentCountEnum } from '@src/type/enum';
+import { CurrentCountEnum } from '@src/enum/enum';
 
 export default class Draw extends MouseDrawBase {
     protected viewer: Cesium.Viewer;
-    protected handler: Cesium.ScreenSpaceEventHandler;
+    handler: Cesium.ScreenSpaceEventHandler;
     private currentClickCount: CurrentCountEnum;
     drawViewshedEntity?: ViewShed;
     private plotDrawTip?: PlotDrawTip;

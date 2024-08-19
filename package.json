@@ -1,48 +1,40 @@
 {
-  "name": "cesium-tools-fxt",
-  "version": "1.0.10",
-  "description": "cesium工具包",
-  "type": "module",
-  "main": "./dist/cesium-tools.umd.js",
-  "module": "./dist/cesium-tools.es.js",
-  "files": [
-    "package.json",
-    "README.md",
-    "dist"
-  ],
-  "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": "./dist/cesium-tools.es.js",
-      "require": "./dist/cesium-tools.umd.js"
+    "name": "cesium-tools-fxt",
+    "version": "1.0.12",
+    "description": "cesium工具包",
+    "type": "module",
+    "main": "./dist/cesium-tools.umd.js",
+    "module": "./dist/cesium-tools.es.js",
+    "files": [
+      "package.json",
+      "README.md",
+      "dist"
+    ],
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": "./dist/cesium-tools.es.js",
+        "require": "./dist/cesium-tools.umd.js"
+      }
+    },
+    "scripts": {
+      "dev": "vite",
+      "build": "vite build && tsc",
+      "tsc": "tsc",
+      "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "preview": "vite preview"
+    },
+    "dependencies": {
+      "@turf/turf": "^7.0.0",
+      "@types/geojson": "^7946.0.14",
+      "eslint-config-ts-fxt": "^1.0.1"
+    },
+    "devDependencies": {
+      "@typescript-eslint/eslint-plugin": "^7.15.0",
+      "@typescript-eslint/parser": "^7.15.0",
+      "eslint": "^8.57.0",
+      "typescript": "^5.2.2",
+      "vite": "^5.3.4",
+      "vite-plugin-dts": "^4.0.3"
     }
-  },
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build && tsc",
-    "tsc": "tsc",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "@turf/turf": "^7.0.0",
-    "@types/geojson": "^7946.0.14",
-    "cesium": "^1.119.0",
-    "eslint-config-ts-fxt": "^1.0.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@typescript-eslint/eslint-plugin": "^7.15.0",
-    "@typescript-eslint/parser": "^7.15.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "eslint": "^8.57.0",
-    "eslint-plugin-react-hooks": "^4.6.2",
-    "eslint-plugin-react-refresh": "^0.4.7",
-    "typescript": "^5.2.2",
-    "vite": "^5.3.4",
-    "vite-plugin-dts": "^4.0.3"
   }
-}

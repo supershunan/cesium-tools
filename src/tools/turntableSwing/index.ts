@@ -2,6 +2,7 @@ import * as Cesium from 'cesium';
 import Draw from './draw';
 import TurntableSwing from './turntableSwing';
 import { TurntableParams, GlobalTurntableMethods } from './type';
+import { EventCallback } from '../../type/type';
 
 interface TurntableSwingProps {
     active: () => void;
@@ -12,6 +13,8 @@ interface TurntableSwingProps {
     /** 返回所有可以对转角操作的方法 */
     globalTurntableMethod: () => GlobalTurntableMethods | null;
     cleanInstance: () => void;
+    addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 
 let instance: Draw | null = null;
@@ -58,6 +61,12 @@ const turntableSwingProps: TurntableSwingProps = {
             instance = null;
         }
         currentViewer = null;
+    },
+    addToolsEventListener: (eventName, callback) => {
+        ensureInstance().addToolsEventListener(eventName, callback);
+    },
+    removeToolsEventListener: (eventName, callback) => {
+        ensureInstance().removeToolsEventListener(eventName, callback);
     },
 };
 

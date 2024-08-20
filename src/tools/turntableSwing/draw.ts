@@ -2,6 +2,8 @@ import * as Cesium from 'cesium';
 import TurntableSwing from './turntableSwing';
 import MouseEvent from '../mouseBase/mouseBase';
 import { TurntableParams, GlobalTurntableMethods } from './type';
+import { ToolsEventTypeEnum } from '../../enum/enum';
+import { EventCallback } from '../../type/type';
 
 export default class Draw extends MouseEvent {
     protected viewer: Cesium.Viewer;
@@ -31,6 +33,14 @@ export default class Draw extends MouseEvent {
         this.unRegisterEvents();
     }
 
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+        this.addEventListener(eventName, callback);
+    }
+
+    removeToolsEventListener<T>(eventName: string, callback?: EventCallback<T>) {
+        this.removeEventListener(eventName, callback);
+    }
+
     protected leftClickEvent() {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
@@ -43,6 +53,11 @@ export default class Draw extends MouseEvent {
             );
             this.turntableSwing.add();
             this.turntableSwing.radii(200);
+
+            this.dispatch('cesiumToolsFxt', {
+                type: ToolsEventTypeEnum.turntableSwing,
+                status: 'finished',
+            });
 
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);

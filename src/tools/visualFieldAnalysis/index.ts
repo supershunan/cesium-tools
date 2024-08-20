@@ -2,6 +2,7 @@ import * as Cesium from 'cesium';
 import Draw from './draw';
 import ViewShed from './visualFieldAnalysis';
 import { ViewShedOptionalOptions } from './type';
+import { EventCallback } from '../../type/type';
 
 interface VisualFieldAnalysis {
     active: () => void;
@@ -12,6 +13,8 @@ interface VisualFieldAnalysis {
     /** 设置通视分析部分开外放参数 */
     setViewShedOptions: (options: ViewShedOptionalOptions) => void;
     cleanInstance: () => void;
+    addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 
 let instance: Draw | null = null;
@@ -59,6 +62,12 @@ const screenSpaceEventHandler: VisualFieldAnalysis = {
             instance = null;
         }
         currentViewer = null;
+    },
+    addToolsEventListener: (eventName, callback) => {
+        ensureInstance().addToolsEventListener(eventName, callback);
+    },
+    removeToolsEventListener: (eventName, callback) => {
+        ensureInstance().removeToolsEventListener(eventName, callback);
     },
 };
 

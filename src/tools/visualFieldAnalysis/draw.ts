@@ -3,7 +3,8 @@ import ViewShed from './visualFieldAnalysis';
 import PlotDrawTip from '../mouseRemove/PlotDrawTip';
 import MouseDrawBase from '../mouseBase/mouseBase';
 import { ViewShedOptionalOptions } from './type';
-import { CurrentCountEnum } from '@src/enum/enum';
+import { CurrentCountEnum, ToolsEventTypeEnum } from '../../enum/enum';
+import { EventCallback } from '../../type/type';
 
 export default class Draw extends MouseDrawBase {
     protected viewer: Cesium.Viewer;
@@ -37,6 +38,14 @@ export default class Draw extends MouseDrawBase {
         this.plotDrawTip = undefined;
     }
 
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+        this.addEventListener(eventName, callback);
+    }
+
+    removeToolsEventListener<T>(eventName: string, callback?: EventCallback<T>) {
+        this.removeEventListener(eventName, callback);
+    }
+
     protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             this.currentClickCount++;
@@ -60,6 +69,11 @@ export default class Draw extends MouseDrawBase {
             if (this.currentClickCount === CurrentCountEnum.end) {
                 this.drawViewshedEntity?.updatePosition(currentPosition);
                 this.drawViewshedEntity?.update();
+                this.dispatch('cesiumToolsFxt', {
+                    type: ToolsEventTypeEnum.visualFieldAnalysis,
+                    status: 'finished',
+                });
+
                 this.deactivate();
             }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);

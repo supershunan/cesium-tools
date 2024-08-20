@@ -3,6 +3,7 @@ import LengthMeasurement from './lengthMeasurement';
 import AreaMeasurement from './areaMeasurement';
 import AngleMeasurement from './angleMeasurement';
 import TheHeightOfTheGround from './theHeightOfTheGround';
+import { EventCallback } from '../../type/type';
 
 interface MeasurementActions {
     /** 激活 */
@@ -11,6 +12,8 @@ interface MeasurementActions {
     deactivate: () => void;
     /** 清除图层 */
     clear: () => void;
+    addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 
 interface Measure {
@@ -25,6 +28,10 @@ interface Measure {
 }
 
 export default function useMeasure(viewer: Cesium.Viewer): Measure {
+    // 存储测量实例
+    let currentMeasurement: MeasurementActions | null = null;
+    let handler: Cesium.ScreenSpaceEventHandler | null = null;
+
     // 通用的创建测量方法
     const createMeasurement = (
         MeasurementClass: new (
@@ -32,19 +39,28 @@ export default function useMeasure(viewer: Cesium.Viewer): Measure {
             handler: Cesium.ScreenSpaceEventHandler
         ) => MeasurementActions
     ): MeasurementActions => {
-        const handler = new Cesium.ScreenSpaceEventHandler(viewer?.scene.canvas);
-        const measurement = new MeasurementClass(viewer, handler);
+        if (!currentMeasurement && !handler) {
+            handler = new Cesium.ScreenSpaceEventHandler(viewer?.scene.canvas);
+            const measurement = new MeasurementClass(viewer, handler);
+            currentMeasurement = measurement;
+        }
 
         return {
             active: () => {
-                measurement.active();
+                currentMeasurement?.active();
             },
             deactivate: () => {
-                measurement.deactivate();
-                handler.destroy();
+                currentMeasurement?.deactivate();
+                handler?.destroy();
             },
             clear: () => {
-                measurement.clear();
+                currentMeasurement?.clear();
+            },
+            addToolsEventListener: (eventName, callback) => {
+                currentMeasurement?.addToolsEventListener(eventName, callback);
+            },
+            removeToolsEventListener: (eventName, callback) => {
+                currentMeasurement?.removeToolsEventListener(eventName, callback);
             },
         };
     };

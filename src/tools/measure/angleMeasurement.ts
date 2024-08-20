@@ -1,6 +1,8 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
 import { compute_Angle, compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
+import { ToolsEventTypeEnum } from '../../enum/enum';
+import { EventCallback } from '../../type/type';
 
 export default class AngleMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;
@@ -47,6 +49,14 @@ export default class AngleMeasurement extends MouseEvent {
         this.positonsAry = [];
         this.tempMovePosition = undefined;
         this.lineEntity = undefined;
+    }
+
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+        this.addEventListener(eventName, callback);
+    }
+
+    removeToolsEventListener<T>(eventName: string, callback?: EventCallback<T>) {
+        this.removeEventListener(eventName, callback);
     }
 
     protected leftClickEvent(): void {
@@ -103,13 +113,19 @@ export default class AngleMeasurement extends MouseEvent {
                         positions: this.positonsAry,
                         width: 2,
                         material: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
-                        depthFailMaterial: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
+                        depthFailMaterial: new Cesium.ColorMaterialProperty(
+                            Cesium.Color.CHARTREUSE
+                        ),
                         // 是否贴地
                         clampToGround: true,
                     },
                 })
             );
             this.positonsAry = [];
+            this.dispatch('cesiumToolsFxt', {
+                type: ToolsEventTypeEnum.angleMeasurement,
+                status: 'finished',
+            });
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }

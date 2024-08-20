@@ -1,6 +1,7 @@
 import * as Cesium from 'cesium';
 import Draw from './draw';
 import VisibilityAnalysis from './visibilityAnalysis';
+import { EventCallback } from '../../type/type';
 
 interface VisibilityAnalysisProps {
     active: () => void;
@@ -9,6 +10,8 @@ interface VisibilityAnalysisProps {
     setInstance: (viewer: Cesium.Viewer) => void;
     getInstance: () => VisibilityAnalysis | null;
     cleanInstance: () => void;
+    addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 
 let instance: Draw | null = null;
@@ -50,6 +53,12 @@ const visibilityAnalysisProps: VisibilityAnalysisProps = {
             instance = null;
         }
         currentViewer = null;
+    },
+    addToolsEventListener: (eventName, callback) => {
+        ensureInstance().addToolsEventListener(eventName, callback);
+    },
+    removeToolsEventListener: (eventName, callback) => {
+        ensureInstance().removeToolsEventListener(eventName, callback);
     },
 };
 

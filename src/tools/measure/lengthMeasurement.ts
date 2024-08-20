@@ -1,7 +1,8 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
 import { compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
-import { MouseStatusEnum } from '@src/enum/enum';
+import { MouseStatusEnum, ToolsEventTypeEnum } from '../../enum/enum';
+import { EventCallback } from '../../type/type';
 
 export default class LengthMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;
@@ -60,6 +61,14 @@ export default class LengthMeasurement extends MouseEvent {
         });
     }
 
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+        this.addEventListener(eventName, callback);
+    }
+
+    removeToolsEventListener<T>(eventName: string, callback?: EventCallback<T>) {
+        this.removeEventListener(eventName, callback);
+    }
+
     protected leftClickEvent() {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             this.currentMouseType = MouseStatusEnum.click;
@@ -100,6 +109,10 @@ export default class LengthMeasurement extends MouseEvent {
 
             this.createPoint(currentPosition);
             this.distanceAry = [];
+            this.dispatch('cesiumToolsFxt', {
+                type: ToolsEventTypeEnum.lengthMeasurement,
+                status: 'finished',
+            });
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }

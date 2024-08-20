@@ -1,5 +1,8 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
+import { ToolsEventTypeEnum } from '../../enum/enum';
+import { EventCallback } from '../../type/type';
+
 export default class TheHeightOfTheGround extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
@@ -33,12 +36,24 @@ export default class TheHeightOfTheGround extends MouseEvent {
         });
     }
 
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+        this.addEventListener(eventName, callback);
+    }
+
+    removeToolsEventListener<T>(eventName: string, callback?: EventCallback<T>) {
+        this.removeEventListener(eventName, callback);
+    }
+
     protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
             this.drawSurfaceLine(currentPosition);
+            this.dispatch('cesiumToolsFxt', {
+                type: ToolsEventTypeEnum.theHeightMeasurement,
+                status: 'finished',
+            });
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 

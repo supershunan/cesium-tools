@@ -6,7 +6,8 @@ import {
     compute_geodesicaDistance_3d,
     compute_placeDistance_2d,
 } from './compute';
-import { MouseStatusEnum } from '@src/enum/enum';
+import { MouseStatusEnum, ToolsEventTypeEnum } from '../../enum/enum';
+import { EventCallback } from '../../type/type';
 
 export default class AreaMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;
@@ -68,6 +69,14 @@ export default class AreaMeasurement extends MouseEvent {
         this.polygonEntity && this.viewer.entities.remove(this.polygonEntity);
     }
 
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+        this.addEventListener(eventName, callback);
+    }
+
+    removeToolsEventListener<T>(eventName: string, callback?: EventCallback<T>) {
+        this.removeEventListener(eventName, callback);
+    }
+
     protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             this.currentMouseType = MouseStatusEnum.click;
@@ -126,6 +135,10 @@ export default class AreaMeasurement extends MouseEvent {
             this.polygonEntity = undefined;
             this.position3dAry = [];
             this.copyPosition3dAry = [];
+            this.dispatch('cesiumToolsFxt', {
+                type: ToolsEventTypeEnum.areaMeasurement,
+                status: 'finished',
+            });
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }

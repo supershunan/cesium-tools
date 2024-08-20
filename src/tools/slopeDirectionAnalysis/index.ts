@@ -1,6 +1,7 @@
 import * as Cesium from 'cesium';
 import Draw from './draw';
 import SloopAspectAnalysis from './slopeDerectiontAnalysis';
+import { EventCallback } from '../../type/type';
 
 interface SlopDerectionAnalysis {
     active: () => void;
@@ -11,6 +12,8 @@ interface SlopDerectionAnalysis {
     /** 设置网格切割的精度 单位(km) 最小为20 精度越大越消耗性能 */
     setDistance: (value: number) => void;
     cleanInstance: () => void;
+    addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 
 const MIN_DISTANCE = 20;
@@ -58,6 +61,12 @@ const slopDerectionAnalysis: SlopDerectionAnalysis = {
             instance = null;
         }
         currentViewer = null;
+    },
+    addToolsEventListener: (eventName, callback) => {
+        ensureInstance().addToolsEventListener(eventName, callback);
+    },
+    removeToolsEventListener: (eventName, callback) => {
+        ensureInstance().removeToolsEventListener(eventName, callback);
     },
 };
 

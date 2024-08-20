@@ -1,7 +1,8 @@
 import * as Cesium from 'cesium';
 import VisibilityAnalysis from './visibilityAnalysis';
 import MouseEvent from '../mouseBase/mouseBase';
-import { CurrentCountEnum } from '@src/enum/enum';
+import { CurrentCountEnum, ToolsEventTypeEnum } from '../../enum/enum';
+import { EventCallback } from '../../type/type';
 export default class Draw extends MouseEvent {
     protected viewer: Cesium.Viewer;
     handler: Cesium.ScreenSpaceEventHandler;
@@ -39,6 +40,14 @@ export default class Draw extends MouseEvent {
         if (this.drawViewshedEntity) this.drawViewshedEntity.clear();
     }
 
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+        this.addEventListener(eventName, callback);
+    }
+
+    removeToolsEventListener<T>(eventName: string, callback?: EventCallback<T>) {
+        this.removeEventListener(eventName, callback);
+    }
+
     protected leftClickEvent() {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             this.currentClickCount === CurrentCountEnum.padding && this.clear();
@@ -66,6 +75,12 @@ export default class Draw extends MouseEvent {
             if (this.currentClickCount === CurrentCountEnum.end && this.drawViewshedEntity) {
                 this.drawViewshedEntity.endPosition = currentPosition;
                 this.currentClickCount = CurrentCountEnum.padding;
+
+                this.dispatch('cesiumToolsFxt', {
+                    type: ToolsEventTypeEnum.visibilityAnalysis,
+                    status: 'finished',
+                });
+
                 this.unRegisterEvents();
             }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);

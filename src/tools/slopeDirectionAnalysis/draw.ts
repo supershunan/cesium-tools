@@ -1,6 +1,8 @@
 import * as Cesium from 'cesium';
 import SloopAspectAnalysis from './slopeDerectiontAnalysis';
 import MouseEvent from '../mouseBase/mouseBase';
+import { ToolsEventTypeEnum } from '../../enum/enum';
+import { EventCallback } from '../../type/type';
 
 interface TerrainCoordinate {
     lng: number;
@@ -48,6 +50,14 @@ export default class Draw extends MouseEvent {
             });
     }
 
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+        this.addEventListener(eventName, callback);
+    }
+
+    removeToolsEventListener<T>(eventName: string, callback?: EventCallback<T>) {
+        this.removeEventListener(eventName, callback);
+    }
+
     protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             // 返回深度缓冲区和窗口位置重建的笛卡尔坐标
@@ -65,6 +75,10 @@ export default class Draw extends MouseEvent {
             if (this.positionAry.length < 3) return;
 
             this.positionAry.push(this.positionAry[0]);
+            this.dispatch('cesiumToolsFxt', {
+                type: ToolsEventTypeEnum.slopDirectionAnalysis,
+                status: 'finished',
+            });
             this.unRegisterEvents();
             this.analysisPolygon();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);

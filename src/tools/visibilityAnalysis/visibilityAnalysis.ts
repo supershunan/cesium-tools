@@ -73,8 +73,8 @@ export default class VisibilityAnalysis {
                     return position;
                 }, false),
                 width: 2,
-                material: color,
-                depthFailMaterial: color,
+                material: new Cesium.ColorMaterialProperty(color),
+                depthFailMaterial: new Cesium.ColorMaterialProperty(color),
                 // 是否贴地
                 clampToGround: true,
             },

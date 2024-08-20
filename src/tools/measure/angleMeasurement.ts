@@ -102,8 +102,8 @@ export default class AngleMeasurement extends MouseEvent {
                     polyline: {
                         positions: this.positonsAry,
                         width: 2,
-                        material: Cesium.Color.CHARTREUSE,
-                        depthFailMaterial: Cesium.Color.CHARTREUSE,
+                        material: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
+                        depthFailMaterial: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
                         // 是否贴地
                         clampToGround: true,
                     },
@@ -149,8 +149,8 @@ export default class AngleMeasurement extends MouseEvent {
                     return tempPositions;
                 }, false),
                 width: 2,
-                material: Cesium.Color.CHARTREUSE,
-                depthFailMaterial: Cesium.Color.CHARTREUSE,
+                material: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
+                depthFailMaterial: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
                 // 是否贴地
                 clampToGround: true,
             },

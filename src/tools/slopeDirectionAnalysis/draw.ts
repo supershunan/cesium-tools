@@ -103,7 +103,7 @@ export default class Draw extends MouseEvent {
                         }
                         return new Cesium.PolygonHierarchy(tempPositions);
                     }, false),
-                    material: Cesium.Color.YELLOW.withAlpha(0.5),
+                    material: new Cesium.ColorMaterialProperty(Cesium.Color.YELLOW.withAlpha(0.5)),
                     outline: true,
                     outlineColor: Cesium.Color.BLACK,
                 },

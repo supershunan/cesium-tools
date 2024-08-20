@@ -175,8 +175,8 @@ export default class LengthMeasurement extends MouseEvent {
                               color: color,
                               dashLength: 20, //短划线长度
                           })
-                        : color,
-                depthFailMaterial: color,
+                        : new Cesium.ColorMaterialProperty(color),
+                depthFailMaterial: new Cesium.ColorMaterialProperty(color),
                 // 是否贴地
                 clampToGround: true,
             },

@@ -109,7 +109,7 @@ export default class TheHeightOfTheGround extends MouseEvent {
                 polyline: {
                     positions: heightLinePositions,
                     width: 2,
-                    material: Cesium.Color.CHARTREUSE,
+                    material: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
                 },
             });
 

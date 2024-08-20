@@ -61,7 +61,7 @@ export default class TurntableSwing {
                 maximumClock: Cesium.Math.toRadians(60),
                 minimumCone: Cesium.Math.toRadians(90), //建议设置上下偏角为90
                 maximumCone: Cesium.Math.toRadians(90),
-                material: Cesium.Color.fromCssColorString('rgba(255, 69, 0,  0.2)'),
+                material: new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString('rgba(255, 69, 0,  0.2)')),
                 outline: true,
                 outlineColor: Cesium.Color.fromCssColorString('rgba(255, 69, 0, 1)'),
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,

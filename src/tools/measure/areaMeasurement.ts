@@ -114,7 +114,9 @@ export default class AreaMeasurement extends MouseEvent {
                 this.viewer.entities.add({
                     polygon: {
                         hierarchy: this.position3dAry,
-                        material: Cesium.Color.YELLOW.withAlpha(0.3),
+                        material: new Cesium.ColorMaterialProperty(
+                            Cesium.Color.YELLOW.withAlpha(0.3)
+                        ),
                         // 位置被限制在地形和 3D Tiles 上
                         classificationType: Cesium.ClassificationType.BOTH,
                     },
@@ -171,7 +173,7 @@ export default class AreaMeasurement extends MouseEvent {
                         }
                         return new Cesium.PolygonHierarchy(tempPositions);
                     }, false),
-                    material: Cesium.Color.YELLOW.withAlpha(0.3),
+                    material: new Cesium.ColorMaterialProperty(Cesium.Color.YELLOW.withAlpha(0.3)),
                     classificationType: Cesium.ClassificationType.BOTH,
                 },
             });

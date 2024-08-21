@@ -1,18 +1,11 @@
 {
     "name": "cesium-tools-fxt",
-    "version": "1.0.11",
+    "version": "1.1.1",
     "description": "cesium工具包",
     "type": "module",
-    "main": "./dist/cesium-tools.umd.js",
-    "module": "./dist/cesium-tools.es.js",
+    "main": "./src/index.ts",
+    "module": "./src/index.ts",
     "files": ["package.json", "README.md", "dist"],
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "import": "./dist/cesium-tools.es.js",
-            "require": "./dist/cesium-tools.umd.js"
-        }
-    },
     "scripts": {
         "dev": "vite",
         "build": "vite build && tsc",

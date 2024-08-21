@@ -3,6 +3,7 @@
         "outDir": "./dist",
         "rootDir": "./src",
         "emitDeclarationOnly": true,
+        // 开启自动生成声明文件
         "declaration": true,
         "declarationDir": "dist",
         "composite": true,

@@ -7,6 +7,7 @@ import { EventCallback } from '../../type/type';
 export default class LengthMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
+    protected options: { trendsComputed: boolean };
     private pointEntityAry: Cesium.Entity[];
     private lineEntityAry: Cesium.Entity[];
     private tipEntity: Cesium.Entity | undefined = undefined;
@@ -17,10 +18,15 @@ export default class LengthMeasurement extends MouseEvent {
     private distanceAry: { distance2d: number; distance3d: number }[];
     private polylineTip: Cesium.Entity | undefined = undefined;
 
-    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
+    constructor(
+        viewer: Cesium.Viewer,
+        handler: Cesium.ScreenSpaceEventHandler,
+        options?: { trendsComputed: boolean }
+    ) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
+        this.options = options ? options : { trendsComputed: true };
         this.pointEntityAry = [];
         this.lineEntityAry = [];
         this.positonsAry = [];
@@ -78,41 +84,46 @@ export default class LengthMeasurement extends MouseEvent {
 
             this.positonsAry.push(currentPosition);
 
+            this.createPoint(currentPosition);
             if (this.positonsAry.length > 1) {
                 // 由于第二次点击又推进来一个元素，所以需要取的开始点位是推进来的倒数第二个元素
-                this.computedDistance(
-                    this.positonsAry[this.positonsAry.length - 2],
-                    currentPosition
-                );
+                this.options?.trendsComputed &&
+                    this.computedDistance(
+                        this.positonsAry[this.positonsAry.length - 2],
+                        currentPosition
+                    );
                 this.createRay(this.positonsAry[this.positonsAry.length - 2], currentPosition);
             }
-
-            this.createPoint(currentPosition);
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 
     protected rightClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+            if (this.positonsAry.length < 1) {
+                // eslint-disable-next-line no-alert
+                alert('至少绘制连个点');
+                return;
+            }
             this.currentMouseType = MouseStatusEnum.click;
 
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
-            if (this.positonsAry.length > 2) {
+            this.createPoint(currentPosition);
+            if (this.options?.trendsComputed) {
                 this.computedDistance(
                     this.positonsAry[this.positonsAry.length - 1],
                     currentPosition
                 );
-                this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
-                this.createPolylineTip(currentPosition);
+            } else {
+                this.positonsAry.push(currentPosition);
+                this.unTrendsComputedTip();
             }
+            this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
+            this.positonsAry.length > 2 && this.createPolylineTip(currentPosition);
 
-            this.createPoint(currentPosition);
             this.distanceAry = [];
-            this.dispatch('cesiumToolsFxt', {
-                type: ToolsEventTypeEnum.lengthMeasurement,
-                status: 'finished',
-            });
+            this.sendResult();
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
@@ -125,10 +136,11 @@ export default class LengthMeasurement extends MouseEvent {
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
             if (this.positonsAry.length > 0 && this.lineEntityAry) {
-                this.computedDistance(
-                    this.positonsAry[this.positonsAry.length - 1],
-                    currentPosition
-                );
+                this.options?.trendsComputed &&
+                    this.computedDistance(
+                        this.positonsAry[this.positonsAry.length - 1],
+                        currentPosition
+                    );
                 this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
             }
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
@@ -241,7 +253,7 @@ export default class LengthMeasurement extends MouseEvent {
             this.tipEntity = tipEntity;
         }
 
-        if (this.currentMouseType === MouseStatusEnum.click) {
+        if (this.currentMouseType === MouseStatusEnum.click || !this.options?.trendsComputed) {
             this.distanceAry.push({
                 distance2d: Number(distance_2d),
                 distance3d: Number(distance_3d),
@@ -280,5 +292,22 @@ export default class LengthMeasurement extends MouseEvent {
         const distance_2d = compute_placeDistance_2d(Cesium, start, end);
         const ditance_3d = compute_geodesicaDistance_3d(Cesium, start, end);
         this.createTip(start, end, distance_2d.toFixed(2), ditance_3d.toFixed(2));
+    };
+
+    private unTrendsComputedTip = () => {
+        const ary_2d: Cesium.Cartesian3[][] = [];
+        for (let i = 1; i < this.positonsAry.length; i++) {
+            ary_2d.push([this.positonsAry[i - 1], this.positonsAry[i]]);
+        }
+        ary_2d.forEach((positions) => {
+            this.computedDistance(positions[0], positions[1]);
+        });
+    };
+
+    private sendResult = () => {
+        this.dispatch('cesiumToolsFxt', {
+            type: ToolsEventTypeEnum.lengthMeasurement,
+            status: 'finished',
+        });
     };
 }

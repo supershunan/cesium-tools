@@ -27,7 +27,10 @@ interface Measure {
     measureTheHeightOfTheGround: () => MeasurementActions;
 }
 
-export default function useMeasure(viewer: Cesium.Viewer): Measure {
+export default function useMeasure(
+    viewer: Cesium.Viewer,
+    options?: { trendsComputed: boolean }
+): Measure {
     // 存储测量实例
     let currentMeasurement: MeasurementActions | null = null;
     let handler: Cesium.ScreenSpaceEventHandler | null = null;
@@ -36,12 +39,13 @@ export default function useMeasure(viewer: Cesium.Viewer): Measure {
     const createMeasurement = (
         MeasurementClass: new (
             viewer: Cesium.Viewer,
-            handler: Cesium.ScreenSpaceEventHandler
+            handler: Cesium.ScreenSpaceEventHandler,
+            options?: { trendsComputed: boolean }
         ) => MeasurementActions
     ): MeasurementActions => {
         if (!currentMeasurement && !handler) {
             handler = new Cesium.ScreenSpaceEventHandler(viewer?.scene.canvas);
-            const measurement = new MeasurementClass(viewer, handler);
+            const measurement = new MeasurementClass(viewer, handler, options);
             currentMeasurement = measurement;
         }
 

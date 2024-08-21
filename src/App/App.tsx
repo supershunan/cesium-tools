@@ -1,3 +1,4 @@
+import React from 'react';
 import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
 import { useEffect, useRef, useState } from 'react';
@@ -16,9 +17,10 @@ function App() {
     const viewerRef = useRef<Cesium.Viewer | null>(null);
     const [measure, setMeasure] = useState<Cesium.Viewer>();
     const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
-        measure as Cesium.Viewer
+        measure as Cesium.Viewer,
+        { trendsComputed: true }
     );
-    const { active, clear, setInstance, cleanInstance } = useSlopeDirectionAnalysis();
+    // const { active, clear, setInstance, cleanInstance } = useSlopeDirectionAnalysis();
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -42,21 +44,21 @@ function App() {
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
-        setInstance(viewer);
+        // setInstance(viewer);
         setMeasure(viewer);
     };
 
     const handleDraw = () => {
-        active();
-        // measureDistance().active();
+        // active();
+        measureTheHeightOfTheGround().active();
     };
 
     const handleClear = () => {
-        clear();
+        // clear();
     };
 
     const handleInstanceClear = () => {
-        cleanInstance();
+        // cleanInstance();
     };
 
     return (

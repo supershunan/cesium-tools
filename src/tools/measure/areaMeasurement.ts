@@ -12,6 +12,7 @@ import { EventCallback } from '../../type/type';
 export default class AreaMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
+    protected options: { trendsComputed: boolean };
     private pointEntityAry: Cesium.Entity[];
     private polygonEntityAry: Cesium.Entity[];
     private position3dAry: Cesium.Cartesian3[];
@@ -25,10 +26,15 @@ export default class AreaMeasurement extends MouseEvent {
     private polyTipAry: Cesium.Entity[];
     private areaTipAry: Cesium.Entity[];
 
-    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
+    constructor(
+        viewer: Cesium.Viewer,
+        handler: Cesium.ScreenSpaceEventHandler,
+        options?: { trendsComputed: boolean }
+    ) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
+        this.options = options ? options : { trendsComputed: true };
         this.pointEntityAry = [];
         this.polygonEntityAry = [];
         this.position3dAry = [];
@@ -101,12 +107,12 @@ export default class AreaMeasurement extends MouseEvent {
 
     protected rightClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+            if (this.position3dAry.length < 2) return;
+
             this.currentMouseType = MouseStatusEnum.click;
 
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
-
-            if (this.position3dAry.length < 2) return;
 
             this.copyPosition3dAry.push(JSON.stringify(currentPosition));
             this.position3dAry.push(currentPosition);
@@ -118,7 +124,7 @@ export default class AreaMeasurement extends MouseEvent {
                 currentPosition
             );
             this.computedDistance(JSON.parse(this.copyPosition3dAry[0]), currentPosition);
-            this.creteAreaTip();
+            this.createAreaTip();
             this.polygonEntityAry.push(
                 this.viewer.entities.add({
                     polygon: {
@@ -135,10 +141,7 @@ export default class AreaMeasurement extends MouseEvent {
             this.polygonEntity = undefined;
             this.position3dAry = [];
             this.copyPosition3dAry = [];
-            this.dispatch('cesiumToolsFxt', {
-                type: ToolsEventTypeEnum.areaMeasurement,
-                status: 'finished',
-            });
+            this.sendResult();
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
@@ -150,7 +153,11 @@ export default class AreaMeasurement extends MouseEvent {
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
-            if (this.position3dAry.length > 0 && this.polygonEntity) {
+            if (
+                this.options.trendsComputed &&
+                this.position3dAry.length > 0 &&
+                this.polygonEntity
+            ) {
                 this.computedDistance(
                     JSON.parse(this.copyPosition3dAry[this.copyPosition3dAry.length - 1]),
                     currentPosition
@@ -244,14 +251,14 @@ export default class AreaMeasurement extends MouseEvent {
         }
     }
 
-    private creteAreaTip() {
+    private createAreaTip() {
         const descartesPoints = this.copyPosition3dAry.map((item) => {
             return JSON.parse(item);
         });
         const area2d = compute_2DPolygonArea(descartesPoints);
         const area3d = compute_3DPolygonArea(Cesium, descartesPoints);
         const areaTipEntity = this.viewer.entities.add({
-            position: JSON.parse(this.copyPosition3dAry[0]),
+            position: JSON.parse(this.copyPosition3dAry[this.copyPosition3dAry.length - 1]),
             label: {
                 text: `2D面积：${area2d.toFixed(2)}m² \n 3D面积：${area3d.toFixed(2)}m²`,
                 font: '10px sans-serif',
@@ -267,4 +274,11 @@ export default class AreaMeasurement extends MouseEvent {
         });
         this.areaTipAry.push(areaTipEntity);
     }
+
+    private sendResult = () => {
+        this.dispatch('cesiumToolsFxt', {
+            type: ToolsEventTypeEnum.areaMeasurement,
+            status: 'finished',
+        });
+    };
 }

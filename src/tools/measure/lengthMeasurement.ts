@@ -101,7 +101,7 @@ export default class LengthMeasurement extends MouseEvent {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             if (this.positonsAry.length < 1) {
                 // eslint-disable-next-line no-alert
-                alert('至少绘制连个点');
+                alert('至少绘制2个点');
                 return;
             }
             this.currentMouseType = MouseStatusEnum.click;
@@ -115,11 +115,12 @@ export default class LengthMeasurement extends MouseEvent {
                     this.positonsAry[this.positonsAry.length - 1],
                     currentPosition
                 );
+                this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
             } else {
                 this.positonsAry.push(currentPosition);
                 this.unTrendsComputedTip();
+                this.createRay(this.positonsAry[this.positonsAry.length - 2], currentPosition);
             }
-            this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
             this.positonsAry.length > 2 && this.createPolylineTip(currentPosition);
 
             this.distanceAry = [];
@@ -135,12 +136,11 @@ export default class LengthMeasurement extends MouseEvent {
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
-            if (this.positonsAry.length > 0 && this.lineEntityAry) {
-                this.options?.trendsComputed &&
-                    this.computedDistance(
-                        this.positonsAry[this.positonsAry.length - 1],
-                        currentPosition
-                    );
+            if (this.positonsAry.length > 0 && this.lineEntityAry && this.options?.trendsComputed) {
+                this.computedDistance(
+                    this.positonsAry[this.positonsAry.length - 1],
+                    currentPosition
+                );
                 this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
             }
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);

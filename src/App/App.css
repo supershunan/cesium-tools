@@ -23,3 +23,24 @@
     left: 0;
     background-color: red;
 }
+
+.btn4 {
+    position: fixed;
+    top: 100px;
+    right: 0;
+    background-color: red;
+}
+
+.btn5 {
+    position: fixed;
+    top: 150px;
+    right: 0;
+    background-color: red;
+}
+
+.btn6 {
+    position: fixed;
+    top: 200px;
+    right: 0;
+    background-color: red;
+}

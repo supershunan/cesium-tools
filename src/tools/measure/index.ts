@@ -4,6 +4,7 @@ import AreaMeasurement from './areaMeasurement';
 import AngleMeasurement from './angleMeasurement';
 import TheHeightOfTheGround from './theHeightOfTheGround';
 import { EventCallback } from '../../type/type';
+import { MeasureTypeEnum } from '../../enum/enum';
 
 interface MeasurementActions {
     /** 激活 */
@@ -34,7 +35,7 @@ export default function useMeasure(
     options?: { trendsComputed: boolean }
 ): Measure {
     // 存储测量实例
-    let currentMeasurement: MeasurementActions | null = null;
+    const currentMeasurement: { [key: string]: MeasurementActions } = {};
     let handler: Cesium.ScreenSpaceEventHandler | null = null;
 
     // 通用的创建测量方法
@@ -43,46 +44,47 @@ export default function useMeasure(
             viewer: Cesium.Viewer,
             handler: Cesium.ScreenSpaceEventHandler,
             options?: { trendsComputed: boolean }
-        ) => MeasurementActions
+        ) => MeasurementActions,
+        type: string
     ): MeasurementActions => {
-        if (!currentMeasurement && !handler) {
+        if (!currentMeasurement[type]) {
             handler = new Cesium.ScreenSpaceEventHandler(viewer?.scene.canvas);
             const measurement = new MeasurementClass(viewer, handler, options);
-            currentMeasurement = measurement;
+            currentMeasurement[type] = measurement;
         }
 
         return {
             active: () => {
-                currentMeasurement?.active();
+                currentMeasurement[type]?.active();
             },
             deactivate: () => {
-                currentMeasurement?.deactivate();
+                currentMeasurement[type]?.deactivate();
                 handler?.destroy();
             },
             clear: () => {
-                currentMeasurement?.clear();
+                currentMeasurement[type]?.clear();
             },
             addToolsEventListener: (eventName, callback) => {
-                currentMeasurement?.addToolsEventListener(eventName, callback);
+                currentMeasurement[type]?.addToolsEventListener(eventName, callback);
             },
             removeToolsEventListener: (eventName, callback) => {
-                currentMeasurement?.removeToolsEventListener(eventName, callback);
+                currentMeasurement[type]?.removeToolsEventListener(eventName, callback);
             },
         };
     };
 
     // 使用通用方法创建不同的测量类型
     const measureDistance = () => {
-        return createMeasurement(LengthMeasurement);
+        return createMeasurement(LengthMeasurement, MeasureTypeEnum.distance);
     };
     const measureArea = () => {
-        return createMeasurement(AreaMeasurement);
+        return createMeasurement(AreaMeasurement, MeasureTypeEnum.area);
     };
     const measureAngle = () => {
-        return createMeasurement(AngleMeasurement);
+        return createMeasurement(AngleMeasurement, MeasureTypeEnum.angle);
     };
     const measureTheHeightOfTheGround = () => {
-        return createMeasurement(TheHeightOfTheGround);
+        return createMeasurement(TheHeightOfTheGround, MeasureTypeEnum.theHeight);
     };
 
     return { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround };

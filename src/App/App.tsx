@@ -34,12 +34,12 @@ function App() {
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            // terrain: Cesium.Terrain.fromWorldTerrain(),
-            terrain: new Cesium.Terrain(
-                Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
-                    'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
-                )
-            ),
+            terrain: Cesium.Terrain.fromWorldTerrain(),
+            // terrain: new Cesium.Terrain(
+            //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+            //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+            //     )
+            // ),
         });
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
@@ -64,6 +64,21 @@ function App() {
 
     const handleInstanceClear = () => {
         // cleanInstance();
+        measureDistance().clear();
+        measureArea().clear();
+        clear();
+    };
+
+    const handleDistance = () => {
+        measureDistance().active();
+    };
+
+    const handleArea = () => {
+        measureArea().active();
+    };
+
+    const handleVisbility = () => {
+        active();
     };
 
     return (
@@ -77,6 +92,15 @@ function App() {
             </button>
             <button className="btn3" onClick={handleInstanceClear}>
                 测试实例清除
+            </button>
+            <button className="btn4" onClick={handleDistance}>
+                距离
+            </button>
+            <button className="btn5" onClick={handleArea}>
+                面积
+            </button>
+            <button className="btn6" onClick={handleVisbility}>
+                透视分析
             </button>
         </div>
     );

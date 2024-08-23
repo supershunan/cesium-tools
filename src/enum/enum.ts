@@ -31,3 +31,10 @@ export enum ToolsEventTypeEnum {
     /** 通视分析 */
     visualFieldAnalysis = 'visualFieldAnalysis',
 }
+
+export enum MeasureTypeEnum {
+    distance = 'distance',
+    area = 'area',
+    angle = 'angle',
+    theHeight = 'theHeight',
+}

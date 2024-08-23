@@ -20,7 +20,7 @@ function App() {
         measure as Cesium.Viewer,
         { trendsComputed: true }
     );
-    // const { active, clear, setInstance, cleanInstance } = useSlopeDirectionAnalysis();
+    const { active, clear, setInstance, cleanInstance } = useVisualFieldAnalysis();
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -34,7 +34,12 @@ function App() {
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            terrain: Cesium.Terrain.fromWorldTerrain(),
+            // terrain: Cesium.Terrain.fromWorldTerrain(),
+            terrain: new Cesium.Terrain(
+                Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+                    'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+                )
+            ),
         });
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
@@ -44,13 +49,13 @@ function App() {
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
-        // setInstance(viewer);
+        setInstance(viewer);
         setMeasure(viewer);
     };
 
     const handleDraw = () => {
-        // active();
-        measureTheHeightOfTheGround().active();
+        active();
+        // measureDistance().active();
     };
 
     const handleClear = () => {

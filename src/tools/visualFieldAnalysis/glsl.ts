@@ -62,6 +62,7 @@ vec3 pointProjectOnPlane(in vec3 planeNormal, in vec3 planeOrigin, in vec3 point
     return (point - planeNormal * d);
 }
 
+// 从深度纹理中采样得到深度设值解码和转化
 float getDepth(in vec4 depth) {
     float z_window = czm_unpackDepth(depth);
     z_window = czm_reverseLogDepth(z_window);
@@ -102,20 +103,20 @@ bool visible(in vec4 result) {
 }
 
 void main() {
-    fragColor = texture(colorTexture, v_textureCoordinates);
-    // 获取深度值
-    float depth = getDepth(texture(depthTexture, v_textureCoordinates));
-    vec4 viewPos = toEye(v_textureCoordinates, depth);
-    vec4 worldPos = czm_inverseView * viewPos;
-    vec4 vcPos = camera_view_matrix * worldPos;
-    float near = .001 * helsing_viewDistance;
-    float dis = length(vcPos.xyz);
+
+    fragColor = texture(colorTexture, v_textureCoordinates);  // 提取当前片段的颜色 这里是透明色
+    float depth = getDepth(texture(depthTexture, v_textureCoordinates)); // 获取深度值
+    vec4 viewPos = toEye(v_textureCoordinates, depth); // 将当前片段的深度值转换为眼睛坐标系中的位置
+    vec4 worldPos = czm_inverseView * viewPos;  // 将片段的眼睛坐标系位置转换为世界坐标系位置
+    vec4 vcPos = camera_view_matrix * worldPos; // 世界坐标系位置转换为摄像机坐标系（视图坐标系）位置
+    float near = .001 * helsing_viewDistance; // 计算视锥体的近裁剪面的距离
+    float dis = length(vcPos.xyz); // 计算的是片段从摄像机位置的距离
 
     if(dis > near && dis < helsing_viewDistance) {
-        vec4 posInEye = camera_projection_matrix * vcPos;
+        vec4 posInEye = camera_projection_matrix * vcPos; // 确定该片段是否在视锥体内
         if(visible(posInEye)) {
-            float vis = shadow(viewPos);
-            if(vis > 0.3) {
+            float vis = shadow(viewPos); // 当前片段在阴影中的可见性
+            if(vis > 0.3) { // 根据阴影可见性值 vis 来决定如何处理片段的颜色
                 fragColor = mix(fragColor, helsing_visibleAreaColor, .5);
             } else {
                 fragColor = mix(fragColor, helsing_invisibleAreaColor, .5);

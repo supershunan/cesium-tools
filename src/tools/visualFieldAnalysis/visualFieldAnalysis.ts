@@ -143,9 +143,9 @@ class ViewShed {
             destination: this.viewPosition, // 相机最终的位置
             orientation: {
                 // 相机的三个重要属性 x、y、z
-                heading: Cesium.Math.toRadians(this.viewHeading || 0),
-                pitch: Cesium.Math.toRadians(this.viewPitch || 0),
-                roll: 0,
+                heading: Cesium.Math.toRadians(this.viewHeading || 0), // 航向
+                pitch: Cesium.Math.toRadians(this.viewPitch || 0), // 音高
+                roll: 0, // 弧度
             },
         });
     }
@@ -282,13 +282,13 @@ class ViewShed {
             name: 'sketch',
             position: new Cesium.CallbackProperty(() => {
                 return this.viewPosition;
-            }, false), // 动态属性 获取或设置位置
+            }, false),
             orientation: new Cesium.CallbackProperty(() => {
                 // 获取或设置相对于地形引力的方向，默认实体位置的东北向上
                 return Cesium.Transforms.headingPitchRollQuaternion(
                     this.viewPosition,
                     Cesium.HeadingPitchRoll.fromDegrees(
-                        this.viewHeading - 90.0,
+                        this.viewHeading - this.horizontalViewAngle,
                         this.viewPitch,
                         0.0
                     )
@@ -313,7 +313,7 @@ class ViewShed {
                 subdivisions: 256,
                 stackPartitions: 64,
                 slicePartitions: 64,
-                outlineColor: Cesium.Color.YELLOWGREEN,
+                outlineColor: Cesium.Color.GHOSTWHITE.withAlpha(0.3),
             },
         });
     }

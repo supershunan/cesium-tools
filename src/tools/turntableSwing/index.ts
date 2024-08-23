@@ -13,7 +13,9 @@ interface TurntableSwingProps {
     /** 返回所有可以对转角操作的方法 */
     globalTurntableMethod: () => GlobalTurntableMethods | null;
     cleanInstance: () => void;
+    /** 事件名 cesiumToolsFxt */
     addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    /** 事件名 cesiumToolsFxt */
     removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 

@@ -13,7 +13,9 @@ interface VisualFieldAnalysis {
     /** 设置通视分析部分开外放参数 */
     setViewShedOptions: (options: ViewShedOptionalOptions) => void;
     cleanInstance: () => void;
+    /** 事件名 cesiumToolsFxt */
     addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    /** 事件名 cesiumToolsFxt */
     removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 

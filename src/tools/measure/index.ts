@@ -12,7 +12,9 @@ interface MeasurementActions {
     deactivate: () => void;
     /** 清除图层 */
     clear: () => void;
+    /** 事件名 cesiumToolsFxt */
     addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    /** 事件名 cesiumToolsFxt */
     removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 

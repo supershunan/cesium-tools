@@ -12,7 +12,9 @@ interface SlopDerectionAnalysis {
     /** 设置网格切割的精度 单位(km) 最小为20 精度越大越消耗性能 */
     setDistance: (value: number) => void;
     cleanInstance: () => void;
+    /** 事件名 cesiumToolsFxt */
     addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    /** 事件名 cesiumToolsFxt */
     removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 

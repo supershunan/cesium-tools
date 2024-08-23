@@ -10,7 +10,9 @@ interface VisibilityAnalysisProps {
     setInstance: (viewer: Cesium.Viewer) => void;
     getInstance: () => VisibilityAnalysis | null;
     cleanInstance: () => void;
+    /** 事件名 cesiumToolsFxt */
     addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    /** 事件名 cesiumToolsFxt */
     removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 

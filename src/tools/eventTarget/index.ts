@@ -3,10 +3,8 @@ import CesiumToolsManage from './eventTarget';
 type EventCallback<T> = (event: CustomEvent<T>) => void;
 interface CesiumToolsMangeProps {
     dispatch: <T>(eventName: string, data: T) => void;
-    /** 事件名 cesiumToolsFxt */
-    addToolsEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
-    /** 事件名 cesiumToolsFxt */
-    removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
+    addEventListener: (eventName: string, callback: EventCallback<unknown>) => void;
+    removeEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 
 /** 工具注册事件 */

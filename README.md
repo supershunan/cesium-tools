@@ -16,6 +16,14 @@
 
 在发包前一定要检查 package.json 文件的依赖是否是工具包需要的，如果不对，一定是 package.json 和 package.prod.json 搞混了，重新命名即可。版本号需要修改
 
+建议安装 npm install -g npm-version-bump 插件，实现一键更新版本号，[major.minor.patch]
+
+`npm version [major]`
+
+`npm version [minor]`
+
+`npm version [patch]`
+
 `npm run build`
 
 `npm publish`

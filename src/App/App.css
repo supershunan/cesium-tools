@@ -51,3 +51,24 @@
     right: 0;
     background-color: red;
 }
+
+.btn8 {
+    position: fixed;
+    top: 300px;
+    right: 0;
+    background-color: red;
+}
+
+.btn9 {
+    position: fixed;
+    top: 350px;
+    right: 0;
+    background-color: red;
+}
+
+.btn10 {
+    position: fixed;
+    top: 400px;
+    right: 0;
+    background-color: red;
+}

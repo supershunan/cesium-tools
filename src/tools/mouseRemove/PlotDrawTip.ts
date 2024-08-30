@@ -7,6 +7,7 @@ export default class PlotDrawTip {
         this.tooltip = document.createElement('div');
         this.tooltip.className = 'cesium-plot-draw-tip';
         this.tooltip.style.position = 'absolute';
+        this.tooltip.style.color = '#ffffff';
         this.tooltip.style.pointerEvents = 'none';
         this.tooltip.style.display = 'none';
         this.viewer.container.appendChild(this.tooltip);
@@ -26,6 +27,8 @@ export default class PlotDrawTip {
         if (canvasPosition) {
             this.tooltip.style.left = `${canvasPosition.x}px`;
             this.tooltip.style.top = `${canvasPosition.y}px`;
+        } else {
+            this.tooltip.style.display = 'none';
         }
     }
 

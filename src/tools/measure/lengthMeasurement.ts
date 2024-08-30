@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
+import PlotDrawTip from '../mouseRemove/PlotDrawTip';
 import { compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
 import { MouseStatusEnum, ToolsEventTypeEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
@@ -7,6 +8,7 @@ import { EventCallback } from '../../type/type';
 export default class LengthMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
+    private plotDrawTip?: PlotDrawTip;
     protected options: { trendsComputed: boolean };
     private pointEntityAry: Cesium.Entity[];
     private lineEntityAry: Cesium.Entity[];
@@ -39,6 +41,8 @@ export default class LengthMeasurement extends MouseEvent {
 
     active(): void {
         this.registerEvents();
+        this.plotDrawTip = new PlotDrawTip(this.viewer);
+        this.plotDrawTip.setContent(['左键开始绘制']);
     }
 
     deactivate(): void {
@@ -50,6 +54,8 @@ export default class LengthMeasurement extends MouseEvent {
         this.positonsAry = [];
         this.distanceAry = [];
         this.currentMouseType = '';
+        this.plotDrawTip && this.plotDrawTip.setContent(['']);
+        this.plotDrawTip = undefined;
         this.tipEntity && this.viewer.entities.remove(this.tipEntity);
         this.polylineTip && this.viewer.entities.remove(this.polylineTip);
         this.pointEntityAry.forEach((entity) => {
@@ -80,6 +86,7 @@ export default class LengthMeasurement extends MouseEvent {
 
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            this.plotDrawTip?.setContent(['右键完成绘制']);
 
             this.positonsAry.push(currentPosition);
 
@@ -124,6 +131,7 @@ export default class LengthMeasurement extends MouseEvent {
 
             this.distanceAry = [];
             this.positonsAry = [];
+            this.plotDrawTip && this.plotDrawTip.setContent(['']);
             this.sendResult();
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
@@ -135,6 +143,7 @@ export default class LengthMeasurement extends MouseEvent {
 
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            this.plotDrawTip?.updatePosition(currentPosition);
 
             if (this.positonsAry.length > 0 && this.lineEntityAry && this.options?.trendsComputed) {
                 this.computedDistance(

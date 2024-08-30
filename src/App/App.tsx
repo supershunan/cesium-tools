@@ -20,7 +20,10 @@ function App() {
         measure as Cesium.Viewer,
         { trendsComputed: true }
     );
-    const { active, clear, setInstance, cleanInstance } = useVisualFieldAnalysis();
+    const visualFieldAnalysis = useVisualFieldAnalysis();
+    const slopeDirectionAnalysis = useSlopeDirectionAnalysis();
+    const visibilityAnalysis = useVisibilityAnalysis();
+    const turntableSwing = useTurntableSwing();
 
     useEffect(() => {
         if (!viewerRef.current) {
@@ -49,19 +52,21 @@ function App() {
             duration: 2.0,
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
-        setInstance(viewer);
         setMeasure(viewer);
-    };
-
-    const handleDraw = () => {
-        active();
-        // measureDistance().active();
+        visualFieldAnalysis.clear();
+        slopeDirectionAnalysis.setInstance(viewer);
+        visibilityAnalysis.setInstance(viewer);
+        turntableSwing.setInstance(viewer);
     };
 
     const handleClear = () => {
         measureDistance().clear();
         measureArea().clear();
         measureAngle().clear();
+        visualFieldAnalysis.clear();
+        slopeDirectionAnalysis.clear();
+        visibilityAnalysis.clear();
+        turntableSwing.clear();
     };
 
     const handleInstanceClear = () => {};
@@ -79,15 +84,24 @@ function App() {
     };
 
     const handleVisbility = () => {
-        active();
+        visualFieldAnalysis.active();
+    };
+
+    const handleSlopeDirectionAnalysis = () => {
+        slopeDirectionAnalysis.active();
+    };
+
+    const handleVisibilityAnalysis = () => {
+        visibilityAnalysis.active();
+    };
+
+    const handleTurntableSwing = () => {
+        turntableSwing.active();
     };
 
     return (
         <div>
             <div id="cesiumContainer" style={{ width: '100%', height: '100vh' }}></div>
-            <button className="btn" onClick={handleDraw}>
-                测试功能按钮
-            </button>
             <button className="btn2" onClick={handleClear}>
                 测试图层清除
             </button>
@@ -100,11 +114,20 @@ function App() {
             <button className="btn5" onClick={handleArea}>
                 面积
             </button>
-            <button className="btn6" onClick={handleVisbility}>
+            <button className="btn6" onClick={handleAngle}>
+                角度
+            </button>
+            <button className="btn7" onClick={handleVisbility}>
+                通视分析
+            </button>
+            <button className="btn8" onClick={handleSlopeDirectionAnalysis}>
+                坡向分析
+            </button>
+            <button className="btn9" onClick={handleVisibilityAnalysis}>
                 透视分析
             </button>
-            <button className="btn7" onClick={handleAngle}>
-                角度
+            <button className="btn10" onClick={handleTurntableSwing}>
+                转台模拟
             </button>
         </div>
     );

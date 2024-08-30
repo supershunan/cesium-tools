@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
+import PlotDrawTip from '../mouseRemove/PlotDrawTip';
 import {
     compute_2DPolygonArea,
     compute_3DPolygonArea,
@@ -12,6 +13,7 @@ import { EventCallback } from '../../type/type';
 export default class AreaMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
+    private plotDrawTip?: PlotDrawTip;
     protected options: { trendsComputed: boolean };
     private pointEntityAry: Cesium.Entity[];
     private polygonEntityAry: Cesium.Entity[];
@@ -48,6 +50,8 @@ export default class AreaMeasurement extends MouseEvent {
 
     active(): void {
         this.registerEvents();
+        this.plotDrawTip = new PlotDrawTip(this.viewer);
+        this.plotDrawTip.setContent(['左键开始绘制']);
     }
 
     deactivate(): void {
@@ -59,6 +63,8 @@ export default class AreaMeasurement extends MouseEvent {
         this.copyPosition3dAry = [];
         this.position3dAry = [];
         this.tempMovePosition = undefined;
+        this.plotDrawTip && this.plotDrawTip.setContent(['']);
+        this.plotDrawTip = undefined;
         this.pointEntityAry.forEach((entity) => {
             this.viewer.entities.remove(entity);
         });
@@ -88,6 +94,7 @@ export default class AreaMeasurement extends MouseEvent {
 
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            this.plotDrawTip?.setContent(['右键完成绘制']);
 
             this.copyPosition3dAry.push(JSON.stringify(currentPosition));
             this.position3dAry.push(currentPosition);
@@ -143,6 +150,7 @@ export default class AreaMeasurement extends MouseEvent {
             this.polygonEntity = undefined;
             this.position3dAry = [];
             this.copyPosition3dAry = [];
+            this.plotDrawTip && this.plotDrawTip.setContent(['']);
             this.sendResult();
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
@@ -154,6 +162,7 @@ export default class AreaMeasurement extends MouseEvent {
 
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            this.plotDrawTip?.updatePosition(currentPosition);
 
             if (
                 this.options.trendsComputed &&

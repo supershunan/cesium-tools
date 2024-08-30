@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
+import PlotDrawTip from '../mouseRemove/PlotDrawTip';
 import { compute_Angle, compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
 import { ToolsEventTypeEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
@@ -7,6 +8,7 @@ import { EventCallback } from '../../type/type';
 export default class AngleMeasurement extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
+    private plotDrawTip?: PlotDrawTip;
     private pointEntityAry: Cesium.Entity[];
     private positonsAry: Cesium.Cartesian3[] = [];
     private tempMovePosition: Cesium.Cartesian3 | undefined;
@@ -28,6 +30,8 @@ export default class AngleMeasurement extends MouseEvent {
 
     active(): void {
         this.registerEvents();
+        this.plotDrawTip = new PlotDrawTip(this.viewer);
+        this.plotDrawTip.setContent(['左键开始绘制']);
     }
 
     deactivate(): void {
@@ -36,6 +40,8 @@ export default class AngleMeasurement extends MouseEvent {
     }
 
     clear(): void {
+        this.plotDrawTip && this.plotDrawTip.setContent(['']);
+        this.plotDrawTip = undefined;
         this.pointEntityAry.forEach((entity) => {
             this.viewer.entities.remove(entity);
         });
@@ -62,6 +68,7 @@ export default class AngleMeasurement extends MouseEvent {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            this.plotDrawTip?.setContent(['右键完成绘制']);
 
             this.positonsAry.push(currentPosition);
 
@@ -121,6 +128,7 @@ export default class AngleMeasurement extends MouseEvent {
                 })
             );
             this.positonsAry = [];
+            this.plotDrawTip && this.plotDrawTip.setContent(['']);
             this.dispatch('cesiumToolsFxt', {
                 type: ToolsEventTypeEnum.angleMeasurement,
                 status: 'finished',
@@ -133,6 +141,7 @@ export default class AngleMeasurement extends MouseEvent {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            this.plotDrawTip?.updatePosition(currentPosition);
 
             this.tempMovePosition = currentPosition;
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
@@ -185,6 +194,10 @@ export default class AngleMeasurement extends MouseEvent {
             label: {
                 text: `角度: ${angle.toFixed(2)}°`,
                 font: '14px sans-serif',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.BLACK,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                showBackground: true,
                 horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
                 verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
                 pixelOffset: new Cesium.Cartesian2(10, -10),

@@ -59,15 +59,12 @@ function App() {
     };
 
     const handleClear = () => {
-        // clear();
-    };
-
-    const handleInstanceClear = () => {
-        // cleanInstance();
         measureDistance().clear();
         measureArea().clear();
-        clear();
+        measureAngle().clear();
     };
+
+    const handleInstanceClear = () => {};
 
     const handleDistance = () => {
         measureDistance().active();
@@ -75,6 +72,10 @@ function App() {
 
     const handleArea = () => {
         measureArea().active();
+    };
+
+    const handleAngle = () => {
+        measureAngle().active();
     };
 
     const handleVisbility = () => {
@@ -101,6 +102,9 @@ function App() {
             </button>
             <button className="btn6" onClick={handleVisbility}>
                 透视分析
+            </button>
+            <button className="btn7" onClick={handleAngle}>
+                角度
             </button>
         </div>
     );

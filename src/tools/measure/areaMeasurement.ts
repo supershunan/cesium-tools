@@ -47,7 +47,6 @@ export default class AreaMeasurement extends MouseEvent {
     }
 
     active(): void {
-        this.deactivate();
         this.registerEvents();
     }
 
@@ -128,7 +127,9 @@ export default class AreaMeasurement extends MouseEvent {
             this.polygonEntityAry.push(
                 this.viewer.entities.add({
                     polygon: {
-                        hierarchy: this.position3dAry,
+                        hierarchy: this.position3dAry.concat(
+                            this.tempMovePosition as Cesium.Cartesian3
+                        ),
                         material: new Cesium.ColorMaterialProperty(
                             Cesium.Color.YELLOW.withAlpha(0.3)
                         ),
@@ -138,6 +139,7 @@ export default class AreaMeasurement extends MouseEvent {
                 })
             );
 
+            this.polygonEntity && this.viewer.entities.remove(this.polygonEntity);
             this.polygonEntity = undefined;
             this.position3dAry = [];
             this.copyPosition3dAry = [];

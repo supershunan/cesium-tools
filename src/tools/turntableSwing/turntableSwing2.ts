@@ -16,17 +16,21 @@ export default class TurntableSwing {
         this.options = options;
     }
 
-    initTurntable(): void {
+    initTurntable(currentPosition: Cesium.Cartesian3): void {
+        const cartographicPosition =
+            Cesium.Ellipsoid.WGS84.cartesianToCartographic(currentPosition);
+
+        // 现在你可以访问经度、纬度和高度
+        const longitude = Cesium.Math.toDegrees(cartographicPosition.longitude);
+        const latitude = Cesium.Math.toDegrees(cartographicPosition.latitude);
+        const height = cartographicPosition.height;
         this.viewer.scene.globe.depthTestAgainstTerrain = true;
         this.addRadarScanPostStage(
-            Cesium.Cartographic.fromDegrees(110, 60, 1),
-            2000,
-            Cesium.Color.YELLOW,
-            2000
+            Cesium.Cartographic.fromDegrees(longitude, latitude, height),
+            300,
+            Cesium.Color.YELLOW.withAlpha(0.1),
+            5000
         );
-        this.viewer.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(110, 60, 10000),
-        });
     }
 
     addRadarScanPostStage(
@@ -87,7 +91,7 @@ export default class TurntableSwing {
 
                 // 仅当像素在30度圆弧内时, 进行颜色混合
                 if (dis < u_radius && angle < maxAngle) {
-                    color = mix(color, u_scanColor, 1.0);  // 设置为完全的扫描颜色
+                    color = mix(color, u_scanColor, 0.3);  // 设置为完全的扫描颜色
                 }
                 fragColor = color;
             }

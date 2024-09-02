@@ -1,5 +1,5 @@
 import * as Cesium from 'cesium';
-import TurntableSwing from './turntableSwing';
+import TurntableSwing from './turntableSwing2';
 import MouseEvent from '../mouseBase/mouseBase';
 import { TurntableParams, GlobalTurntableMethods } from './type';
 import { ToolsEventTypeEnum } from '../../enum/enum';
@@ -51,8 +51,8 @@ export default class Draw extends MouseEvent {
                 currentPosition,
                 this.turntableParams
             );
-            this.turntableSwing.add();
-            this.turntableSwing.radii(200);
+            this.turntableSwing.initTurntable(currentPosition);
+            // this.turntableSwing.radii(200);
 
             this.dispatch('cesiumToolsFxt', {
                 type: ToolsEventTypeEnum.turntableSwing,

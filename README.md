@@ -1,4 +1,8 @@
-# cesium-tools-fxt [npm](https://www.npmjs.com/package/cesium-tools-fxt)
+# [cesium 工具](https://www.npmjs.com/package/cesium-tools-fxt)
+
+建议默认 cesium 版本为 ^1.119.0，node 版本为 ^18.18.2
+
+目前测量功能已做向下兼容，其他工具暂未做向下兼容
 
 ## 安装
 
@@ -6,12 +10,6 @@
 # or pnpm or yarn
 npm install cesium-tools-fxt
 ```
-
-# cesium 工具
-
-建议默认 cesium 版本为 ^1.119.0，node 版本为 ^18.18.2
-
-目前测量功能已做向下兼容，其他工具暂未做向下兼容
 
 ## 工具测试
 

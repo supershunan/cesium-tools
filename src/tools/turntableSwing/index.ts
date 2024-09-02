@@ -4,7 +4,7 @@ import TurntableSwing from './turntableSwing';
 import { TurntableParams, GlobalTurntableMethods } from './type';
 import { EventCallback } from '../../type/type';
 
-interface TurntableSwingProps {
+export interface TurntableSwingProps {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
@@ -73,6 +73,6 @@ const turntableSwingProps: TurntableSwingProps = {
 };
 
 /** 模拟雷达转台旋转分析 */
-export default function useTurntableSwing(): TurntableSwingProps {
+export function useTurntableSwing(): TurntableSwingProps {
     return turntableSwingProps;
 }

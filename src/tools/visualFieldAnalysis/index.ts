@@ -4,7 +4,7 @@ import ViewShed from './visualFieldAnalysis';
 import { ViewShedOptionalOptions } from './type';
 import { EventCallback } from '../../type/type';
 
-interface VisualFieldAnalysis {
+export interface VisualFieldAnalysis {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
@@ -74,6 +74,6 @@ const screenSpaceEventHandler: VisualFieldAnalysis = {
 };
 
 /** 通视分析 */
-export default function useVisualFieldAnalysis(): VisualFieldAnalysis {
+export function useVisualFieldAnalysis(): VisualFieldAnalysis {
     return screenSpaceEventHandler;
 }

@@ -3,7 +3,7 @@ import Draw from './draw';
 import VisibilityAnalysis from './visibilityAnalysis';
 import { EventCallback } from '../../type/type';
 
-interface VisibilityAnalysisProps {
+export interface VisibilityAnalysisProps {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
@@ -65,6 +65,6 @@ const visibilityAnalysisProps: VisibilityAnalysisProps = {
 };
 
 /** 透视分析 */
-export default function useVisibilityAnalysis(): VisibilityAnalysisProps {
+export function useVisibilityAnalysis(): VisibilityAnalysisProps {
     return visibilityAnalysisProps;
 }

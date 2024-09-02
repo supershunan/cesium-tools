@@ -3,7 +3,7 @@ import Draw from './draw';
 import SloopAspectAnalysis from './slopeDerectiontAnalysis';
 import { EventCallback } from '../../type/type';
 
-interface SlopDerectionAnalysis {
+export interface SlopDerectionAnalysis {
     active: () => void;
     deactivate: () => void;
     clear: () => void;
@@ -73,6 +73,6 @@ const slopDerectionAnalysis: SlopDerectionAnalysis = {
 };
 
 /** 坡向分析 */
-export default function useSlopeDirectionAnalysis(): SlopDerectionAnalysis {
+export function useSlopeDirectionAnalysis(): SlopDerectionAnalysis {
     return slopDerectionAnalysis;
 }

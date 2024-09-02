@@ -6,7 +6,7 @@ import TheHeightOfTheGround from './theHeightOfTheGround';
 import { EventCallback } from '../../type/type';
 import { MeasureTypeEnum } from '../../enum/enum';
 
-interface MeasurementActions {
+export interface MeasurementActions {
     /** 激活 */
     active: () => void;
     /** 注销 */
@@ -19,7 +19,7 @@ interface MeasurementActions {
     removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 
-interface Measure {
+export interface Measure {
     /** 距离测量 */
     measureDistance: () => MeasurementActions;
     /** 面积测量 */
@@ -30,10 +30,7 @@ interface Measure {
     measureTheHeightOfTheGround: () => MeasurementActions;
 }
 
-export default function useMeasure(
-    viewer: Cesium.Viewer,
-    options?: { trendsComputed: boolean }
-): Measure {
+export function useMeasure(viewer: Cesium.Viewer, options?: { trendsComputed: boolean }): Measure {
     // 存储测量实例
     const currentMeasurement: { [key: string]: MeasurementActions } = {};
     let handler: Cesium.ScreenSpaceEventHandler | null = null;

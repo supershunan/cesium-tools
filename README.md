@@ -1,3 +1,12 @@
+# cesium-tools-fxt [npm](https://www.npmjs.com/package/cesium-tools-fxt)
+
+## 安装
+
+```bash
+# or pnpm or yarn
+npm install cesium-tools-fxt
+```
+
 # cesium 工具
 
 建议默认 cesium 版本为 ^1.119.0，node 版本为 ^18.18.2

@@ -51,8 +51,9 @@ export default class Draw extends MouseEvent {
                 currentPosition,
                 this.turntableParams
             );
-            this.turntableSwing.initTurntable(currentPosition);
+            // this.turntableSwing.add();
             // this.turntableSwing.radii(200);
+            this.turntableSwing.initTurntable(currentPosition);
 
             this.dispatch('cesiumToolsFxt', {
                 type: ToolsEventTypeEnum.turntableSwing,

@@ -1,5 +1,5 @@
 import * as Cesium from 'cesium';
-
+import glsl from './glsl';
 interface Options {
     /** 转动角度 */
     angleInDegrees?: number;
@@ -19,12 +19,12 @@ export default class TurntableSwing {
     initTurntable(currentPosition: Cesium.Cartesian3): void {
         const cartographicPosition =
             Cesium.Ellipsoid.WGS84.cartesianToCartographic(currentPosition);
-
-        // 现在你可以访问经度、纬度和高度
         const longitude = Cesium.Math.toDegrees(cartographicPosition.longitude);
         const latitude = Cesium.Math.toDegrees(cartographicPosition.latitude);
         const height = cartographicPosition.height;
+
         this.viewer.scene.globe.depthTestAgainstTerrain = true;
+
         this.addRadarScanPostStage(
             Cesium.Cartographic.fromDegrees(longitude, latitude, height),
             300,
@@ -34,189 +34,152 @@ export default class TurntableSwing {
     }
 
     addRadarScanPostStage(
-        cartographicCenter: Cesium.Cartographic,
+        cartographicCenter: Cesium.Cartographic, // Cartographic 对象，弧度为单位
         radius: number,
         scanColor: Cesium.Color,
         duration: number
     ) {
-        const size = 30;
-        const ScanSegmentShader = `
-            #version 300 es
-            precision highp float;
+        const ScanSegmentShader = glsl;
 
-            uniform sampler2D colorTexture;
-            uniform sampler2D depthTexture;
-            in vec2 v_textureCoordinates;
-            uniform vec4 u_scanCenterEC;
-            uniform vec3 u_scanPlaneNormalEC;
-            uniform vec3 u_scanLineNormalEC;
-            uniform float u_radius;
-            uniform vec4 u_scanColor;
-            out vec4 fragColor;
-
-            vec4 toEye(in vec2 uv, in float depth) {
-                vec2 xy = vec2((uv.x * 2.0 - 1.0), (uv.y * 2.0 - 1.0));
-                vec4 posInCamera = czm_inverseProjection * vec4(xy, depth, 1.0);
-                posInCamera = posInCamera / posInCamera.w;
-                return posInCamera;
-            }
-
-            vec3 pointProjectOnPlane(in vec3 planeNormal, in vec3 planeOrigin, in vec3 point) {
-                vec3 v01 = point - planeOrigin;
-                float d = dot(planeNormal, v01);
-                return (point - planeNormal * d);
-            }
-
-            float getDepth(in vec4 depth) {
-                float z_window = czm_unpackDepth(depth);
-                z_window = czm_reverseLogDepth(z_window);
-                float n_range = czm_depthRange.near;
-                float f_range = czm_depthRange.far;
-                return (2.0 * z_window - n_range - f_range) / (f_range - n_range);
-            }
-
-            void main() {
-                vec4 color = texture(colorTexture, v_textureCoordinates);
-                float depth = getDepth(texture(depthTexture, v_textureCoordinates));
-                vec4 viewPos = toEye(v_textureCoordinates, depth);
-                vec3 prjOnPlane = pointProjectOnPlane(u_scanPlaneNormalEC.xyz, u_scanCenterEC.xyz, viewPos.xyz);
-                float dis = length(prjOnPlane.xyz - u_scanCenterEC.xyz);
-
-                // 计算当前像素与扫描中心的角度
-                vec3 centerToPixel = normalize(prjOnPlane - u_scanCenterEC.xyz);
-                float angle = acos(dot(centerToPixel, u_scanLineNormalEC));
-
-                // 扇形为 30 度
-                float maxAngle = radians(${size / 2}.0);
-
-                // 仅当像素在30度圆弧内时, 进行颜色混合
-                if (dis < u_radius && angle < maxAngle) {
-                    color = mix(color, u_scanColor, 0.3);  // 设置为完全的扫描颜色
-                }
-                fragColor = color;
-            }
-        `;
-
-        const _Cartesian3Center = Cesium.Cartographic.toCartesian(cartographicCenter);
-        const _Cartesian4Center = new Cesium.Cartesian4(
-            _Cartesian3Center.x,
-            _Cartesian3Center.y,
-            _Cartesian3Center.z,
+        const cartesian3Center = Cesium.Cartographic.toCartesian(cartographicCenter); // 返回一个新的 Cartesian3 坐标
+        /** 原点的四维坐标 */
+        const cartesian4Center = new Cesium.Cartesian4( // 创建四维笛卡尔坐标
+            cartesian3Center.x,
+            cartesian3Center.y,
+            cartesian3Center.z,
             1
         );
 
-        const _CartographicCenter1 = new Cesium.Cartographic(
+        const newCartographicCenter1 = new Cesium.Cartographic(
             cartographicCenter.longitude,
             cartographicCenter.latitude,
             cartographicCenter.height + 100
         );
-        const _Cartesian3Center1 = Cesium.Cartographic.toCartesian(_CartographicCenter1);
-        const _Cartesian4Center1 = new Cesium.Cartesian4(
-            _Cartesian3Center1.x,
-            _Cartesian3Center1.y,
-            _Cartesian3Center1.z,
+        const newCartesian3Center1 = Cesium.Cartographic.toCartesian(newCartographicCenter1);
+        /** 高程抬高 100 后的四维坐标 */
+        const newCartesian4Center1 = new Cesium.Cartesian4(
+            newCartesian3Center1.x,
+            newCartesian3Center1.y,
+            newCartesian3Center1.z,
             1
         );
 
-        const _CartographicCenter2 = new Cesium.Cartographic(
+        const newCartographicCenter2 = new Cesium.Cartographic(
             cartographicCenter.longitude + Cesium.Math.toRadians(0.001),
             cartographicCenter.latitude,
             cartographicCenter.height
         );
-        const _Cartesian3Center2 = Cesium.Cartographic.toCartesian(_CartographicCenter2);
-        const _Cartesian4Center2 = new Cesium.Cartesian4(
-            _Cartesian3Center2.x,
-            _Cartesian3Center2.y,
-            _Cartesian3Center2.z,
+        const newCartesian3Center2 = Cesium.Cartographic.toCartesian(newCartographicCenter2);
+        const newCartesian4Center2 = new Cesium.Cartesian4(
+            newCartesian3Center2.x,
+            newCartesian3Center2.y,
+            newCartesian3Center2.z,
             1
         );
 
-        const _RotateQ = new Cesium.Quaternion();
-        const _RotateM = new Cesium.Matrix3();
+        const _RotateQ = new Cesium.Quaternion(); // 四维坐标，表示三维空间中的旋转
+        const _RotateM = new Cesium.Matrix3(); // 3x3 矩阵，可作为列主序数组进行索引
 
-        const _time = new Date().getTime();
+        const time = new Date().getTime();
 
-        const _scratchCartesian4Center = new Cesium.Cartesian4();
-        const _scratchCartesian4Center1 = new Cesium.Cartesian4();
-        const _scratchCartesian4Center2 = new Cesium.Cartesian4();
-        const _scratchCartesian3Normal = new Cesium.Cartesian3();
-        const _scratchCartesian3Normal1 = new Cesium.Cartesian3();
+        const scratchCartesian4Center = new Cesium.Cartesian4();
+        const scratchCartesian4Center1 = new Cesium.Cartesian4();
+        const scratchCartesian4Center2 = new Cesium.Cartesian4();
+        const scratchCartesian3Normal = new Cesium.Cartesian3();
+        const scratchCartesian3Normal1 = new Cesium.Cartesian3();
+
+        const u_rotationOffset = Cesium.Math.toRadians(0); // 例如设置为30度
 
         const ScanPostStage = new Cesium.PostProcessStage({
             fragmentShader: ScanSegmentShader,
             uniforms: {
+                /** 扫描中心 */
                 u_scanCenterEC: () => {
+                    // 计算矩阵和列向量的乘积 返回四维笛卡尔坐标
                     return Cesium.Matrix4.multiplyByVector(
-                        this.viewer.camera.viewMatrix,
-                        _Cartesian4Center,
-                        _scratchCartesian4Center
+                        this.viewer.camera.viewMatrix, // 获取视图矩阵
+                        cartesian4Center,
+                        scratchCartesian4Center
                     );
                 },
+                /** 扫描平面 */
                 u_scanPlaneNormalEC: () => {
+                    // 计算 原数据和高程抬高100后数据的差值的矩阵和列向量的乘积 返回做差后的四维笛卡尔坐标
                     const temp = Cesium.Matrix4.multiplyByVector(
                         this.viewer.camera.viewMatrix,
-                        _Cartesian4Center,
-                        _scratchCartesian4Center
+                        cartesian4Center,
+                        scratchCartesian4Center
                     );
                     const temp1 = Cesium.Matrix4.multiplyByVector(
                         this.viewer.camera.viewMatrix,
-                        _Cartesian4Center1,
-                        _scratchCartesian4Center1
+                        newCartesian4Center1,
+                        scratchCartesian4Center1
                     );
-                    _scratchCartesian3Normal.x = temp1.x - temp.x;
-                    _scratchCartesian3Normal.y = temp1.y - temp.y;
-                    _scratchCartesian3Normal.z = temp1.z - temp.z;
+                    scratchCartesian3Normal.x = temp1.x - temp.x;
+                    scratchCartesian3Normal.y = temp1.y - temp.y;
+                    scratchCartesian3Normal.z = temp1.z - temp.z;
 
-                    Cesium.Cartesian3.normalize(_scratchCartesian3Normal, _scratchCartesian3Normal);
-                    return _scratchCartesian3Normal;
+                    // 返回一个规范化后的笛卡尔坐标
+                    Cesium.Cartesian3.normalize(scratchCartesian3Normal, scratchCartesian3Normal);
+                    return scratchCartesian3Normal;
                 },
+                /** 扫描半径 */
                 u_radius: radius,
+                /** 扫描线 返回随时间变化的笛卡尔坐标 */
                 u_scanLineNormalEC: () => {
                     const temp = Cesium.Matrix4.multiplyByVector(
                         this.viewer.camera.viewMatrix,
-                        _Cartesian4Center,
-                        _scratchCartesian4Center
+                        cartesian4Center,
+                        scratchCartesian4Center
                     );
                     const temp1 = Cesium.Matrix4.multiplyByVector(
                         this.viewer.camera.viewMatrix,
-                        _Cartesian4Center1,
-                        _scratchCartesian4Center1
+                        newCartesian4Center1,
+                        scratchCartesian4Center1
                     );
                     const temp2 = Cesium.Matrix4.multiplyByVector(
                         this.viewer.camera.viewMatrix,
-                        _Cartesian4Center2,
-                        _scratchCartesian4Center2
+                        newCartesian4Center2,
+                        scratchCartesian4Center2
                     );
 
-                    _scratchCartesian3Normal.x = temp1.x - temp.x;
-                    _scratchCartesian3Normal.y = temp1.y - temp.y;
-                    _scratchCartesian3Normal.z = temp1.z - temp.z;
+                    scratchCartesian3Normal.x = temp1.x - temp.x;
+                    scratchCartesian3Normal.y = temp1.y - temp.y;
+                    scratchCartesian3Normal.z = temp1.z - temp.z;
 
-                    Cesium.Cartesian3.normalize(_scratchCartesian3Normal, _scratchCartesian3Normal);
+                    Cesium.Cartesian3.normalize(scratchCartesian3Normal, scratchCartesian3Normal);
 
-                    _scratchCartesian3Normal1.x = temp2.x - temp.x;
-                    _scratchCartesian3Normal1.y = temp2.y - temp.y;
-                    _scratchCartesian3Normal1.z = temp2.z - temp.z;
+                    scratchCartesian3Normal1.x = temp2.x - temp.x;
+                    scratchCartesian3Normal1.y = temp2.y - temp.y;
+                    scratchCartesian3Normal1.z = temp2.z - temp.z;
 
                     const customAngleInDegrees = 180; // 自定义角度
-                    const customAngleInRadians = Cesium.Math.toRadians(customAngleInDegrees);
-                    const tempTime = ((new Date().getTime() - _time) % duration) / duration;
-                    const angle = Math.sin(tempTime * Math.PI) * customAngleInRadians;
+                    const customAngleInRadians = Cesium.Math.toRadians(customAngleInDegrees); // 弧度单位的角度
+                    const tempTime = ((new Date().getTime() - time) % duration) / duration; // 归一化 返回的是 [0, 1] 之间的数
+                    const angle = Math.sin(tempTime * Math.PI) * customAngleInRadians; // 生成一个随时间变化的正弦波 [-1, 1] 之间，返回的是 [-π, π]
 
-                    Cesium.Quaternion.fromAxisAngle(_scratchCartesian3Normal, angle, _RotateQ);
-                    Cesium.Matrix3.fromQuaternion(_RotateQ, _RotateM);
+                    Cesium.Quaternion.fromAxisAngle(scratchCartesian3Normal, angle, _RotateQ); // 计算表示绕轴旋转的四元数 返回四元数
+                    Cesium.Matrix3.fromQuaternion(_RotateQ, _RotateM); // 根据提供的四元数计算 3x3 旋转矩阵
+                    // 计算矩阵和列向量的乘积 返回三维笛卡尔坐标
                     Cesium.Matrix3.multiplyByVector(
                         _RotateM,
-                        _scratchCartesian3Normal1,
-                        _scratchCartesian3Normal1
+                        scratchCartesian3Normal1,
+                        scratchCartesian3Normal1
                     );
-                    Cesium.Cartesian3.normalize(
-                        _scratchCartesian3Normal1,
-                        _scratchCartesian3Normal1
-                    );
-                    return _scratchCartesian3Normal1;
+                    Cesium.Cartesian3.normalize(scratchCartesian3Normal1, scratchCartesian3Normal1);
+                    return scratchCartesian3Normal1;
                 },
+                /** 扫描颜色 */
                 u_scanColor: scanColor,
+                u_sectorSize: () => {
+                    return 60;
+                },
+                u_scanAngle: () => {
+                    return 30;
+                },
+                u_rotationOffset: () => {
+                    return Cesium.Math.toRadians(90);
+                },
             },
         });
 

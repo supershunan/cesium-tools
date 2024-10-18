@@ -24,6 +24,13 @@
     background-color: red;
 }
 
+.btn12 {
+    position: fixed;
+    top: 250px;
+    left: 0;
+    background-color: red;
+}
+
 .btn4 {
     position: fixed;
     top: 100px;
@@ -69,6 +76,20 @@
 .btn10 {
     position: fixed;
     top: 400px;
+    right: 0;
+    background-color: red;
+}
+
+.btn11 {
+    position: fixed;
+    top: 450px;
+    right: 0;
+    background-color: red;
+}
+
+.btn13 {
+    position: fixed;
+    top: 500px;
     right: 0;
     background-color: red;
 }

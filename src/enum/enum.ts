@@ -38,3 +38,9 @@ export enum MeasureTypeEnum {
     angle = 'angle',
     theHeight = 'theHeight',
 }
+
+export enum DrawingTypeEnum {
+    point = 'point',
+    billboard = 'billboard',
+    face = 'face',
+}

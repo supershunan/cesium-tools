@@ -8,6 +8,7 @@ import {
     useVisibilityAnalysis,
     useTurntableSwing,
     useMeasure,
+    useDrawing,
 } from '../index';
 import './App.css';
 
@@ -19,6 +20,9 @@ function App() {
     const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
         measure as Cesium.Viewer,
         { trendsComputed: true }
+    );
+    const { drawingBillboard, drawimgFace } = useDrawing(
+        measure as Cesium.Viewer
     );
     const visualFieldAnalysis = useVisualFieldAnalysis();
     const slopeDirectionAnalysis = useSlopeDirectionAnalysis();
@@ -37,12 +41,12 @@ function App() {
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            terrain: Cesium.Terrain.fromWorldTerrain(),
-            // terrain: new Cesium.Terrain(
-            //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
-            //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
-            //     )
-            // ),
+            // terrain: Cesium.Terrain.fromWorldTerrain(),
+            terrain: new Cesium.Terrain(
+                Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+                    'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+                )
+            ),
         });
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
@@ -57,19 +61,25 @@ function App() {
         slopeDirectionAnalysis.setInstance(viewer);
         visibilityAnalysis.setInstance(viewer);
         turntableSwing.setInstance(viewer);
+        drawingBillboard?.addToolsEventListener('cesiumToolsFxt', (event) => {
+            console.log(event);
+        })
     };
 
     const handleClear = () => {
-        measureDistance().clear();
-        measureArea().clear();
-        measureAngle().clear();
-        visualFieldAnalysis.clear();
-        slopeDirectionAnalysis.clear();
-        visibilityAnalysis.clear();
-        turntableSwing.clear();
+        // measureDistance().clear();
+        // measureArea().clear();
+        // measureAngle().clear();
+        // visualFieldAnalysis.clear();
+        // slopeDirectionAnalysis.clear();
+        // visibilityAnalysis.clear();
+        // turntableSwing.clear();
+        // drawingBillboard().clear();
+        measure?.scene.primitives.removeAll();
+        measure?.entities.removeAll();
     };
 
-    const handleInstanceClear = () => {};
+    const handleInstanceClear = () => { };
 
     const handleDistance = () => {
         measureDistance().active();
@@ -99,6 +109,54 @@ function App() {
         turntableSwing.active();
     };
 
+    const handleDrawingBillboard = () => {
+        drawingBillboard.active();
+    }
+
+    const handleDrawingDraw = () => {
+        drawimgFace.active();
+    }
+
+    const getPrimvite = () => {
+        // console.log(measure?.scene.primitives, measure?.scene.primitives.length)
+        // const primitivesLength = measure?.scene.primitives.length;
+        /**
+         * TODO: 显示隐藏
+         */
+        // measure.scene.primitives.show = !measure?.scene.primitives.show
+        /**
+         * TODO: 修改
+         */
+        // for (let i = 0; i < primitivesLength; i++) {
+        //     const primitiveNum = measure?.scene.primitives.get(i).length;
+        //     for (let j = 0; j < primitiveNum; j++) {
+        //         const entity = measure?.scene.primitives.get(i).get(j);
+        //         console.log(entity instanceof Cesium.Billboard ? entity : '不是')
+        //     }
+        // }
+        window.wkViewer = measure;
+        /**
+         * TODO: 编辑
+         */
+        // drawingBillboard().edit('test', measure, {
+        //     label: {
+        //         text: '修改了'
+        //     },
+        //     billboard: {
+        //         scale: 0.5
+        //     }
+        // })
+
+        /**
+         * TODO: 新增
+         */
+        drawingBillboard.create({ x: -1806588.6592375485, y: 4961936.6534057325, z: 3567728.7822331525 }, {
+            label: {
+                text: '测试点'
+            }
+        })
+    }
+
     return (
         <div>
             <div id="cesiumContainer" style={{ width: '100%', height: '100vh' }}></div>
@@ -107,6 +165,9 @@ function App() {
             </button>
             <button className="btn3" onClick={handleInstanceClear}>
                 测试实例清除
+            </button>
+            <button className="btn12" onClick={getPrimvite}>
+                测试获取某个实体
             </button>
             <button className="btn4" onClick={handleDistance}>
                 距离
@@ -128,6 +189,12 @@ function App() {
             </button>
             <button className="btn10" onClick={handleTurntableSwing}>
                 转台模拟
+            </button>
+            <button className="btn11" onClick={handleDrawingBillboard}>
+                画点
+            </button>
+            <button className="btn13" onClick={handleDrawingDraw}>
+                画面
             </button>
         </div>
     );

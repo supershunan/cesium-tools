@@ -9,17 +9,28 @@ type Options = {
     id?: number | string;
     billboard?: Partial<Cesium.Billboard.ConstructorOptions> & { [key: string]: unknown };
     label?: Partial<Cesium.Billboard.ConstructorOptions> & { [key: string]: unknown };
+    type: 'polygon' | 'line' | 'both';
+    lineColor?: Cesium.Color;
+    polygonColor?: Cesium.Color;
+    width?: number;
+};
+type LatLng = {
+    latitude: number;
+    longitude: number;
 };
 
 export interface DrawingActions {
     /** 激活 */
-    active: () => void;
+    active: (options?: unknown) => void;
     /** 注销 */
     deactivate: () => void;
     /** 清除图层 */
     clear: () => void;
     /** 创建图层 */
-    create?: (position: Cesium.Cartesian3, options?: Options) => void;
+    create?: (
+        position: Cesium.Cartesian3 | Cesium.Cartesian3[] | LatLng[],
+        options?: Options
+    ) => void;
     /** 编辑图层 */
     edit?: (id: number | string, viewer: Cesium.Viewer, options: Options) => void;
     /** 事件名 cesiumToolsFxt */
@@ -55,8 +66,8 @@ export function useDrawing(viewer: Cesium.Viewer): Drawing {
         }
 
         return {
-            active: () => {
-                currenDrawing[type]?.active();
+            active: (options) => {
+                currenDrawing[type]?.active(options);
             },
             deactivate: () => {
                 currenDrawing[type]?.deactivate();
@@ -68,7 +79,10 @@ export function useDrawing(viewer: Cesium.Viewer): Drawing {
             edit: (id: number | string, viewer: Cesium.Viewer, options: Options) => {
                 currenDrawing[type]?.edit?.(id, viewer, options);
             },
-            create: (position: Cesium.Cartesian3, options?: Options) => {
+            create: (
+                position: Cesium.Cartesian3 | Cesium.Cartesian3[] | LatLng[],
+                options?: Options
+            ) => {
                 currenDrawing[type]?.create?.(position, options);
             },
             addToolsEventListener: (eventName, callback) => {
@@ -79,10 +93,8 @@ export function useDrawing(viewer: Cesium.Viewer): Drawing {
             },
         };
     };
-    const drawingPoint: DrawingActions =
-        viewer && createDrawing(DrawingPoint, DrawingTypeEnum.point);
-    const drawingBillboard: DrawingActions =
-        viewer && createDrawing(DrawingBillboard, DrawingTypeEnum.billboard);
+    const drawingPoint = viewer && createDrawing(DrawingPoint, DrawingTypeEnum.point);
+    const drawingBillboard = viewer && createDrawing(DrawingBillboard, DrawingTypeEnum.billboard);
     const drawimgFace = viewer && createDrawing(DrawimgFace, DrawingTypeEnum.face);
 
     return { drawingPoint, drawingBillboard, drawimgFace };

@@ -3,6 +3,10 @@ import MouseEvent from '../mouseBase/mouseBase';
 import { DrawingTypeEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
 
+type LatLng = {
+    latitude: number;
+    longitude: number;
+};
 export default class DrawingBillboard extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
@@ -82,7 +86,7 @@ export default class DrawingBillboard extends MouseEvent {
     }
 
     create(
-        position: Cesium.Cartesian3,
+        position: Cesium.Cartesian3 | Cesium.Cartesian3[] | LatLng[],
         options?: {
             id?: number | string;
             billboard?: Partial<Cesium.Billboard.ConstructorOptions> & { [key: string]: unknown };
@@ -102,7 +106,7 @@ export default class DrawingBillboard extends MouseEvent {
             // 创建广告牌
             this.billboardCollection.add({
                 id: options?.id,
-                position: position,
+                position: position as Cesium.Cartesian3,
                 image: '/public/resources/images/特征点_选中.png',
                 width: 24,
                 height: 24,
@@ -116,7 +120,7 @@ export default class DrawingBillboard extends MouseEvent {
             // 创建标签
             this.labelCollection.add({
                 id: options?.id,
-                position: position,
+                position: position as Cesium.Cartesian3,
                 text: `Point`,
                 font: '14px sans-serif',
                 fillColor: Cesium.Color.WHITE,

@@ -1,18 +1,28 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
 import { EventCallback } from '../../type/type';
-import { MouseStatusEnum } from '@src/enum/enum';
+import { DrawingTypeEnum } from '@src/enum/enum';
+
+type LatLng = {
+    latitude: number;
+    longitude: number;
+};
 
 export default class DrawingFace extends MouseEvent {
     protected viewer: Cesium.Viewer;
     protected handler: Cesium.ScreenSpaceEventHandler;
     private pointPrimitiveCollection: Cesium.PointPrimitiveCollection;
-    private polylineCollection: Cesium.PolylineCollection;
-    private polygonGraphics: Cesium.ClippingPolygonCollection;
-    currentMouseType: string;
-    private position3dAry: Cesium.Cartesian3[];
     private polygonEntity: Cesium.Entity | undefined;
-    private tempMovePosition: Cesium.Cartesian3 | undefined;
+    private curClickIndex: number;
+    private polylineEntity: Cesium.Entity | undefined;
+    private position3dAry: { [key: number]: Cesium.Cartesian3[] };
+    private tempMovePosition: { [key: number]: Cesium.Cartesian3 };
+    private initSetting: {
+        type?: 'polygon' | 'line';
+        lineColor?: Cesium.Color;
+        polygonColor?: Cesium.Color;
+        lineWidth?: number;
+    };
 
     constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
         super(viewer, handler);
@@ -21,17 +31,23 @@ export default class DrawingFace extends MouseEvent {
         this.pointPrimitiveCollection = this.viewer.scene.primitives.add(
             new Cesium.PointPrimitiveCollection()
         );
-        this.polylineCollection = this.viewer.scene.primitives.add(new Cesium.PolylineCollection());
-        this.polygonGraphics = this.viewer.scene.primitives.add(
-            new Cesium.ClippingPolygonCollection()
-        );
-        this.currentMouseType = '';
-        this.position3dAry = [];
-        this.tempMovePosition = undefined;
+        this.curClickIndex = 1;
+        this.position3dAry = {};
+        this.tempMovePosition = {};
         this.polygonEntity = undefined;
+        this.polylineEntity = undefined;
+        this.initSetting = {};
     }
 
-    active(): void {
+    active(options?: {
+        type: 'polygon' | 'line';
+        lineColor?: Cesium.Color;
+        polygonColor?: Cesium.Color;
+        width?: number;
+    }): void {
+        if (options) {
+            this.initSetting = options;
+        }
         this.registerEvents();
     }
 
@@ -41,7 +57,11 @@ export default class DrawingFace extends MouseEvent {
     }
 
     clear(): void {
-        // TODO: clear
+        this.curClickIndex = 1;
+        this.position3dAry = {};
+        this.tempMovePosition = {};
+        this.polygonEntity = undefined;
+        this.polylineEntity = undefined;
     }
 
     addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
@@ -54,32 +74,44 @@ export default class DrawingFace extends MouseEvent {
 
     protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-            this.currentMouseType = MouseStatusEnum.click;
-
             const currentPosition = this.viewer.scene.pickPosition(e.position);
-            if (!currentPosition && !Cesium.defined(currentPosition)) return;
-            this.position3dAry.push(currentPosition);
+            if (!currentPosition || !Cesium.defined(currentPosition)) return;
+            if (typeof this.position3dAry[this.curClickIndex] !== 'object') {
+                this.position3dAry[this.curClickIndex] = [];
+            }
+            this.position3dAry[this.curClickIndex].push(currentPosition);
 
             this.createPoint(currentPosition);
+            if (this.initSetting.type === 'line') {
+                this.createPolyline();
+            } else if (this.initSetting.type === 'polygon') {
+                this.createPolygon();
+            } else {
+                this.createPolygon();
+                this.createPolyline();
+            }
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 
     protected rightClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-            if (this.position3dAry.length < 2) return;
-
-            this.currentMouseType = MouseStatusEnum.click;
+            if (this.position3dAry[this.curClickIndex].length < 2) return;
 
             const currentPosition = this.viewer.scene.pickPosition(e.position);
-            if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            if (!currentPosition || !Cesium.defined(currentPosition)) return;
 
-            this.position3dAry.push(currentPosition);
+            this.position3dAry[this.curClickIndex].push(currentPosition);
 
             this.createPoint(currentPosition);
-
-            this.polygonEntity && this.viewer.entities.remove(this.polygonEntity);
+            this.polylineEntity = undefined;
             this.polygonEntity = undefined;
-            this.position3dAry = [];
+            this.curClickIndex = this.curClickIndex + 1;
+
+            this.dispatch('cesiumToolsFxt', {
+                type: DrawingTypeEnum.face + 'Drawing',
+                status: 'finished',
+                position: this.position3dAry[this.curClickIndex - 1],
+            });
 
             this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
@@ -87,12 +119,10 @@ export default class DrawingFace extends MouseEvent {
 
     protected mouseMoveEvent(): void {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
-            this.currentMouseType = MouseStatusEnum.move;
-
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
-            if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            if (!currentPosition || !Cesium.defined(currentPosition)) return;
 
-            this.tempMovePosition = currentPosition;
+            this.tempMovePosition[this.curClickIndex] = currentPosition;
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     }
 
@@ -107,41 +137,187 @@ export default class DrawingFace extends MouseEvent {
         });
     }
 
-    createPolygin() {
-        this.polylineCollection = this.viewer.scene.primitives.add(new Cesium.PolylineCollection());
-        this.polylineCollection.add({
-            positions: new Cesium.CallbackProperty(() => {
-                const tempPositions = [...this.position3dAry];
-                if (this.tempMovePosition) {
-                    tempPositions.push(this.tempMovePosition);
-                }
-                return tempPositions;
-            }, false),
-            width: 2,
-            material: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
-            depthFailMaterial: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
-            // 是否贴地
-            clampToGround: true,
-        });
-    }
-
     private createPolygon() {
-        this.polygonGraphics.add();
         if (!this.polygonEntity) {
-            const polygonEntity = this.viewer.entities.add({
+            const index = this.curClickIndex;
+            const color = this.initSetting?.polygonColor ?? Cesium.Color.YELLOW.withAlpha(0.3);
+            this.polygonEntity = this.viewer.entities.add({
                 polygon: {
                     hierarchy: new Cesium.CallbackProperty(() => {
-                        const tempPositions = [...this.position3dAry];
-                        if (this.tempMovePosition) {
-                            tempPositions.push(this.tempMovePosition);
+                        const tempPositions = [...this.position3dAry[index]];
+                        if (this.tempMovePosition[index]) {
+                            tempPositions.push(this.tempMovePosition[index]);
                         }
                         return new Cesium.PolygonHierarchy(tempPositions);
                     }, false),
-                    material: new Cesium.ColorMaterialProperty(Cesium.Color.YELLOW.withAlpha(0.3)),
+                    material: new Cesium.ColorMaterialProperty(color),
                     classificationType: Cesium.ClassificationType.BOTH,
                 },
             });
-            this.polygonEntity = polygonEntity;
         }
+    }
+
+    private createPolyline() {
+        if (!this.polylineEntity) {
+            const index = this.curClickIndex;
+            const color = this.initSetting?.lineColor ?? Cesium.Color.CHARTREUSE;
+            this.polylineEntity = this.viewer.entities.add({
+                polyline: {
+                    positions: new Cesium.CallbackProperty(() => {
+                        const tempPositions = [...this.position3dAry[index]];
+                        if (this.tempMovePosition[index]) {
+                            tempPositions.push(this.tempMovePosition[index]);
+                            tempPositions.push(tempPositions[0]);
+                        }
+                        return tempPositions;
+                    }, false),
+                    width: this.initSetting?.lineWidth ?? 2,
+                    material: new Cesium.ColorMaterialProperty(color),
+                    depthFailMaterial: new Cesium.ColorMaterialProperty(color),
+                    // 是否贴地
+                    clampToGround: true,
+                },
+            });
+        }
+    }
+
+    create(
+        position: Cesium.Cartesian3 | Cesium.Cartesian3[] | LatLng[],
+        options?: {
+            id: string | number;
+            type: 'polygon' | 'line' | 'both';
+            lineColor?: Cesium.Color;
+            polygonColor?: Cesium.Color;
+            width?: number;
+        }
+    ) {
+        // 检查是否有足够的点
+        if ((position as Cesium.Cartesian3[]).length < 2) {
+            this.dispatch('cesiumToolsFxt', {
+                type: DrawingTypeEnum.face + 'Create',
+                status: 'failed',
+                reason: 'At least two points required',
+            });
+            return;
+        }
+
+        // 去重
+        const uniquePositions = Array.from(
+            new Set(
+                (position as Cesium.Cartesian3[]).map((pos) => {
+                    return JSON.stringify(pos);
+                })
+            )
+        ).map((pos) => {
+            return JSON.parse(pos);
+        });
+
+        // 再次检查去重后的长度
+        if (uniquePositions.length < 2) {
+            this.dispatch('cesiumToolsFxt', {
+                type: DrawingTypeEnum.face + 'Create',
+                status: 'failed',
+                reason: 'At least two unique points required',
+            });
+            return;
+        }
+
+        /**
+         * TODO: 如果是经纬度将经纬度转为笛卡尔坐标
+         */
+        const cartesianPositions =
+            Array.isArray(uniquePositions) &&
+            uniquePositions[0] &&
+            typeof uniquePositions[0] === 'object' &&
+            'latitude' in uniquePositions[0]
+                ? this.convertLatLngToCartesian(uniquePositions as LatLng[])
+                : (uniquePositions as Cesium.Cartesian3[]);
+
+        try {
+            // 根据 type 参数绘制不同的内容
+            if (options?.type === 'polygon') {
+                this.drawPolygon(cartesianPositions, options.id, options?.polygonColor);
+            }
+
+            if (options?.type === 'line') {
+                this.drawLine(cartesianPositions, options.id, options?.width, options?.lineColor);
+            }
+
+            if (options?.type === 'both') {
+                this.drawLine(cartesianPositions, options.id, options?.width, options?.lineColor);
+                this.drawPolygon(cartesianPositions, options.id, options?.polygonColor);
+            }
+        } catch (error) {
+            console.error('Error creating shapes:', error);
+            this.dispatch('cesiumToolsFxt', {
+                type: DrawingTypeEnum.face + 'Create',
+                status: 'failed',
+                reason: error,
+            });
+        }
+    }
+
+    private drawPolygon(
+        positions: Cesium.Cartesian3[],
+        id: string | number,
+        color: Cesium.Color | undefined
+    ) {
+        //定义几何形状
+        const polygon = new Cesium.GeometryInstance({
+            geometry: new Cesium.PolygonGeometry({
+                polygonHierarchy: new Cesium.PolygonHierarchy(positions),
+            }),
+            id,
+        });
+        //定义外观
+        const polygonAppearance = new Cesium.MaterialAppearance({
+            material: Cesium.Material.fromType('Color', {
+                color: color ?? Cesium.Color.YELLOW.withAlpha(0.3),
+            }),
+            faceForward: true,
+        });
+        //创建GroundPrimitive
+        const addPolygonGroundPrimitive = new Cesium.GroundPrimitive({
+            //贴地面
+            geometryInstances: polygon,
+            appearance: polygonAppearance,
+        });
+
+        this.viewer.scene.primitives.add(addPolygonGroundPrimitive);
+    }
+
+    private drawLine(
+        positions: Cesium.Cartesian3[],
+        id: string | number,
+        width: number | undefined,
+        color: Cesium.Color | undefined
+    ) {
+        const lineColor = color ?? Cesium.Color.CHARTREUSE.withAlpha(0.8);
+        const instance = new Cesium.GeometryInstance({
+            geometry: new Cesium.GroundPolylineGeometry({
+                positions: positions,
+                loop: true,
+                width: width ?? 4.0,
+            }),
+            attributes: {
+                color: Cesium.ColorGeometryInstanceAttribute.fromColor(lineColor),
+            },
+            id,
+        });
+
+        const linePrimitive = new Cesium.GroundPolylinePrimitive({
+            geometryInstances: instance,
+            appearance: new Cesium.PolylineColorAppearance(),
+        });
+
+        this.viewer.scene.groundPrimitives.add(linePrimitive);
+    }
+
+    private convertLatLngToCartesian(latLngs: LatLng[]): Cesium.Cartesian3[] {
+        const cartesianPositions: Cesium.Cartesian3[] = latLngs.map((latLng) => {
+            const cartographic = Cesium.Cartographic.fromDegrees(latLng.longitude, latLng.latitude);
+            return Cesium.Ellipsoid.WGS84.cartographicToCartesian(cartographic);
+        });
+        return cartesianPositions;
     }
 }

@@ -9,6 +9,8 @@ type Options = {
     id?: number | string;
     billboard?: Partial<Cesium.Billboard.ConstructorOptions> & { [key: string]: unknown };
     label?: Partial<Cesium.Billboard.ConstructorOptions> & { [key: string]: unknown };
+    polyline?: Partial<Cesium.PolygonGraphics> & { [key: string]: unknown };
+    polygon?: Partial<Cesium.PolylineGraphics> & { [key: string]: unknown };
     type: 'polygon' | 'line' | 'both';
     lineColor?: Cesium.Color;
     polygonColor?: Cesium.Color;

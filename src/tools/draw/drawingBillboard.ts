@@ -29,11 +29,14 @@ export default class DrawingBillboard extends MouseEvent {
     }
 
     deactivate(): void {
-        this.clear();
+        // this.clear();
         this.unRegisterEvents();
     }
 
-    clear(): void {}
+    clear(): void {
+        this.billboardCollection.removeAll();
+        this.labelCollection.removeAll();
+    }
 
     addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
         this.addEventListener(eventName, callback);
@@ -116,7 +119,7 @@ export default class DrawingBillboard extends MouseEvent {
                 show: true,
                 ...options?.billboard,
             });
-
+            this.labelCollection = this.viewer.scene.primitives.add(new Cesium.LabelCollection());
             // 创建标签
             this.labelCollection.add({
                 id: options?.id,

@@ -74,9 +74,14 @@ function App() {
         // slopeDirectionAnalysis.clear();
         // visibilityAnalysis.clear();
         // turntableSwing.clear();
-        // drawingBillboard().clear();
-        measure?.scene.primitives.removeAll();
-        measure?.entities.removeAll();
+        // drawingBillboard.clear();
+        // measure?.entities.removeAll()
+        // measure?.scene.primitives.removeAll()
+        // drawimgFace.clear();
+
+        // console.log(measure?.entities)
+        drawimgFace.edit('wkkk', measure, {})
+
     };
 
     const handleInstanceClear = () => {
@@ -139,15 +144,20 @@ function App() {
 
     const handleDrawingBillboard = () => {
         drawingBillboard.active();
+        window.wkViewer = measure;
     }
 
     const handleDrawingDraw = () => {
         drawimgFace.active({
-            lineWidth: 2
+            lineWidth: 2,
+            type: 'polygon',
+            name: '测试名字'
         });
+
     }
 
     const getPrimvite = () => {
+        window.wkViewer = measure;
         // console.log(measure?.scene.primitives, measure?.scene.primitives.length)
         // const primitivesLength = measure?.scene.primitives.length;
         /**
@@ -164,7 +174,7 @@ function App() {
         //         console.log(entity instanceof Cesium.Billboard ? entity : '不是')
         //     }
         // }
-        window.wkViewer = measure;
+
         /**
          * TODO: 编辑
          */
@@ -185,43 +195,24 @@ function App() {
         //         text: '测试点'
         //     }
         // })
+
         drawimgFace.create([
             {
-                "x": -1810927.507957857,
-                "y": 4959207.99361473,
-                "z": 3566748.018827633
+                longitude: 109.9949624673448,
+                latitude: 34.22876194191444,
+                height: 1450.686516990897
             },
             {
-                "x": -1813163.4314509332,
-                "y": 4957848.329755206,
-                "z": 3567497.173445896
+                longitude: 110.0059744858408,
+                latitude: 34.22830574705477,
+                height: 1540.711636384433
             },
             {
-                "x": -1814187.9280267193,
-                "y": 4958706.525582707,
-                "z": 3565794.634678632
-            },
-            {
-                "x": -1813593.0122049372,
-                "y": 4959467.082089555,
-                "z": 3565044.504555685
-            },
-            {
-                "x": -1811888.7113589223,
-                "y": 4960296.782581252,
-                "z": 3564758.6919368147
-            },
-            {
-                "x": -1811888.7113589223,
-                "y": 4960296.782581252,
-                "z": 3564758.6919368147
-            },
-            {
-                "x": -1810927.507957857,
-                "y": 4959207.99361473,
-                "z": 3566748.018827633
+                longitude: 110.00029263973444,
+                latitude: 34.216760021564056,
+                height: 1439.4305063281256
             }
-        ], { type: 'polygon', lineColor: Cesium.Color.RED, width: 1, id: 'wkkk' })
+        ], { type: 'line', lineColor: Cesium.Color.RED, width: 1, id: 'wkkk' })
     }
 
     return (

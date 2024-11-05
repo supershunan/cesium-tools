@@ -1,7 +1,7 @@
 import * as Cesium from 'cesium';
 import DrawingPoint from './drawingPoint';
 import DrawingBillboard from './drawingBillboard';
-import DrawimgFace from './drawingFace';
+import DrawimgFace from './newDrawingPolylinPolygon';
 import { EventCallback } from '../../type/type';
 import { DrawingTypeEnum } from '../../enum/enum';
 

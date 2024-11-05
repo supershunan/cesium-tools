@@ -148,16 +148,23 @@ function App() {
     }
 
     const handleDrawingDraw = () => {
+        window.wkViewer = measure;
+        // drawimgFace.active({
+        //     lineWidth: 2,
+        //     type: 'polygon',
+        //     name: '测试名字'
+        // });
+
         drawimgFace.active({
-            lineWidth: 2,
-            type: 'polygon',
-            name: '测试名字'
+            type: 1,
+            // point: {
+            //     color: Cesium.Color.RED,
+            // }
         });
 
     }
 
     const getPrimvite = () => {
-        window.wkViewer = measure;
         // console.log(measure?.scene.primitives, measure?.scene.primitives.length)
         // const primitivesLength = measure?.scene.primitives.length;
         /**

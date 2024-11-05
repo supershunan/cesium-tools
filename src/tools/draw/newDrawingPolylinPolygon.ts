@@ -65,6 +65,7 @@ export default class DrawingPrimtives extends MouseEvent {
         );
         this.locationBillbord = this.viewer.scene.primitives.add(new Cesium.BillboardCollection());
         this.locationLabel = this.viewer.scene.primitives.add(new Cesium.LabelCollection());
+        this.drawingType = DrawingTypeEnum.POINT;
         this.options = null;
         this.curSort = 0;
         this.pointDatas = {};
@@ -89,7 +90,26 @@ export default class DrawingPrimtives extends MouseEvent {
         this.unRegisterEvents();
     }
 
-    clear(): void {}
+    clear(): void {
+        Object.entries(this.pointEntitys).forEach(([key, value]) => {
+            value.forEach((entity) => {
+                this.viewer.entities.remove(entity);
+            });
+        });
+        Object.entries(this.polylinPolygonEntitys).forEach(([key, value]) => {
+            this.viewer.entities.remove(value);
+        });
+        Object.entries(this.billboardEntity).forEach(([key, value]) => {
+            value.forEach((entity) => {
+                this.viewer.entities.remove(entity);
+            });
+        });
+        Object.entries(this.labelEntity).forEach(([key, value]) => {
+            value.forEach((entity) => {
+                this.viewer.entities.remove(entity);
+            });
+        });
+    }
 
     ddToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
         this.addEventListener(eventName, callback);
@@ -519,6 +539,8 @@ export default class DrawingPrimtives extends MouseEvent {
                 this.curSort = this.curSort - 1;
             }
         }
+
+        console.log('进来');
 
         const instance = new Cesium.GeometryInstance({
             id,

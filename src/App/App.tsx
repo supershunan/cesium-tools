@@ -80,7 +80,8 @@ function App() {
         // drawimgFace.clear();
 
         // console.log(measure?.entities)
-        drawimgFace.edit('wkkk', measure, {})
+        // drawimgFace.edit('wkkk', measure, {})
+        drawimgFace.clear()
 
     };
 
@@ -156,7 +157,7 @@ function App() {
         // });
 
         drawimgFace.active({
-            type: 1,
+            type: 2,
             // point: {
             //     color: Cesium.Color.RED,
             // }

@@ -44,8 +44,6 @@ export default class DrawingPrimtives extends MouseEvent {
     private locationPoint: Cesium.PointPrimitiveCollection;
     private locationBillbord: Cesium.BillboardCollection;
     private locationLabel: Cesium.LabelCollection;
-    private locationPolyline: Cesium.PointPrimitiveCollection;
-    private drawingPolygon: { [key: number]: Cesium.Entity | undefined };
     private drawingType: DrawingTypeEnum;
     private options: Options | null;
     private curSort: number;
@@ -149,6 +147,10 @@ export default class DrawingPrimtives extends MouseEvent {
             this.pointDatas[index].push(currentPosition);
 
             this.drawing(currentPosition, this.drawingType);
+
+            this.curSort = index + 1;
+
+            this.unRegisterEvents();
             this.create('wkkk', this.pointDatas[index], {
                 type: this.drawingType,
                 point: {
@@ -157,9 +159,6 @@ export default class DrawingPrimtives extends MouseEvent {
                 },
                 label: { text: 'successfully', pixelOffset: new Cesium.Cartesian2(-20, -35) },
             });
-            this.curSort = index + 1;
-
-            this.unRegisterEvents();
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
@@ -224,6 +223,10 @@ export default class DrawingPrimtives extends MouseEvent {
                 },
             })
         );
+
+        if (this.options?.point?.showLabel) {
+            this.drawingLableEntity(position, index);
+        }
     }
 
     drawingPolylinEntity(index: number, type: DrawingTypeEnum): void {
@@ -333,6 +336,12 @@ export default class DrawingPrimtives extends MouseEvent {
     }
 
     create(id: string | number, positions: Points[], options: Options) {
+        /**
+         * TODO: 保存的时候 右键导致 curSort 加1 所以需要将他还原
+         */
+        if (this.curSort > 0) {
+            this.curSort = this.curSort - 1;
+        }
         // 去重
         const uniquePositions = Array.from(
             new Set(
@@ -365,6 +374,7 @@ export default class DrawingPrimtives extends MouseEvent {
                 this.drawingPolylinePrimitive(index, id, cartesianPositions, options);
                 break;
             case DrawingTypeEnum.POLYGON:
+                this.drawingPolygonPrimitive(index, id, cartesianPositions, options);
                 break;
             case DrawingTypeEnum.POLYGON_AND_POLYLINE:
                 this.drawingPolylinePolygonPrimitive(index, id, cartesianPositions, options);
@@ -540,8 +550,6 @@ export default class DrawingPrimtives extends MouseEvent {
             }
         }
 
-        console.log('进来');
-
         const instance = new Cesium.GeometryInstance({
             id,
             geometry: new Cesium.GroundPolylineGeometry({
@@ -645,5 +653,107 @@ export default class DrawingPrimtives extends MouseEvent {
                 ...options?.label,
             });
         });
+    }
+
+    edit(
+        id: number | string,
+        viewer: Cesium.Viewer,
+        options: Omit<Options, 'type'> & Partial<Pick<Options, 'type'>> // Partial<Options> 全部设为可选
+    ) {
+        let isEdited = false;
+        const primitivesLength = viewer.scene.primitives.length;
+        const groundPrimitivesLength = viewer.scene.groundPrimitives.length;
+
+        try {
+            for (let i = 0; i < primitivesLength; i++) {
+                const primitive = viewer.scene.primitives.get(i);
+                if (primitive instanceof Cesium.BillboardCollection) {
+                    for (let j = 0; j < primitive.length; j++) {
+                        const curBillboard = primitive.get(j);
+                        // eslint-disable-next-line max-depth
+                        if (curBillboard.id === id && options?.billboard) {
+                            Object.assign(curBillboard, options?.billboard);
+                            isEdited = true;
+                        }
+                    }
+                }
+
+                if (primitive instanceof Cesium.LabelCollection) {
+                    for (let j = 0; j < primitive.length; j++) {
+                        const curLabel = primitive.get(j);
+                        // eslint-disable-next-line max-depth
+                        if (curLabel.id === id && options.label) {
+                            Object.assign(curLabel, options.label);
+                            isEdited = true;
+                        }
+                    }
+                }
+            }
+
+            for (let i = 0; i < groundPrimitivesLength; i++) {
+                const primitive = viewer.scene.groundPrimitives.get(i);
+
+                if (
+                    primitive instanceof Cesium.GroundPolylinePrimitive &&
+                    primitive._primitiveOptions.geometryInstances[0].id === id &&
+                    options?.polyline
+                ) {
+                    console.log('Found polyline primitive with id:', id);
+
+                    // 获取旧的实例
+                    const oldInstance = primitive._primitiveOptions.geometryInstances[0];
+
+                    // 创建一个新的颜色
+                    const newColor = options?.polyline?.color
+                        ? options.polyline.color
+                        : Cesium.Color.CHARTREUSE.withAlpha(0.8);
+
+                    // 创建新的实例
+                    const newInstance = new Cesium.GeometryInstance({
+                        geometry: oldInstance.geometry,
+                        attributes: {
+                            color: Cesium.ColorGeometryInstanceAttribute.fromColor(newColor),
+                        },
+                        id: oldInstance.id,
+                    });
+                    newInstance.geometry.width = options.polyline?.width ?? 4.0;
+
+                    // 创建新的线条 primitive
+                    const newLinePrimitive = new Cesium.GroundPolylinePrimitive({
+                        geometryInstances: newInstance,
+                        appearance: new Cesium.PolylineColorAppearance(),
+                    });
+
+                    // 移除旧的 primitive
+                    viewer.scene.groundPrimitives.remove(primitive);
+
+                    // 添加新的 primitive
+                    viewer.scene.groundPrimitives.add(newLinePrimitive);
+
+                    // 请求重新渲染
+                    viewer.scene.requestRender();
+                }
+            }
+
+            if (isEdited) {
+                this.dispatch('cesiumToolsFxt', {
+                    type: options?.type + 'Edit',
+                    status: 'finished',
+                    id: id,
+                });
+            } else {
+                this.dispatch('cesiumToolsFxt', {
+                    type: options?.type + 'Edit',
+                    status: 'failed',
+                    reason: 'No matching primitive found',
+                });
+            }
+        } catch (error) {
+            this.dispatch('cesiumToolsFxt', {
+                type: options?.type + 'Edit',
+                status: 'failed',
+                reason: error,
+            });
+        }
     }
 }

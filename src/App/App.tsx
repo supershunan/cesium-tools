@@ -157,10 +157,14 @@ function App() {
         // });
 
         drawimgFace.active({
-            type: 2,
-            // point: {
-            //     color: Cesium.Color.RED,
-            // }
+            type: 0,
+            point: {
+                color: Cesium.Color.RED,
+                showLabel: true,
+            },
+            label: {
+                text: '这是点的广告牌'
+            }
         });
 
     }

@@ -157,10 +157,10 @@ function App() {
         // });
 
         drawimgFace.active({
-            type: 0,
+            type: 1,
             point: {
                 color: Cesium.Color.RED,
-                showLabel: true,
+                // showLabel: true,
             },
             label: {
                 text: '这是点的广告牌'
@@ -208,23 +208,41 @@ function App() {
         //     }
         // })
 
-        drawimgFace.create([
-            {
-                longitude: 109.9949624673448,
-                latitude: 34.22876194191444,
-                height: 1450.686516990897
+        // drawimgFace.create([
+        //     {
+        //         longitude: 109.9949624673448,
+        //         latitude: 34.22876194191444,
+        //         height: 1450.686516990897
+        //     },
+        //     {
+        //         longitude: 110.0059744858408,
+        //         latitude: 34.22830574705477,
+        //         height: 1540.711636384433
+        //     },
+        //     {
+        //         longitude: 110.00029263973444,
+        //         latitude: 34.216760021564056,
+        //         height: 1439.4305063281256
+        //     }
+        // ], { type: 'line', lineColor: Cesium.Color.RED, width: 1, id: 'wkkk' })
+
+        drawimgFace.edit('wkkk', measure, {
+            type: 1,
+            // point: {
+            //     color: Cesium.Color.BLUE,
+            //     showLabel: true,
+            // },
+            // label: {
+            //     text: '修改了',
+            //     showBackground: false
+            // }
+            polyline: {
+                color: Cesium.Color.BLUE,
             },
-            {
-                longitude: 110.0059744858408,
-                latitude: 34.22830574705477,
-                height: 1540.711636384433
-            },
-            {
-                longitude: 110.00029263973444,
-                latitude: 34.216760021564056,
-                height: 1439.4305063281256
+            label: {
+                text: '这是测试编辑'
             }
-        ], { type: 'line', lineColor: Cesium.Color.RED, width: 1, id: 'wkkk' })
+        })
     }
 
     return (

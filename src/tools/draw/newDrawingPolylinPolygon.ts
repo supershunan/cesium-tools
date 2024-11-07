@@ -153,9 +153,12 @@ export default class DrawingPrimtives extends MouseEvent {
             this.unRegisterEvents();
             this.create('wkkk', this.pointDatas[index], {
                 type: this.drawingType,
-                point: {
+                // point: {
+                //     showLabel: true,
+                //     color: Cesium.Color.GREEN,
+                // },
+                polyline: {
                     showLabel: true,
-                    color: Cesium.Color.GREEN,
                 },
                 label: { text: 'successfully', pixelOffset: new Cesium.Cartesian2(-20, -35) },
             });
@@ -442,9 +445,6 @@ export default class DrawingPrimtives extends MouseEvent {
         if (this.polylinPolygonEntitys[index]) {
             this.viewer.entities.remove(this.polylinPolygonEntitys[index]);
             delete this.polylinPolygonEntitys[index];
-            if (this.curSort > -1) {
-                this.curSort = this.curSort - 1;
-            }
         }
 
         if (this.pointEntitys[index]) {
@@ -452,9 +452,27 @@ export default class DrawingPrimtives extends MouseEvent {
                 this.viewer.entities.remove(entity);
             });
             delete this.pointEntitys[index];
-            if (this.curSort > -1) {
-                this.curSort = this.curSort - 1;
+        }
+
+        if (this.labelEntity[index]) {
+            this.labelEntity[index].forEach((entity) => {
+                this.viewer.entities.remove(entity);
+            });
+            delete this.labelEntity[index];
+        }
+
+        delete this.tempMovePosition[index];
+        delete this.pointDatas[index];
+
+        if (this.curSort > -1) {
+            this.curSort = this.curSort - 1;
+            if (this.curSort === -1) {
+                this.curSort = 0;
             }
+        }
+
+        if (options.polyline?.showLabel) {
+            this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
         }
 
         const instance = new Cesium.GeometryInstance({
@@ -593,6 +611,7 @@ export default class DrawingPrimtives extends MouseEvent {
 
         this.viewer.scene.primitives.add(addPolygonGroundPrimitive);
     }
+
     drawingBillboardPrimitive(
         index: number,
         id: number | string,
@@ -681,9 +700,21 @@ export default class DrawingPrimtives extends MouseEvent {
                 if (primitive instanceof Cesium.LabelCollection) {
                     for (let j = 0; j < primitive.length; j++) {
                         const curLabel = primitive.get(j);
+                        console.log('Found label primitive with id:', curLabel.id);
                         // eslint-disable-next-line max-depth
                         if (curLabel.id === id && options.label) {
                             Object.assign(curLabel, options.label);
+                            isEdited = true;
+                        }
+                    }
+                }
+
+                if (primitive instanceof Cesium.PointPrimitiveCollection) {
+                    for (let j = 0; j < primitive.length; j++) {
+                        const curPoint = primitive.get(j);
+                        // eslint-disable-next-line max-depth
+                        if (curPoint.id === id && options?.point) {
+                            Object.assign(curPoint, options?.point);
                             isEdited = true;
                         }
                     }

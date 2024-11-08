@@ -89,20 +89,22 @@ export default class DrawingPrimtives extends MouseEvent {
     }
 
     clear(): void {
-        Object.entries(this.pointEntitys).forEach(([key, value]) => {
+        Object.entries(this.pointEntitys).forEach(([, value]) => {
             value.forEach((entity) => {
                 this.viewer.entities.remove(entity);
             });
         });
-        Object.entries(this.polylinPolygonEntitys).forEach(([key, value]) => {
-            this.viewer.entities.remove(value);
+        Object.entries(this.polylinPolygonEntitys).forEach(([, value]) => {
+            if (value) {
+                this.viewer.entities.remove(value);
+            }
         });
-        Object.entries(this.billboardEntity).forEach(([key, value]) => {
+        Object.entries(this.billboardEntity).forEach(([, value]) => {
             value.forEach((entity) => {
                 this.viewer.entities.remove(entity);
             });
         });
-        Object.entries(this.labelEntity).forEach(([key, value]) => {
+        Object.entries(this.labelEntity).forEach(([, value]) => {
             value.forEach((entity) => {
                 this.viewer.entities.remove(entity);
             });
@@ -126,7 +128,8 @@ export default class DrawingPrimtives extends MouseEvent {
             if (!this.pointDatas[index]) {
                 this.pointDatas[index] = [];
             }
-            this.pointDatas[index].push(currentPosition);
+            this.pointDatas[index].push(JSON.stringify(currentPosition));
+            console.log('wkkk1', JSON.parse(JSON.stringify(currentPosition)));
             this.drawing(currentPosition, this.drawingType);
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
@@ -144,24 +147,34 @@ export default class DrawingPrimtives extends MouseEvent {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition || !Cesium.defined(currentPosition)) return;
 
-            this.pointDatas[index].push(currentPosition);
+            this.pointDatas[index].push(JSON.stringify(currentPosition));
 
             this.drawing(currentPosition, this.drawingType);
 
             this.curSort = index + 1;
 
             this.unRegisterEvents();
-            this.create('wkkk', this.pointDatas[index], {
-                type: this.drawingType,
-                // point: {
-                //     showLabel: true,
-                //     color: Cesium.Color.GREEN,
-                // },
-                polyline: {
-                    showLabel: true,
-                },
-                label: { text: 'successfully', pixelOffset: new Cesium.Cartesian2(-20, -35) },
-            });
+            this.create(
+                'wkkk',
+                this.pointDatas[index].map((item) => {
+                    return JSON.parse(item);
+                }),
+                {
+                    type: this.drawingType,
+                    // point: {
+                    //     showLabel: true,
+                    //     color: Cesium.Color.GREEN,
+                    // },
+                    // polyline: {
+                    //     showLabel: true,
+                    // },
+                    polygon: {
+                        color: Cesium.Color.GREEN.withAlpha(0.3),
+                        showLabel: true,
+                    },
+                    label: { text: 'successfully', pixelOffset: new Cesium.Cartesian2(-20, -35) },
+                }
+            );
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
@@ -239,7 +252,11 @@ export default class DrawingPrimtives extends MouseEvent {
                 type !== DrawingTypeEnum.POLYGON
                     ? {
                           positions: new Cesium.CallbackProperty(() => {
-                              const tempPositions = [...(this.pointDatas[index] || [])];
+                              const tempPositions = [...(this.pointDatas[index] || [])].map(
+                                  (item) => {
+                                      return JSON.parse(item);
+                                  }
+                              );
                               if (this.tempMovePosition[index]) {
                                   tempPositions.push(this.tempMovePosition[index]);
                                   tempPositions.push(tempPositions[0]);
@@ -260,7 +277,11 @@ export default class DrawingPrimtives extends MouseEvent {
                 type !== DrawingTypeEnum.POLYLINE
                     ? {
                           hierarchy: new Cesium.CallbackProperty(() => {
-                              const tempPositions = [...(this.pointDatas[index] || [])];
+                              const tempPositions = [...(this.pointDatas[index] || [])].map(
+                                  (item) => {
+                                      return JSON.parse(item);
+                                  }
+                              );
                               if (this.tempMovePosition[index]) {
                                   tempPositions.push(this.tempMovePosition[index]);
                               }
@@ -408,15 +429,7 @@ export default class DrawingPrimtives extends MouseEvent {
         cartesianPositions: Cesium.Cartesian3[],
         options: Options
     ) {
-        if (this.pointEntitys[index]) {
-            this.pointEntitys[index].forEach((entity) => {
-                this.viewer.entities.remove(entity);
-            });
-            delete this.pointEntitys[index];
-            if (this.curSort > -1) {
-                this.curSort = this.curSort - 1;
-            }
-        }
+        this.clearAllEntity(index);
 
         cartesianPositions.forEach((point: Cesium.Cartesian3) => {
             this.locationPoint.add({
@@ -442,34 +455,7 @@ export default class DrawingPrimtives extends MouseEvent {
         cartesianPositions: Cesium.Cartesian3[],
         options: Options
     ) {
-        if (this.polylinPolygonEntitys[index]) {
-            this.viewer.entities.remove(this.polylinPolygonEntitys[index]);
-            delete this.polylinPolygonEntitys[index];
-        }
-
-        if (this.pointEntitys[index]) {
-            this.pointEntitys[index].forEach((entity) => {
-                this.viewer.entities.remove(entity);
-            });
-            delete this.pointEntitys[index];
-        }
-
-        if (this.labelEntity[index]) {
-            this.labelEntity[index].forEach((entity) => {
-                this.viewer.entities.remove(entity);
-            });
-            delete this.labelEntity[index];
-        }
-
-        delete this.tempMovePosition[index];
-        delete this.pointDatas[index];
-
-        if (this.curSort > -1) {
-            this.curSort = this.curSort - 1;
-            if (this.curSort === -1) {
-                this.curSort = 0;
-            }
-        }
+        this.clearAllEntity(index);
 
         if (options.polyline?.showLabel) {
             this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
@@ -503,22 +489,15 @@ export default class DrawingPrimtives extends MouseEvent {
         cartesianPositions: Cesium.Cartesian3[],
         options: Options
     ) {
-        if (this.polylinPolygonEntitys[index]) {
-            this.viewer.entities.remove(this.polylinPolygonEntitys[index]);
-            delete this.polylinPolygonEntitys[index];
-            if (this.curSort > -1) {
-                this.curSort = this.curSort - 1;
-            }
-        }
+        this.clearAllEntity(index);
 
-        if (this.pointEntitys[index]) {
-            this.pointEntitys[index].forEach((entity) => {
-                this.viewer.entities.remove(entity);
-            });
-            delete this.pointEntitys[index];
-            if (this.curSort > -1) {
-                this.curSort = this.curSort - 1;
-            }
+        if (options.polygon?.showLabel) {
+            const cartographic = Cesium.Cartographic.fromCartesian(cartesianPositions[0]);
+            const longitude = Cesium.Math.toDegrees(cartographic.longitude);
+            const latitude = Cesium.Math.toDegrees(cartographic.latitude);
+            const height = cartographic.height;
+            const cartesian3 = Cesium.Cartesian3.fromDegrees(longitude, latitude, height);
+            this.drawingLabelPrimitive(index, id, [cartesian3], options);
         }
 
         const polygon = new Cesium.GeometryInstance({
@@ -647,13 +626,15 @@ export default class DrawingPrimtives extends MouseEvent {
         cartesianPositions: Cesium.Cartesian3[],
         options: Options
     ) {
-        this.labelEntity[index]?.forEach((entity) => {
-            this.viewer.entities.remove(entity);
-            delete this.labelEntity[index];
-            if (this.curSort > -1) {
-                this.curSort = this.curSort - 1;
-            }
-        });
+        // this.labelEntity[index]?.forEach((entity) => {
+        //     this.viewer.entities.remove(entity);
+        //     delete this.labelEntity[index];
+        //     if (this.curSort > -1) {
+        //         this.curSort = this.curSort - 1;
+        //     }
+        // });
+
+        this.clearAllEntity(index);
 
         cartesianPositions.forEach((point: Cesium.Cartesian3) => {
             this.locationLabel.add({
@@ -672,6 +653,40 @@ export default class DrawingPrimtives extends MouseEvent {
                 ...options?.label,
             });
         });
+    }
+
+    clearAllEntity(index: number) {
+        if (this.pointEntitys[index]) {
+            this.pointEntitys[index].forEach((entity) => {
+                this.viewer.entities.remove(entity);
+            });
+            delete this.pointEntitys[index];
+        }
+
+        if (this.polylinPolygonEntitys[index]) {
+            this.viewer.entities.remove(this.polylinPolygonEntitys[index]);
+            delete this.polylinPolygonEntitys[index];
+        }
+
+        if (this.polylinPolygonEntitys[index]) {
+            this.viewer.entities.remove(this.polylinPolygonEntitys[index]);
+            delete this.polylinPolygonEntitys[index];
+        }
+
+        this.labelEntity[index]?.forEach((entity) => {
+            this.viewer.entities.remove(entity);
+            delete this.labelEntity[index];
+        });
+
+        delete this.tempMovePosition[index];
+        delete this.pointDatas[index];
+
+        if (this.curSort > -1) {
+            this.curSort = this.curSort - 1;
+            if (this.curSort === -1) {
+                this.curSort = 0;
+            }
+        }
     }
 
     edit(

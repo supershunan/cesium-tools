@@ -157,19 +157,40 @@ function App() {
         // });
 
         drawimgFace.active({
-            type: 1,
-            point: {
-                color: Cesium.Color.RED,
-                // showLabel: true,
-            },
-            label: {
-                text: '这是点的广告牌'
-            }
+            type: 2,
+            // point: {
+            //     color: Cesium.Color.RED,
+            //     showLabel: true,
+            // },
+            // label: {
+            //     text: '这是点的广告牌'
+            // }
         });
 
     }
 
     const getPrimvite = () => {
+        drawimgFace.edit('wkkk', measure, {
+            type: 2,
+            // point: {
+            //     color: Cesium.Color.BLUE,
+            //     showLabel: true,
+            // },
+            // label: {
+            //     text: '修改了',
+            //     showBackground: false
+            // }
+            // polyline: {
+            //     color: Cesium.Color.BLUE,
+            // },
+            polygon: {
+                color: Cesium.Color.BLUE,
+                showLabel: true
+            },
+            label: {
+                text: '这是测试编辑'
+            }
+        })
         // console.log(measure?.scene.primitives, measure?.scene.primitives.length)
         // const primitivesLength = measure?.scene.primitives.length;
         /**
@@ -225,24 +246,6 @@ function App() {
         //         height: 1439.4305063281256
         //     }
         // ], { type: 'line', lineColor: Cesium.Color.RED, width: 1, id: 'wkkk' })
-
-        drawimgFace.edit('wkkk', measure, {
-            type: 1,
-            // point: {
-            //     color: Cesium.Color.BLUE,
-            //     showLabel: true,
-            // },
-            // label: {
-            //     text: '修改了',
-            //     showBackground: false
-            // }
-            polyline: {
-                color: Cesium.Color.BLUE,
-            },
-            label: {
-                text: '这是测试编辑'
-            }
-        })
     }
 
     return (

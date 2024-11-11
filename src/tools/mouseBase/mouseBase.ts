@@ -17,6 +17,8 @@ export default abstract class MouseDrawBase {
         this.cesiumToolsManage = new CesiumToolsManage();
     }
 
+    active(): void;
+    active(options: unknown): void;
     active(options?: unknown): void {
         this.deactivate();
         this.registerEvents();

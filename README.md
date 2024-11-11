@@ -41,7 +41,62 @@ npm install cesium-tools-fxt
 
 结束：右键（如果无特殊说明均为右键结束）
 
-测量基础功能使用说明：
+### 绘制功能使用说明
+
+```
+const drawing = useDrawing(
+    measure as Cesium.Viewer
+);
+
+// 绘制
+drawing.active(options)
+
+// 保存
+drawing.create(id, position, options)
+
+// 编辑
+drawing.edit(id, viewer, options)
+```
+
+#### options 参数说明
+
+#### DrawingEntityOptions (active方法参数)
+
+| 属性      | 类型                             | 必填 | 说明           |
+| --------- | -------------------------------- | ---- | -------------- |
+| type      | DrawingTypeEnum                  | 是   | 绘制类型       |
+| point     | any                              | 否   | 点样式配置     |
+| polyline  | Cesium.Entity.ConstructorOptions | 否   | 线样式配置     |
+| polygon   | Cesium.Entity.ConstructorOptions | 否   | 面样式配置     |
+| billboard | Cesium.Entity.ConstructorOptions | 否   | 广告牌样式配置 |
+| label     | Cesium.Entity.ConstructorOptions | 否   | 标签样式配置   |
+
+#### CreatePrimitiveOptions (create方法参数)
+
+| 属性           | 类型                                                                                           | 必填 | 说明                   |
+| -------------- | ---------------------------------------------------------------------------------------------- | ---- | ---------------------- |
+| type           | DrawingTypeEnum                                                                                | 是   | 绘制类型               |
+| point          | Cesium.PointPrimitiveCollection & CommonPrimitiveProps                                         | 否   | 点集合样式配置         |
+| polyline       | Cesium.GroundPolylineGeometry & CommonPrimitiveProps 或 {width?: number; color?: Cesium.Color} | 否   | 线样式配置             |
+| polygon        | Cesium.PolygonGeometry & CommonPrimitiveProps 或 {color?: Cesium.Color}                        | 否   | 面样式配置             |
+| polylinPolygon | CommonPrimitiveProps                                                                           | 否   | 线面同时绘制的样式配置 |
+| billboard      | Cesium.BillboardCollection & CommonPrimitiveProps                                              | 否   | 广告牌集合样式配置     |
+| label          | Cesium.LabelCollection                                                                         | 否   | 标签集合样式配置       |
+
+#### EditPrimitiveOptions (edit方法参数)
+
+| 属性      | 类型                                   | 必填 | 说明               |
+| --------- | -------------------------------------- | ---- | ------------------ |
+| type      | DrawingTypeEnum                        | 否   | 绘制类型           |
+| point     | Cesium.PointPrimitiveCollection        | 否   | 点集合样式配置     |
+| polyline  | {width?: number; color?: Cesium.Color} | 否   | 线样式配置         |
+| polygon   | {color?: Cesium.Color}                 | 否   | 面样式配置         |
+| billboard | Cesium.BillboardCollection             | 否   | 广告牌集合样式配置 |
+| label     | Cesium.LabelCollection                 | 否   | 标签集合样式配置   |
+
+注: CommonPrimitiveProps 包含 showLabel?: boolean 属性
+
+### 测量基础功能使用说明
 
 ```
 const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
@@ -57,7 +112,7 @@ measureDistance().addToolsEventListener() // 监听事件
 measureDistance().removeToolsEventListener() // 移除事件
 ```
 
-其他工具基础功能使用说明
+### 其他工具基础功能使用说明
 
 ```
 // 坡向分析使用，通视、透视、模拟转台同理
@@ -70,7 +125,7 @@ addToolsEventListener() // 监听事件
 removeToolsEventListener() // 移除事件
 ```
 
-实时计算：
+### 实时计算
 
 距离测量、面积测量默认开启了实时计算功能，如果不开启，可设置 trendsComputed 为 false。 例：useXXX(XXX, { trendsComputed: false })
 
@@ -97,3 +152,9 @@ removeToolsEventListener() // 移除事件
 ## 测量工具
 
 距离测量、折现测量、面积测量、角度测量、地表高度测量
+
+## 绘制工具
+
+点、线、面、广告牌、标签
+
+特殊说明：绘制面的时候，如果绘制多边形，需要至少绘制两个点，否则无法绘制面

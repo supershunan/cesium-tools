@@ -6,7 +6,14 @@ import { useVisualFieldAnalysis, VisualFieldAnalysis } from '@tools/visualFieldA
 import { useVisibilityAnalysis, VisibilityAnalysisProps } from '@tools/visibilityAnalysis/index';
 import { useTurntableSwing, TurntableSwingProps } from '@tools/turntableSwing/index';
 import { useMeasure, MeasurementActions, Measure } from '@tools/measure/index';
-import { useDrawing, DrawingActions, Drawing } from '@tools/draw/index';
+import {
+    DrawingTypeEnum,
+    Points,
+    DrawingEntityOptions,
+    CreatePrimitiveOptions,
+    EditPrimitiveOptions,
+} from '@tools/draw/type';
+import { useDrawing, DrawingActions } from '@tools/draw/index';
 import useCesiumToolsManage from '@tools/eventTarget/index';
 
 export {
@@ -21,11 +28,15 @@ export {
 
 export type {
     DrawingActions,
-    Drawing,
     MeasurementActions,
     Measure,
     SlopDerectionAnalysis,
     TurntableSwingProps,
     VisibilityAnalysisProps,
     VisualFieldAnalysis,
+    DrawingTypeEnum,
+    Points,
+    DrawingEntityOptions,
+    CreatePrimitiveOptions,
+    EditPrimitiveOptions,
 };

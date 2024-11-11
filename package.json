@@ -5,11 +5,7 @@
     "type": "module",
     "main": "./dist/cesium-tools.umd.js",
     "module": "./dist/cesium-tools.es.js",
-    "files": [
-        "package.json",
-        "README.md",
-        "dist"
-    ],
+    "files": ["package.json", "README.md", "dist"],
     "types": "./dist/index.d.ts",
     "exports": {
         ".": {

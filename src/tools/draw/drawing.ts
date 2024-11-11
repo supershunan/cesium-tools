@@ -1,56 +1,43 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
 import { EventCallback } from '../../type/type';
+import {
+    CreatePrimitiveOptions,
+    DrawingEntityOptions,
+    Points,
+    EditPrimitiveOptions,
+    DrawingTypeEnum,
+} from './type';
 
-enum DrawingTypeEnum {
-    /** 点 */
-    POINT,
-    /** 线 */
-    POLYLINE,
-    /** 面 */
-    POLYGON,
-    /** 线与面 */
-    POLYGON_AND_POLYLINE,
-    /** 广告牌 */
-    BILLBOARD,
-    /** 标签 */
-    LABEL,
-}
+/**
+ * 绘图基础类，用于处理各种图形的绘制
+ * @class DrawingPrimitives
+ * @extends MouseEvent
+ */
+export default class DrawingPrimitives extends MouseEvent {
+    // 1、核心属性
+    protected readonly viewer: Cesium.Viewer;
+    protected readonly handler: Cesium.ScreenSpaceEventHandler;
 
-type LatLng = {
-    latitude: number;
-    longitude: number;
-    height?: number;
-};
+    // 2、集合管理
+    private collection = {
+        locationPoint: new Cesium.PointPrimitiveCollection(),
+        locationBillbord: new Cesium.BillboardCollection(),
+        locationLabel: new Cesium.LabelCollection(),
+    };
 
-type Points = Cesium.Cartesian3 | LatLng;
+    // 3、状态管理
+    private state = {
+        drawingType: DrawingTypeEnum.POINT,
+        curSort: 0,
+        options: null as DrawingEntityOptions | CreatePrimitiveOptions | null,
+    };
 
-type Options = {
-    type: DrawingTypeEnum;
-    point?: any | { showBillboards?: boolean; showLabel?: boolean };
-    polyline?:
-        | Cesium.Entity.ConstructorOptions
-        | { width: number; color: Cesium.Color; showBillboards?: boolean; showLabel?: boolean };
-    polygon?:
-        | Cesium.Entity.ConstructorOptions
-        | { color: Cesium.Color; showBillboards?: boolean; showLabel?: boolean };
-    billboard?: Cesium.Entity.ConstructorOptions | Cesium.Billboard.ConstructorOptions;
-    label?: Cesium.Entity.ConstructorOptions | Cesium.Label.ConstructorOptions;
-};
-
-export default class DrawingPrimtives extends MouseEvent {
-    protected viewer: Cesium.Viewer;
-    protected handler: Cesium.ScreenSpaceEventHandler;
-    private locationPoint: Cesium.PointPrimitiveCollection;
-    private locationBillbord: Cesium.BillboardCollection;
-    private locationLabel: Cesium.LabelCollection;
-    private drawingType: DrawingTypeEnum;
-    private options: Options | null;
-    private curSort: number;
-    private pointDatas: { [key: number]: Points[] };
-    private tempMovePosition: { [key: number]: Points };
+    // 4、数据管理
+    private pointDatas = new Map<number, string[]>();
+    private tempMovePosition = new Map<number, string>();
     private pointEntitys: { [key: number]: Cesium.Entity[] };
-    private polylinPolygonEntitys: { [key: number]: Cesium.Entity | undefined };
+    private polylinePolygonEntities: { [key: number]: Cesium.Entity | undefined };
     private billboardEntity: { [key: number]: Cesium.Entity[] };
     private labelEntity: { [key: number]: Cesium.Entity[] };
 
@@ -58,26 +45,30 @@ export default class DrawingPrimtives extends MouseEvent {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
-        this.locationPoint = this.viewer.scene.primitives.add(
+        this.collection.locationPoint = this.viewer.scene.primitives.add(
             new Cesium.PointPrimitiveCollection()
         );
-        this.locationBillbord = this.viewer.scene.primitives.add(new Cesium.BillboardCollection());
-        this.locationLabel = this.viewer.scene.primitives.add(new Cesium.LabelCollection());
-        this.drawingType = DrawingTypeEnum.POINT;
-        this.options = null;
-        this.curSort = 0;
-        this.pointDatas = {};
-        this.tempMovePosition = {};
+        this.collection.locationBillbord = this.viewer.scene.primitives.add(
+            new Cesium.BillboardCollection()
+        );
+        this.collection.locationLabel = this.viewer.scene.primitives.add(
+            new Cesium.LabelCollection()
+        );
+        this.state.drawingType = DrawingTypeEnum.POINT;
+        this.state.options = null;
+        this.state.curSort = 0;
+        this.pointDatas = new Map<number, string[]>();
+        this.tempMovePosition = new Map<number, string>();
         this.pointEntitys = {};
-        this.polylinPolygonEntitys = {};
+        this.polylinePolygonEntities = {};
         this.billboardEntity = {};
         this.labelEntity = {};
     }
 
-    active(options?: Options): void {
+    active(options?: DrawingEntityOptions): void {
         if (options && Object.keys(options).length > 0) {
-            this.drawingType = options.type;
-            this.options = options;
+            this.state.drawingType = options.type;
+            this.state.options = options;
         }
 
         this.registerEvents();
@@ -94,7 +85,7 @@ export default class DrawingPrimtives extends MouseEvent {
                 this.viewer.entities.remove(entity);
             });
         });
-        Object.entries(this.polylinPolygonEntitys).forEach(([, value]) => {
+        Object.entries(this.polylinePolygonEntities).forEach(([, value]) => {
             if (value) {
                 this.viewer.entities.remove(value);
             }
@@ -111,7 +102,7 @@ export default class DrawingPrimtives extends MouseEvent {
         });
     }
 
-    ddToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
         this.addEventListener(eventName, callback);
     }
 
@@ -124,57 +115,40 @@ export default class DrawingPrimtives extends MouseEvent {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition || !Cesium.defined(currentPosition)) return;
 
-            const index = this.curSort;
-            if (!this.pointDatas[index]) {
-                this.pointDatas[index] = [];
+            const index = this.state.curSort;
+            if (!this.pointDatas.has(index)) {
+                this.pointDatas.set(index, []);
             }
-            this.pointDatas[index].push(JSON.stringify(currentPosition));
-            console.log('wkkk1', JSON.parse(JSON.stringify(currentPosition)));
-            this.drawing(currentPosition, this.drawingType);
+
+            // 数据进行深拷贝 避免引用对象被改变
+            this.pointDatas.get(index)?.push(JSON.stringify(currentPosition));
+            this.drawing(currentPosition, this.state.drawingType);
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 
     protected rightClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-            const index = this.curSort;
+            const index = this.state.curSort;
             const isPolygon =
-                this.drawingType === DrawingTypeEnum.POLYGON ||
-                this.drawingType === DrawingTypeEnum.POLYLINE ||
-                this.drawingType === DrawingTypeEnum.POLYGON_AND_POLYLINE;
+                this.state.drawingType === DrawingTypeEnum.POLYGON ||
+                this.state.drawingType === DrawingTypeEnum.POLYLINE ||
+                this.state.drawingType === DrawingTypeEnum.POLYGON_AND_POLYLINE;
 
-            if (isPolygon && this.pointDatas[index].length < 2) return;
+            if (isPolygon && this.pointDatas.get(index)?.length < 2) return;
 
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition || !Cesium.defined(currentPosition)) return;
 
-            this.pointDatas[index].push(JSON.stringify(currentPosition));
+            if (!this.pointDatas.has(index)) {
+                this.pointDatas.set(index, []);
+            }
+            this.pointDatas.get(index)?.push(JSON.stringify(currentPosition));
 
-            this.drawing(currentPosition, this.drawingType);
+            this.drawing(currentPosition, this.state.drawingType);
 
-            this.curSort = index + 1;
+            this.state.curSort = index + 1;
 
             this.unRegisterEvents();
-            this.create(
-                'wkkk',
-                this.pointDatas[index].map((item) => {
-                    return JSON.parse(item);
-                }),
-                {
-                    type: this.drawingType,
-                    // point: {
-                    //     showLabel: true,
-                    //     color: Cesium.Color.GREEN,
-                    // },
-                    // polyline: {
-                    //     showLabel: true,
-                    // },
-                    polygon: {
-                        color: Cesium.Color.GREEN.withAlpha(0.3),
-                        showLabel: true,
-                    },
-                    label: { text: 'successfully', pixelOffset: new Cesium.Cartesian2(-20, -35) },
-                }
-            );
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
@@ -182,27 +156,29 @@ export default class DrawingPrimtives extends MouseEvent {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition || !Cesium.defined(currentPosition)) return;
-
-            const index = this.curSort;
-            this.tempMovePosition[index] = currentPosition;
+            const index = this.state.curSort;
+            if (!this.tempMovePosition) {
+                this.tempMovePosition = new Map<number, string>();
+            }
+            this.tempMovePosition.set(index, JSON.stringify(currentPosition));
         }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     }
 
     drawing(position: Points, type: DrawingTypeEnum): void {
-        const index = this.curSort;
+        const index = this.state.curSort;
         switch (type) {
             case DrawingTypeEnum.POINT:
                 this.drawingPointEntity(position, index);
                 break;
             case DrawingTypeEnum.POLYLINE:
                 this.drawingPointEntity(position, index);
-                if (!this.polylinPolygonEntitys[index]) {
+                if (!this.polylinePolygonEntities[index]) {
                     this.drawingPolylinEntity(index, type);
                 }
                 break;
             case DrawingTypeEnum.POLYGON:
                 this.drawingPointEntity(position, index);
-                if (!this.polylinPolygonEntitys[index]) {
+                if (!this.polylinePolygonEntities[index]) {
                     this.drawingPolylinEntity(index, type);
                 }
                 break;
@@ -214,7 +190,7 @@ export default class DrawingPrimtives extends MouseEvent {
                 this.drawingBillboardEntity(position, index);
                 break;
             case DrawingTypeEnum.LABEL:
-                this.drawingLableEntity(position, index);
+                this.drawingLabelEntity(position, index);
                 break;
 
             default:
@@ -235,30 +211,30 @@ export default class DrawingPrimtives extends MouseEvent {
                     outlineWidth: 1,
                     pixelSize: 8,
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                    ...this.options?.point,
+                    ...this.state.options?.point,
                 },
             })
         );
 
-        if (this.options?.point?.showLabel) {
-            this.drawingLableEntity(position, index);
+        if (this.state.options?.point?.showLabel) {
+            this.drawingLabelEntity(position, index);
         }
     }
 
     drawingPolylinEntity(index: number, type: DrawingTypeEnum): void {
-        if (this.polylinPolygonEntitys[index]) return;
-        this.polylinPolygonEntitys[index] = this.viewer.entities.add({
+        if (this.polylinePolygonEntities[index]) return;
+        this.polylinePolygonEntities[index] = this.viewer.entities.add({
             polyline:
                 type !== DrawingTypeEnum.POLYGON
                     ? {
                           positions: new Cesium.CallbackProperty(() => {
-                              const tempPositions = [...(this.pointDatas[index] || [])].map(
+                              const tempPositions = [...(this.pointDatas.get(index) || [])].map(
                                   (item) => {
                                       return JSON.parse(item);
                                   }
                               );
-                              if (this.tempMovePosition[index]) {
-                                  tempPositions.push(this.tempMovePosition[index]);
+                              if (this.tempMovePosition.get(index)) {
+                                  tempPositions.push(JSON.parse(this.tempMovePosition.get(index)!));
                                   tempPositions.push(tempPositions[0]);
                               }
                               return tempPositions;
@@ -270,20 +246,20 @@ export default class DrawingPrimtives extends MouseEvent {
                           ),
                           // 是否贴地
                           clampToGround: true,
-                          ...this.options?.polyline,
+                          ...this.state.options?.polyline,
                       }
                     : {},
             polygon:
                 type !== DrawingTypeEnum.POLYLINE
                     ? {
                           hierarchy: new Cesium.CallbackProperty(() => {
-                              const tempPositions = [...(this.pointDatas[index] || [])].map(
+                              const tempPositions = [...(this.pointDatas.get(index) || [])].map(
                                   (item) => {
                                       return JSON.parse(item);
                                   }
                               );
-                              if (this.tempMovePosition[index]) {
-                                  tempPositions.push(this.tempMovePosition[index]);
+                              if (this.tempMovePosition.get(index)) {
+                                  tempPositions.push(JSON.parse(this.tempMovePosition.get(index)!));
                               }
                               return new Cesium.PolygonHierarchy(
                                   tempPositions as Cesium.Cartesian3[]
@@ -293,12 +269,12 @@ export default class DrawingPrimtives extends MouseEvent {
                               Cesium.Color.YELLOW.withAlpha(0.3)
                           ),
                           classificationType: Cesium.ClassificationType.BOTH,
-                          ...this.options?.polygon,
+                          ...this.state.options?.polygon,
                       }
                     : {},
-            position: this.tempMovePosition[index] as Cesium.Cartesian3,
+            position: JSON.parse(this.tempMovePosition.get(index)!) as Cesium.Cartesian3,
             label: {
-                text: `${(this.initSetting?.name ?? '面') + index}`,
+                text: `${(this.state.options?.name ?? '面') + index}`,
                 font: '10px sans-serif',
                 fillColor: Cesium.Color.WHITE,
                 outlineColor: Cesium.Color.BLACK,
@@ -309,7 +285,7 @@ export default class DrawingPrimtives extends MouseEvent {
                 pixelOffset: new Cesium.Cartesian2(0, 20), // 标签稍微下移
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
                 heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                ...this.options?.label,
+                ...this.state.options?.label,
             },
         });
     }
@@ -328,13 +304,13 @@ export default class DrawingPrimtives extends MouseEvent {
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
                     horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
                     verticalOrigin: Cesium.VerticalOrigin.CENTER,
-                    ...this.options?.billboard,
+                    ...this.state.options?.billboard,
                 },
             })
         );
     }
 
-    drawingLableEntity(position: Points, index: number): void {
+    drawingLabelEntity(position: Points, index: number): void {
         if (!this.labelEntity[index]) {
             this.labelEntity[index] = [];
         }
@@ -353,18 +329,18 @@ export default class DrawingPrimtives extends MouseEvent {
                     pixelOffset: new Cesium.Cartesian2(0, 20),
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
                     heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                    ...this.options?.label,
+                    ...this.state.options?.label,
                 },
             })
         );
     }
 
-    create(id: string | number, positions: Points[], options: Options) {
+    create(id: string | number, positions: Points[], options: CreatePrimitiveOptions) {
         /**
          * TODO: 保存的时候 右键导致 curSort 加1 所以需要将他还原
          */
-        if (this.curSort > 0) {
-            this.curSort = this.curSort - 1;
+        if (this.state.curSort > 0) {
+            this.state.curSort = this.state.curSort - 1;
         }
         // 去重
         const uniquePositions = Array.from(
@@ -388,7 +364,7 @@ export default class DrawingPrimtives extends MouseEvent {
                 ? this.latLngToCartesians(uniquePositions as LatLng[])
                 : (uniquePositions as Cesium.Cartesian3[]);
 
-        const index = this.curSort;
+        const index = this.state.curSort;
 
         switch (options.type) {
             case DrawingTypeEnum.POINT:
@@ -427,12 +403,16 @@ export default class DrawingPrimtives extends MouseEvent {
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: Options
+        options: CreatePrimitiveOptions
     ) {
         this.clearAllEntity(index);
 
+        if (options.point?.showLabel) {
+            this.drawingLabelPrimitive(index, id, cartesianPositions, options);
+        }
+
         cartesianPositions.forEach((point: Cesium.Cartesian3) => {
-            this.locationPoint.add({
+            this.collection.locationPoint.add({
                 id,
                 position: point,
                 color: Cesium.Color.RED,
@@ -443,17 +423,13 @@ export default class DrawingPrimtives extends MouseEvent {
                 ...options.point,
             });
         });
-
-        if (options.point?.showLabel) {
-            this.drawingLabelPrimitive(index, id, cartesianPositions, options);
-        }
     }
 
     drawingPolylinePrimitive(
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: Options
+        options: CreatePrimitiveOptions
     ) {
         this.clearAllEntity(index);
 
@@ -487,17 +463,12 @@ export default class DrawingPrimtives extends MouseEvent {
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: Options
+        options: CreatePrimitiveOptions
     ) {
         this.clearAllEntity(index);
 
         if (options.polygon?.showLabel) {
-            const cartographic = Cesium.Cartographic.fromCartesian(cartesianPositions[0]);
-            const longitude = Cesium.Math.toDegrees(cartographic.longitude);
-            const latitude = Cesium.Math.toDegrees(cartographic.latitude);
-            const height = cartographic.height;
-            const cartesian3 = Cesium.Cartesian3.fromDegrees(longitude, latitude, height);
-            this.drawingLabelPrimitive(index, id, [cartesian3], options);
+            this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
         }
 
         const polygon = new Cesium.GeometryInstance({
@@ -527,24 +498,12 @@ export default class DrawingPrimtives extends MouseEvent {
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: Options
+        options: CreatePrimitiveOptions
     ) {
-        if (this.polylinPolygonEntitys[index]) {
-            this.viewer.entities.remove(this.polylinPolygonEntitys[index]);
-            delete this.polylinPolygonEntitys[index];
-            if (this.curSort > -1) {
-                this.curSort = this.curSort - 1;
-            }
-        }
+        this.clearAllEntity(index);
 
-        if (this.pointEntitys[index]) {
-            this.pointEntitys[index].forEach((entity) => {
-                this.viewer.entities.remove(entity);
-            });
-            delete this.pointEntitys[index];
-            if (this.curSort > -1) {
-                this.curSort = this.curSort - 1;
-            }
+        if (options.polylinPolygon?.showLabel) {
+            this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
         }
 
         const instance = new Cesium.GeometryInstance({
@@ -595,18 +554,16 @@ export default class DrawingPrimtives extends MouseEvent {
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: Options
+        options: CreatePrimitiveOptions
     ) {
-        this.billboardEntity[index].forEach((entity) => {
-            this.viewer.entities.remove(entity);
-            delete this.billboardEntity[index];
-            if (this.curSort > -1) {
-                this.curSort = this.curSort - 1;
-            }
-        });
+        this.clearAllEntity(index);
+
+        if (options.billboard?.showLabel) {
+            this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
+        }
 
         cartesianPositions.forEach((point: Cesium.Cartesian3) => {
-            this.locationBillbord.add({
+            this.collection.locationBillbord.add({
                 id,
                 position: point,
                 image: '/public/resources/images/特征点_选中.png',
@@ -624,20 +581,12 @@ export default class DrawingPrimtives extends MouseEvent {
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: Options
+        options: CreatePrimitiveOptions
     ) {
-        // this.labelEntity[index]?.forEach((entity) => {
-        //     this.viewer.entities.remove(entity);
-        //     delete this.labelEntity[index];
-        //     if (this.curSort > -1) {
-        //         this.curSort = this.curSort - 1;
-        //     }
-        // });
-
         this.clearAllEntity(index);
 
         cartesianPositions.forEach((point: Cesium.Cartesian3) => {
-            this.locationLabel.add({
+            this.collection.locationLabel.add({
                 id,
                 position: point,
                 text: `Point`,
@@ -663,14 +612,14 @@ export default class DrawingPrimtives extends MouseEvent {
             delete this.pointEntitys[index];
         }
 
-        if (this.polylinPolygonEntitys[index]) {
-            this.viewer.entities.remove(this.polylinPolygonEntitys[index]);
-            delete this.polylinPolygonEntitys[index];
+        if (this.polylinePolygonEntities[index]) {
+            this.viewer.entities.remove(this.polylinePolygonEntities[index]);
+            delete this.polylinePolygonEntities[index];
         }
 
-        if (this.polylinPolygonEntitys[index]) {
-            this.viewer.entities.remove(this.polylinPolygonEntitys[index]);
-            delete this.polylinPolygonEntitys[index];
+        if (this.polylinePolygonEntities[index]) {
+            this.viewer.entities.remove(this.polylinePolygonEntities[index]);
+            delete this.polylinePolygonEntities[index];
         }
 
         this.labelEntity[index]?.forEach((entity) => {
@@ -678,13 +627,13 @@ export default class DrawingPrimtives extends MouseEvent {
             delete this.labelEntity[index];
         });
 
-        delete this.tempMovePosition[index];
-        delete this.pointDatas[index];
+        this.tempMovePosition['delete'](index);
+        this.pointDatas['delete'](index);
 
-        if (this.curSort > -1) {
-            this.curSort = this.curSort - 1;
-            if (this.curSort === -1) {
-                this.curSort = 0;
+        if (this.state.curSort > -1) {
+            this.state.curSort = this.state.curSort - 1;
+            if (this.state.curSort === -1) {
+                this.state.curSort = 0;
             }
         }
     }
@@ -692,7 +641,7 @@ export default class DrawingPrimtives extends MouseEvent {
     edit(
         id: number | string,
         viewer: Cesium.Viewer,
-        options: Omit<Options, 'type'> & Partial<Pick<Options, 'type'>> // Partial<Options> 全部设为可选
+        options: EditPrimitiveOptions // Partial<Options> 全部设为可选 Omit<Options, 'type'> & Partial<Pick<Options, 'type'>>
     ) {
         let isEdited = false;
         const primitivesLength = viewer.scene.primitives.length;
@@ -733,6 +682,19 @@ export default class DrawingPrimtives extends MouseEvent {
                             isEdited = true;
                         }
                     }
+                }
+
+                if (
+                    primitive instanceof Cesium.GroundPrimitive &&
+                    primitive._boundingSpheresKeys[0] === id &&
+                    options?.polygon
+                ) {
+                    // eslint-disable-next-line max-depth
+                    primitive.appearance.material = Cesium.Material.fromType('Color', {
+                        color: options?.polygon?.color
+                            ? options?.polygon.color
+                            : Cesium.Color.RED.withAlpha(0.5),
+                    });
                 }
             }
 

@@ -7,6 +7,7 @@ import {
     Points,
     EditPrimitiveOptions,
     DrawingTypeEnum,
+    DrawingTypeNameEnum,
 } from './type';
 
 /**
@@ -18,6 +19,7 @@ export default class DrawingPrimitives extends MouseEvent {
     // 1、核心属性
     protected readonly viewer: Cesium.Viewer;
     protected readonly handler: Cesium.ScreenSpaceEventHandler;
+    protected readonly cesium: typeof Cesium;
 
     // 2、集合管理
     private collection = {
@@ -41,18 +43,23 @@ export default class DrawingPrimitives extends MouseEvent {
     private billboardEntity: { [key: number]: Cesium.Entity[] };
     private labelEntity: { [key: number]: Cesium.Entity[] };
 
-    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
+    constructor(
+        viewer: Cesium.Viewer,
+        handler: Cesium.ScreenSpaceEventHandler,
+        cesium: typeof Cesium
+    ) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
+        this.cesium = cesium;
         this.collection.locationPoint = this.viewer.scene.primitives.add(
-            new Cesium.PointPrimitiveCollection()
+            new this.cesium.PointPrimitiveCollection()
         );
         this.collection.locationBillbord = this.viewer.scene.primitives.add(
-            new Cesium.BillboardCollection()
+            new this.cesium.BillboardCollection()
         );
         this.collection.locationLabel = this.viewer.scene.primitives.add(
-            new Cesium.LabelCollection()
+            new this.cesium.LabelCollection()
         );
         this.state.drawingType = DrawingTypeEnum.POINT;
         this.state.options = null;
@@ -100,6 +107,14 @@ export default class DrawingPrimitives extends MouseEvent {
                 this.viewer.entities.remove(entity);
             });
         });
+
+        this.state.curSort = 0;
+        this.pointDatas.clear();
+        this.tempMovePosition.clear();
+        this.pointEntitys = {};
+        this.polylinePolygonEntities = {};
+        this.billboardEntity = {};
+        this.labelEntity = {};
     }
 
     addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
@@ -112,56 +127,87 @@ export default class DrawingPrimitives extends MouseEvent {
 
     protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-            const currentPosition = this.viewer.scene.pickPosition(e.position);
-            if (!currentPosition || !Cesium.defined(currentPosition)) return;
+            try {
+                const currentPosition = this.viewer.scene.pickPosition(e.position);
+                if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
-            const index = this.state.curSort;
-            if (!this.pointDatas.has(index)) {
-                this.pointDatas.set(index, []);
+                const index = this.state.curSort;
+                if (!this.pointDatas.has(index)) {
+                    this.pointDatas.set(index, []);
+                }
+
+                // 数据进行深拷贝 避免引用对象被改变
+                this.pointDatas.get(index)?.push(JSON.stringify(currentPosition));
+                this.drawing(currentPosition, this.state.drawingType);
+            } catch (error) {
+                // eslint-disable-next-line no-console
+                console.error('AN_ERROR_OCCURRED_DURING_THE_ADD_POINT_PROCESS:', error);
+                this.dispatch('cesiumToolsFxt', {
+                    type: DrawingTypeNameEnum[this.state.drawingType],
+                    status: 'failed',
+                    error: {
+                        reason: error instanceof Error ? error.message : 'Unknown Error',
+                        timestamp: Date.now(),
+                    },
+                });
             }
-
-            // 数据进行深拷贝 避免引用对象被改变
-            this.pointDatas.get(index)?.push(JSON.stringify(currentPosition));
-            this.drawing(currentPosition, this.state.drawingType);
-        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        }, this.cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 
     protected rightClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-            const index = this.state.curSort;
-            const isPolygon =
-                this.state.drawingType === DrawingTypeEnum.POLYGON ||
-                this.state.drawingType === DrawingTypeEnum.POLYLINE ||
-                this.state.drawingType === DrawingTypeEnum.POLYGON_AND_POLYLINE;
+            try {
+                const index = this.state.curSort;
+                const isPolygon =
+                    this.state.drawingType === DrawingTypeEnum.POLYGON ||
+                    this.state.drawingType === DrawingTypeEnum.POLYLINE ||
+                    this.state.drawingType === DrawingTypeEnum.POLYGON_AND_POLYLINE;
 
-            if (isPolygon && this.pointDatas.get(index)?.length < 2) return;
+                if (isPolygon && this.pointDatas.get(index)?.length < 3) return;
 
-            const currentPosition = this.viewer.scene.pickPosition(e.position);
-            if (!currentPosition || !Cesium.defined(currentPosition)) return;
+                const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                    return JSON.parse(item);
+                });
+                this.tempMovePosition.set(index, JSON.stringify(tempPositions[0]));
 
-            if (!this.pointDatas.has(index)) {
-                this.pointDatas.set(index, []);
+                this.dispatch('cesiumToolsFxt', {
+                    type: DrawingTypeNameEnum[this.state.drawingType],
+                    status: 'success',
+                    result: {
+                        positions: this.pointDatas.get(index),
+                        drawType: DrawingTypeNameEnum[this.state.drawingType],
+                        timestamp: Date.now(),
+                    },
+                });
+
+                this.state.curSort = index + 1;
+
+                this.unRegisterEvents();
+            } catch (error) {
+                // eslint-disable-next-line no-console
+                console.error('AN_ERROR_OCCURRED_DURING_THE_DRAWING_PROCESS:', error);
+                this.dispatch('cesiumToolsFxt', {
+                    type: DrawingTypeNameEnum[this.state.drawingType],
+                    status: 'failed',
+                    error: {
+                        reason: error instanceof Error ? error.message : 'Unknown Error',
+                        timestamp: Date.now(),
+                    },
+                });
             }
-            this.pointDatas.get(index)?.push(JSON.stringify(currentPosition));
-
-            this.drawing(currentPosition, this.state.drawingType);
-
-            this.state.curSort = index + 1;
-
-            this.unRegisterEvents();
-        }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+        }, this.cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
     protected mouseMoveEvent(): void {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
-            if (!currentPosition || !Cesium.defined(currentPosition)) return;
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
             const index = this.state.curSort;
             if (!this.tempMovePosition) {
                 this.tempMovePosition = new Map<number, string>();
             }
             this.tempMovePosition.set(index, JSON.stringify(currentPosition));
-        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+        }, this.cesium.ScreenSpaceEventType.MOUSE_MOVE);
     }
 
     drawing(position: Points, type: DrawingTypeEnum): void {
@@ -206,8 +252,8 @@ export default class DrawingPrimitives extends MouseEvent {
             this.viewer.entities.add({
                 position: position as Cesium.Cartesian3,
                 point: {
-                    color: Cesium.Color.YELLOW,
-                    outlineColor: Cesium.Color.BLACK,
+                    color: this.cesium.Color.YELLOW,
+                    outlineColor: this.cesium.Color.BLACK,
                     outlineWidth: 1,
                     pixelSize: 8,
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -227,7 +273,7 @@ export default class DrawingPrimitives extends MouseEvent {
             polyline:
                 type !== DrawingTypeEnum.POLYGON
                     ? {
-                          positions: new Cesium.CallbackProperty(() => {
+                          positions: new this.cesium.CallbackProperty(() => {
                               const tempPositions = [...(this.pointDatas.get(index) || [])].map(
                                   (item) => {
                                       return JSON.parse(item);
@@ -240,9 +286,11 @@ export default class DrawingPrimitives extends MouseEvent {
                               return tempPositions;
                           }, false),
                           width: 2,
-                          material: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
-                          depthFailMaterial: new Cesium.ColorMaterialProperty(
-                              Cesium.Color.CHARTREUSE
+                          material: new this.cesium.ColorMaterialProperty(
+                              this.cesium.Color.CHARTREUSE
+                          ),
+                          depthFailMaterial: new this.cesium.ColorMaterialProperty(
+                              this.cesium.Color.CHARTREUSE
                           ),
                           // 是否贴地
                           clampToGround: true,
@@ -252,7 +300,7 @@ export default class DrawingPrimitives extends MouseEvent {
             polygon:
                 type !== DrawingTypeEnum.POLYLINE
                     ? {
-                          hierarchy: new Cesium.CallbackProperty(() => {
+                          hierarchy: new this.cesium.CallbackProperty(() => {
                               const tempPositions = [...(this.pointDatas.get(index) || [])].map(
                                   (item) => {
                                       return JSON.parse(item);
@@ -261,14 +309,14 @@ export default class DrawingPrimitives extends MouseEvent {
                               if (this.tempMovePosition.get(index)) {
                                   tempPositions.push(JSON.parse(this.tempMovePosition.get(index)!));
                               }
-                              return new Cesium.PolygonHierarchy(
+                              return new this.cesium.PolygonHierarchy(
                                   tempPositions as Cesium.Cartesian3[]
                               );
                           }, false),
-                          material: new Cesium.ColorMaterialProperty(
-                              Cesium.Color.YELLOW.withAlpha(0.3)
+                          material: new this.cesium.ColorMaterialProperty(
+                              this.cesium.Color.YELLOW.withAlpha(0.3)
                           ),
-                          classificationType: Cesium.ClassificationType.BOTH,
+                          classificationType: this.cesium.ClassificationType.BOTH,
                           ...this.state.options?.polygon,
                       }
                     : {},
@@ -276,15 +324,15 @@ export default class DrawingPrimitives extends MouseEvent {
             label: {
                 text: `${(this.state.options?.name ?? '面') + index}`,
                 font: '10px sans-serif',
-                fillColor: Cesium.Color.WHITE,
-                outlineColor: Cesium.Color.BLACK,
+                fillColor: this.cesium.Color.WHITE,
+                outlineColor: this.cesium.Color.BLACK,
                 outlineWidth: 2,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
                 showBackground: true,
-                verticalOrigin: Cesium.VerticalOrigin.TOP,
-                pixelOffset: new Cesium.Cartesian2(0, 20), // 标签稍微下移
+                verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                pixelOffset: new this.cesium.Cartesian2(0, 20), // 标签稍微下移
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
                 ...this.state.options?.label,
             },
         });
@@ -302,8 +350,8 @@ export default class DrawingPrimitives extends MouseEvent {
                     width: 24,
                     height: 24,
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                    horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                    verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                    horizontalOrigin: this.cesium.HorizontalOrigin.CENTER,
+                    verticalOrigin: this.cesium.VerticalOrigin.CENTER,
                     ...this.state.options?.billboard,
                 },
             })
@@ -320,15 +368,15 @@ export default class DrawingPrimitives extends MouseEvent {
                 label: {
                     text: 'Point',
                     font: '10px sans-serif',
-                    fillColor: Cesium.Color.WHITE,
-                    outlineColor: Cesium.Color.BLACK,
+                    fillColor: this.cesium.Color.WHITE,
+                    outlineColor: this.cesium.Color.BLACK,
                     outlineWidth: 2,
-                    style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                    style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
                     showBackground: true,
-                    verticalOrigin: Cesium.VerticalOrigin.TOP,
-                    pixelOffset: new Cesium.Cartesian2(0, 20),
+                    verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                    pixelOffset: new this.cesium.Cartesian2(0, 20),
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
                     ...this.state.options?.label,
                 },
             })
@@ -415,8 +463,8 @@ export default class DrawingPrimitives extends MouseEvent {
             this.collection.locationPoint.add({
                 id,
                 position: point,
-                color: Cesium.Color.RED,
-                outlineColor: Cesium.Color.BLACK,
+                color: this.cesium.Color.RED,
+                outlineColor: this.cesium.Color.BLACK,
                 outlineWidth: 1,
                 pixelSize: 8,
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
@@ -437,23 +485,23 @@ export default class DrawingPrimitives extends MouseEvent {
             this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
         }
 
-        const instance = new Cesium.GeometryInstance({
+        const instance = new this.cesium.GeometryInstance({
             id,
-            geometry: new Cesium.GroundPolylineGeometry({
+            geometry: new this.cesium.GroundPolylineGeometry({
                 positions: cartesianPositions,
                 loop: true,
                 width: options.polyline?.width ?? 4.0,
             }),
             attributes: {
-                color: Cesium.ColorGeometryInstanceAttribute.fromColor(
-                    options.polyline?.color ?? Cesium.Color.CHARTREUSE.withAlpha(0.8)
+                color: this.cesium.ColorGeometryInstanceAttribute.fromColor(
+                    options.polyline?.color ?? this.cesium.Color.CHARTREUSE.withAlpha(0.8)
                 ),
             },
         });
 
-        const linePrimitive = new Cesium.GroundPolylinePrimitive({
+        const linePrimitive = new this.cesium.GroundPolylinePrimitive({
             geometryInstances: instance,
-            appearance: new Cesium.PolylineColorAppearance(),
+            appearance: new this.cesium.PolylineColorAppearance(),
         });
 
         this.viewer.scene.groundPrimitives.add(linePrimitive);
@@ -471,21 +519,21 @@ export default class DrawingPrimitives extends MouseEvent {
             this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
         }
 
-        const polygon = new Cesium.GeometryInstance({
-            geometry: new Cesium.PolygonGeometry({
-                polygonHierarchy: new Cesium.PolygonHierarchy(cartesianPositions),
+        const polygon = new this.cesium.GeometryInstance({
+            geometry: new this.cesium.PolygonGeometry({
+                polygonHierarchy: new this.cesium.PolygonHierarchy(cartesianPositions),
             }),
             id,
         });
 
-        const polygonAppearance = new Cesium.MaterialAppearance({
-            material: Cesium.Material.fromType('Color', {
-                color: options.polygon?.color ?? Cesium.Color.YELLOW.withAlpha(0.3),
+        const polygonAppearance = new this.cesium.MaterialAppearance({
+            material: this.cesium.Material.fromType('Color', {
+                color: options.polygon?.color ?? this.cesium.Color.YELLOW.withAlpha(0.3),
             }),
             faceForward: true,
         });
 
-        const addPolygonGroundPrimitive = new Cesium.GroundPrimitive({
+        const addPolygonGroundPrimitive = new this.cesium.GroundPrimitive({
             //贴地面
             geometryInstances: polygon,
             appearance: polygonAppearance,
@@ -506,42 +554,42 @@ export default class DrawingPrimitives extends MouseEvent {
             this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
         }
 
-        const instance = new Cesium.GeometryInstance({
+        const instance = new this.cesium.GeometryInstance({
             id,
-            geometry: new Cesium.GroundPolylineGeometry({
+            geometry: new this.cesium.GroundPolylineGeometry({
                 positions: cartesianPositions,
                 loop: true,
                 width: options.polyline?.width ?? 4.0,
             }),
             attributes: {
-                color: Cesium.ColorGeometryInstanceAttribute.fromColor(
-                    options.polyline?.color ?? Cesium.Color.CHARTREUSE.withAlpha(0.8)
+                color: this.cesium.ColorGeometryInstanceAttribute.fromColor(
+                    options.polyline?.color ?? this.cesium.Color.CHARTREUSE.withAlpha(0.8)
                 ),
             },
         });
 
-        const linePrimitive = new Cesium.GroundPolylinePrimitive({
+        const linePrimitive = new this.cesium.GroundPolylinePrimitive({
             geometryInstances: instance,
-            appearance: new Cesium.PolylineColorAppearance(),
+            appearance: new this.cesium.PolylineColorAppearance(),
         });
 
         this.viewer.scene.groundPrimitives.add(linePrimitive);
 
-        const polygon = new Cesium.GeometryInstance({
-            geometry: new Cesium.PolygonGeometry({
-                polygonHierarchy: new Cesium.PolygonHierarchy(cartesianPositions),
+        const polygon = new this.cesium.GeometryInstance({
+            geometry: new this.cesium.PolygonGeometry({
+                polygonHierarchy: new this.cesium.PolygonHierarchy(cartesianPositions),
             }),
             id,
         });
 
-        const polygonAppearance = new Cesium.MaterialAppearance({
-            material: Cesium.Material.fromType('Color', {
-                color: options.polygon?.color ?? Cesium.Color.YELLOW.withAlpha(0.3),
+        const polygonAppearance = new this.cesium.MaterialAppearance({
+            material: this.cesium.Material.fromType('Color', {
+                color: options.polygon?.color ?? this.cesium.Color.YELLOW.withAlpha(0.3),
             }),
             faceForward: true,
         });
 
-        const addPolygonGroundPrimitive = new Cesium.GroundPrimitive({
+        const addPolygonGroundPrimitive = new this.cesium.GroundPrimitive({
             //贴地面
             geometryInstances: polygon,
             appearance: polygonAppearance,
@@ -569,9 +617,9 @@ export default class DrawingPrimitives extends MouseEvent {
                 image: '/public/resources/images/特征点_选中.png',
                 width: 24,
                 height: 24,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                verticalOrigin: Cesium.VerticalOrigin.CENTER,
+                // disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                horizontalOrigin: this.cesium.HorizontalOrigin.CENTER,
+                verticalOrigin: this.cesium.VerticalOrigin.BOTTOM, // 使用 BOTTOM 确保图标底部固定在地形上
                 ...options?.billboard,
             });
         });
@@ -591,13 +639,13 @@ export default class DrawingPrimitives extends MouseEvent {
                 position: point,
                 text: `Point`,
                 font: '14px sans-serif',
-                fillColor: Cesium.Color.WHITE,
-                outlineColor: Cesium.Color.BLACK,
+                fillColor: this.cesium.Color.WHITE,
+                outlineColor: this.cesium.Color.BLACK,
                 outlineWidth: 2,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
                 showBackground: true,
-                verticalOrigin: Cesium.VerticalOrigin.TOP,
-                pixelOffset: new Cesium.Cartesian2(-12, -35),
+                verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                pixelOffset: new this.cesium.Cartesian2(-12, -35),
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
                 ...options?.label,
             });
@@ -650,7 +698,7 @@ export default class DrawingPrimitives extends MouseEvent {
         try {
             for (let i = 0; i < primitivesLength; i++) {
                 const primitive = viewer.scene.primitives.get(i);
-                if (primitive instanceof Cesium.BillboardCollection) {
+                if (primitive instanceof this.cesium.BillboardCollection) {
                     for (let j = 0; j < primitive.length; j++) {
                         const curBillboard = primitive.get(j);
                         // eslint-disable-next-line max-depth
@@ -661,7 +709,7 @@ export default class DrawingPrimitives extends MouseEvent {
                     }
                 }
 
-                if (primitive instanceof Cesium.LabelCollection) {
+                if (primitive instanceof this.cesium.LabelCollection) {
                     for (let j = 0; j < primitive.length; j++) {
                         const curLabel = primitive.get(j);
                         console.log('Found label primitive with id:', curLabel.id);
@@ -673,7 +721,7 @@ export default class DrawingPrimitives extends MouseEvent {
                     }
                 }
 
-                if (primitive instanceof Cesium.PointPrimitiveCollection) {
+                if (primitive instanceof this.cesium.PointPrimitiveCollection) {
                     for (let j = 0; j < primitive.length; j++) {
                         const curPoint = primitive.get(j);
                         // eslint-disable-next-line max-depth
@@ -685,15 +733,15 @@ export default class DrawingPrimitives extends MouseEvent {
                 }
 
                 if (
-                    primitive instanceof Cesium.GroundPrimitive &&
+                    primitive instanceof this.cesium.GroundPrimitive &&
                     primitive._boundingSpheresKeys[0] === id &&
                     options?.polygon
                 ) {
                     // eslint-disable-next-line max-depth
-                    primitive.appearance.material = Cesium.Material.fromType('Color', {
+                    primitive.appearance.material = this.cesium.Material.fromType('Color', {
                         color: options?.polygon?.color
                             ? options?.polygon.color
-                            : Cesium.Color.RED.withAlpha(0.5),
+                            : this.cesium.Color.RED.withAlpha(0.5),
                     });
                 }
             }
@@ -702,7 +750,7 @@ export default class DrawingPrimitives extends MouseEvent {
                 const primitive = viewer.scene.groundPrimitives.get(i);
 
                 if (
-                    primitive instanceof Cesium.GroundPolylinePrimitive &&
+                    primitive instanceof this.cesium.GroundPolylinePrimitive &&
                     primitive._primitiveOptions.geometryInstances[0].id === id &&
                     options?.polyline
                 ) {
@@ -714,22 +762,22 @@ export default class DrawingPrimitives extends MouseEvent {
                     // 创建一个新的颜色
                     const newColor = options?.polyline?.color
                         ? options.polyline.color
-                        : Cesium.Color.CHARTREUSE.withAlpha(0.8);
+                        : this.cesium.Color.CHARTREUSE.withAlpha(0.8);
 
                     // 创建新的实例
-                    const newInstance = new Cesium.GeometryInstance({
+                    const newInstance = new this.cesium.GeometryInstance({
                         geometry: oldInstance.geometry,
                         attributes: {
-                            color: Cesium.ColorGeometryInstanceAttribute.fromColor(newColor),
+                            color: this.cesium.ColorGeometryInstanceAttribute.fromColor(newColor),
                         },
                         id: oldInstance.id,
                     });
                     newInstance.geometry.width = options.polyline?.width ?? 4.0;
 
                     // 创建新的线条 primitive
-                    const newLinePrimitive = new Cesium.GroundPolylinePrimitive({
+                    const newLinePrimitive = new this.cesium.GroundPolylinePrimitive({
                         geometryInstances: newInstance,
-                        appearance: new Cesium.PolylineColorAppearance(),
+                        appearance: new this.cesium.PolylineColorAppearance(),
                     });
 
                     // 移除旧的 primitive
@@ -745,20 +793,20 @@ export default class DrawingPrimitives extends MouseEvent {
 
             if (isEdited) {
                 this.dispatch('cesiumToolsFxt', {
-                    type: options?.type + 'Edit',
+                    type: options?.type && DrawingTypeNameEnum[options?.type] + ' Edit',
                     status: 'finished',
                     id: id,
                 });
             } else {
                 this.dispatch('cesiumToolsFxt', {
-                    type: options?.type + 'Edit',
+                    type: options?.type && DrawingTypeNameEnum[options?.type] + ' Edit',
                     status: 'failed',
                     reason: 'No matching primitive found',
                 });
             }
         } catch (error) {
             this.dispatch('cesiumToolsFxt', {
-                type: options?.type + 'Edit',
+                type: options?.type && DrawingTypeNameEnum[options?.type] + ' Edit',
                 status: 'failed',
                 reason: error,
             });

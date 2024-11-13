@@ -20,17 +20,18 @@ export interface DrawingActions {
     removeToolsEventListener: (eventName: string, callback?: EventCallback<unknown>) => void;
 }
 
-export function useDrawing(viewer: Cesium.Viewer): DrawingActions {
+export function useDrawing(viewer: Cesium.Viewer, cesium: typeof Cesium): DrawingActions {
     let handler: Cesium.ScreenSpaceEventHandler | null = null;
 
     const createDrawing = (
         DrawingClass: new (
             viewer: Cesium.Viewer,
-            handler: Cesium.ScreenSpaceEventHandler
+            handler: Cesium.ScreenSpaceEventHandler,
+            cesium: typeof Cesium
         ) => DrawingActions
     ): DrawingActions => {
         handler = new Cesium.ScreenSpaceEventHandler(viewer?.scene.canvas);
-        const drawing = new DrawingClass(viewer, handler);
+        const drawing = new DrawingClass(viewer, handler, cesium);
 
         return {
             active: (options?: DrawingEntityOptions) => {

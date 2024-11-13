@@ -14,10 +14,25 @@ export enum DrawingTypeEnum {
     LABEL,
 }
 
+export enum DrawingTypeNameEnum {
+    /** 点 */
+    '0' = 'POINT',
+    /** 线 */
+    '1' = 'POLYLINE',
+    /** 面 */
+    '2' = 'POLYGON',
+    /** 线与面 */
+    '3' = 'POLYGON_AND_POLYLINE',
+    /** 广告牌 */
+    '4' = 'BILLBOARD',
+    /** 标签 */
+    '5' = 'LABEL',
+}
+
 type LatLng = {
     latitude: number;
     longitude: number;
-    height?: number;
+    height: number;
 };
 
 export type Points = Cesium.Cartesian3 | LatLng;
@@ -50,8 +65,8 @@ export type CreatePrimitiveOptions = {
 export type EditPrimitiveOptions = {
     type?: DrawingTypeEnum;
     point?: Cesium.PointPrimitiveCollection;
-    polyline?: { width?: number; color?: Cesium.Color };
-    polygon?: { color?: Cesium.Color };
+    polyline?: { width?: number; color?: Cesium.Color; positions?: Points[] };
+    polygon?: { color?: Cesium.Color; positions?: Points[] };
     billboard?: Cesium.BillboardCollection;
     label?: Cesium.LabelCollection;
 };

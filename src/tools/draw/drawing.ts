@@ -737,12 +737,61 @@ export default class DrawingPrimitives extends MouseEvent {
                     primitive._boundingSpheresKeys[0] === id &&
                     options?.polygon
                 ) {
-                    // eslint-disable-next-line max-depth
-                    primitive.appearance.material = this.cesium.Material.fromType('Color', {
-                        color: options?.polygon?.color
-                            ? options?.polygon.color
-                            : this.cesium.Color.RED.withAlpha(0.5),
+                    // 处理位置数据
+                    let cartesianPositions;
+                    if (options.polygon.positions) {
+                        const uniquePositions = Array.from(
+                            new Set(
+                                (options.polygon.positions as Cesium.Cartesian3[]).map((pos) => {
+                                    return JSON.stringify(pos);
+                                })
+                            )
+                        ).map((pos) => {
+                            return JSON.parse(pos);
+                        });
+
+                        cartesianPositions =
+                            Array.isArray(uniquePositions) &&
+                            uniquePositions[0] &&
+                            typeof uniquePositions[0] === 'object' &&
+                            'latitude' in uniquePositions[0]
+                                ? this.latLngToCartesians(uniquePositions as LatLng[])
+                                : (uniquePositions as Cesium.Cartesian3[]);
+                    } else {
+                        cartesianPositions =
+                            primitive._primitiveOptions.geometryInstances[0].geometry
+                                ._polygonHierarchy.positions;
+                    }
+
+                    // 创建新的多边形实例
+                    const polygon = new this.cesium.GeometryInstance({
+                        geometry: new this.cesium.PolygonGeometry({
+                            polygonHierarchy: new this.cesium.PolygonHierarchy(cartesianPositions),
+                        }),
+                        id: primitive._boundingSpheresKeys[0],
                     });
+
+                    // 创建外观
+                    const polygonAppearance = new this.cesium.MaterialAppearance({
+                        material: this.cesium.Material.fromType('Color', {
+                            color:
+                                options.polygon?.color ??
+                                primitive._appearance.material.uniforms.color ?? // 使用原来的颜色
+                                this.cesium.Color.YELLOW.withAlpha(0.3), // 默认颜色作为后备
+                        }),
+                        faceForward: true,
+                    });
+
+                    // 创建新的地面图元
+                    const newPolygonGroundPrimitive = new this.cesium.GroundPrimitive({
+                        geometryInstances: polygon,
+                        appearance: polygonAppearance,
+                    });
+
+                    // 移除旧图元并添加新图元
+                    viewer.scene.primitives.remove(primitive);
+                    viewer.scene.primitives.add(newPolygonGroundPrimitive);
+                    viewer.scene.requestRender();
                 }
             }
 
@@ -754,8 +803,6 @@ export default class DrawingPrimitives extends MouseEvent {
                     primitive._primitiveOptions.geometryInstances[0].id === id &&
                     options?.polyline
                 ) {
-                    console.log('Found polyline primitive with id:', id);
-
                     // 获取旧的实例
                     const oldInstance = primitive._primitiveOptions.geometryInstances[0];
 
@@ -764,15 +811,38 @@ export default class DrawingPrimitives extends MouseEvent {
                         ? options.polyline.color
                         : this.cesium.Color.CHARTREUSE.withAlpha(0.8);
 
+                    let cartesianPositions;
+                    if (options.polyline.positions) {
+                        const uniquePositions = Array.from(
+                            new Set(
+                                (options.polyline.positions as Cesium.Cartesian3[]).map((pos) => {
+                                    return JSON.stringify(pos);
+                                })
+                            )
+                        ).map((pos) => {
+                            return JSON.parse(pos);
+                        });
+                        cartesianPositions =
+                            Array.isArray(uniquePositions) &&
+                            uniquePositions[0] &&
+                            typeof uniquePositions[0] === 'object' &&
+                            'latitude' in uniquePositions[0]
+                                ? this.latLngToCartesians(uniquePositions as LatLng[])
+                                : (uniquePositions as Cesium.Cartesian3[]);
+                    }
+
                     // 创建新的实例
                     const newInstance = new this.cesium.GeometryInstance({
-                        geometry: oldInstance.geometry,
+                        geometry: new this.cesium.GroundPolylineGeometry({
+                            positions: cartesianPositions || oldInstance.geometry._positions,
+                            width: options.polyline?.width ?? 4.0,
+                            loop: true,
+                        }),
                         attributes: {
                             color: this.cesium.ColorGeometryInstanceAttribute.fromColor(newColor),
                         },
                         id: oldInstance.id,
                     });
-                    newInstance.geometry.width = options.polyline?.width ?? 4.0;
 
                     // 创建新的线条 primitive
                     const newLinePrimitive = new this.cesium.GroundPolylinePrimitive({

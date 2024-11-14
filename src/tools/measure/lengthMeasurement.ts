@@ -1,48 +1,53 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
-import PlotDrawTip from '../mouseRemove/PlotDrawTip';
 import { compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
-import { MouseStatusEnum, ToolsEventTypeEnum } from '../../enum/enum';
+import { MouseStatusEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
 
 export default class LengthMeasurement extends MouseEvent {
-    protected viewer: Cesium.Viewer;
-    protected handler: Cesium.ScreenSpaceEventHandler;
-    private plotDrawTip?: PlotDrawTip;
-    protected options: { trendsComputed: boolean };
-    private pointEntityAry: Cesium.Entity[];
-    private lineEntityAry: Cesium.Entity[];
-    private tipEntity: Cesium.Entity | undefined = undefined;
-    private positonsAry: Cesium.Cartesian3[] = [];
-    private polyRayAry: Cesium.Entity[];
-    private currentMouseType: string;
-    private polyTipAry: Cesium.Entity[];
-    private distanceAry: { distance2d: number; distance3d: number }[];
-    private polylineTip: Cesium.Entity | undefined = undefined;
+    // 1、核心属性
+    protected readonly viewer: Cesium.Viewer;
+    protected readonly handler: Cesium.ScreenSpaceEventHandler;
+    protected readonly cesium: typeof Cesium;
+
+    // 2、集合管理
+    private options?: { trendsComputed?: boolean; clampToGround?: boolean };
+
+    // 3、状态管理
+    private state = {
+        curSort: 0,
+    };
+
+    // 4、数据管理
+    private pointDatas = new Map<number, string[]>();
+    private tempMovePosition = new Map<number, string>();
+    private pointEntitys: { [key: number]: Cesium.Entity[] };
+    private polylineEntities: { [key: number]: Cesium.Entity | undefined };
+    private tipMoveEntity: Cesium.Entity | undefined;
+    private tipEntities: Cesium.Entity[];
 
     constructor(
         viewer: Cesium.Viewer,
         handler: Cesium.ScreenSpaceEventHandler,
-        options?: { trendsComputed: boolean }
+        cesium: typeof Cesium
     ) {
         super(viewer, handler);
+
         this.viewer = viewer;
         this.handler = handler;
-        this.options = options ? options : { trendsComputed: true };
-        this.pointEntityAry = [];
-        this.lineEntityAry = [];
-        this.positonsAry = [];
-        this.polyRayAry = [];
-        this.currentMouseType = '';
-        this.polyTipAry = [];
-        this.distanceAry = [];
-        this.polylineTip = undefined;
+        this.cesium = cesium;
+        this.state.curSort = 0;
+        this.pointDatas = new Map<number, string[]>();
+        this.tempMovePosition = new Map<number, string>();
+        this.polylineEntities = {};
+        this.pointEntitys = {};
+        this.tipMoveEntity = undefined;
+        this.tipEntities = [];
     }
 
-    active(): void {
+    active(options?: { trendsComputed: boolean; clampToGround: boolean }): void {
+        this.options = options ? options : { trendsComputed: true, clampToGround: true };
         this.registerEvents();
-        this.plotDrawTip = new PlotDrawTip(this.viewer);
-        this.plotDrawTip.setContent(['左键开始绘制']);
     }
 
     deactivate(): void {
@@ -51,25 +56,28 @@ export default class LengthMeasurement extends MouseEvent {
     }
 
     clear(): void {
-        this.positonsAry = [];
-        this.distanceAry = [];
-        this.currentMouseType = '';
-        this.plotDrawTip && this.plotDrawTip.setContent(['']);
-        this.plotDrawTip = undefined;
-        this.tipEntity && this.viewer.entities.remove(this.tipEntity);
-        this.polylineTip && this.viewer.entities.remove(this.polylineTip);
-        this.pointEntityAry.forEach((entity) => {
+        Object.entries(this.pointEntitys).forEach(([, value]) => {
+            value.forEach((entity) => {
+                this.viewer.entities.remove(entity);
+            });
+        });
+        Object.entries(this.polylineEntities).forEach(([, value]) => {
+            if (value) {
+                this.viewer.entities.remove(value);
+            }
+        });
+        this.tipEntities.forEach((entity) => {
             return this.viewer.entities.remove(entity);
         });
-        this.lineEntityAry.forEach((entity) => {
-            return this.viewer.entities.remove(entity);
-        });
-        this.polyRayAry.forEach((entity) => {
-            return this.viewer.entities.remove(entity);
-        });
-        this.polyTipAry.forEach((entity) => {
-            return this.viewer.entities.remove(entity);
-        });
+        this.tipMoveEntity && this.viewer.entities.remove(this.tipMoveEntity);
+
+        this.state.curSort = 0;
+        this.pointDatas.clear();
+        this.tempMovePosition.clear();
+        this.pointEntitys = {};
+        this.polylineEntities = {};
+        this.tipMoveEntity = undefined;
+        this.tipEntities = [];
     }
 
     addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
@@ -80,243 +88,181 @@ export default class LengthMeasurement extends MouseEvent {
         this.removeEventListener(eventName, callback);
     }
 
-    protected leftClickEvent() {
+    protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-            this.currentMouseType = MouseStatusEnum.click;
-
             const currentPosition = this.viewer.scene.pickPosition(e.position);
-            if (!currentPosition && !Cesium.defined(currentPosition)) return;
-            this.plotDrawTip?.setContent(['右键完成绘制']);
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
-            this.positonsAry.push(currentPosition);
-
+            const index = this.state.curSort;
+            if (!this.pointDatas.has(index)) {
+                this.pointDatas.set(index, []);
+            }
+            this.pointDatas.get(index)?.push(JSON.stringify(currentPosition));
             this.createPoint(currentPosition);
-            if (this.positonsAry.length > 1) {
+            this.drawingPolyline();
+
+            const points = this.pointDatas.get(index) ?? [];
+            if (points.length > 1) {
+                const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                    return JSON.parse(item);
+                });
                 // 由于第二次点击又推进来一个元素，所以需要取的开始点位是推进来的倒数第二个元素
                 this.options?.trendsComputed &&
                     this.computedDistance(
-                        this.positonsAry[this.positonsAry.length - 2],
-                        currentPosition
+                        tempPositions[tempPositions.length - 2],
+                        currentPosition,
+                        'click'
                     );
-                this.createRay(this.positonsAry[this.positonsAry.length - 2], currentPosition);
             }
-        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        }, this.cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 
     protected rightClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
-            if (this.positonsAry.length < 1) {
-                // eslint-disable-next-line no-alert
-                alert('至少绘制2个点');
-                return;
-            }
-            this.currentMouseType = MouseStatusEnum.click;
-
             const currentPosition = this.viewer.scene.pickPosition(e.position);
-            if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
-            this.createPoint(currentPosition);
-            if (this.options?.trendsComputed) {
-                this.computedDistance(
-                    this.positonsAry[this.positonsAry.length - 1],
-                    currentPosition
-                );
-                this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
-            } else {
-                this.positonsAry.push(currentPosition);
-                this.unTrendsComputedTip();
-                this.createRay(this.positonsAry[this.positonsAry.length - 2], currentPosition);
-            }
-            this.positonsAry.length > 2 && this.createPolylineTip(currentPosition);
+            const index = this.state.curSort;
+            const points = this.pointDatas.get(index) ?? [];
+            if (points.length < 2) return;
 
-            this.distanceAry = [];
-            this.positonsAry = [];
-            this.plotDrawTip && this.plotDrawTip.setContent(['']);
-            this.sendResult();
+            const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                return JSON.parse(item);
+            });
+            this.tempMovePosition.set(
+                index,
+                JSON.stringify(tempPositions[tempPositions.length - 1])
+            );
+            this.tipMoveEntity && this.viewer.entities.remove(this.tipMoveEntity);
+
+            this.state.curSort = index + 1;
             this.unRegisterEvents();
-        }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+        }, this.cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
     protected mouseMoveEvent(): void {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
-            this.currentMouseType = MouseStatusEnum.move;
-
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
-            if (!currentPosition && !Cesium.defined(currentPosition)) return;
-            this.plotDrawTip?.updatePosition(currentPosition);
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
-            if (this.positonsAry.length > 0 && this.lineEntityAry && this.options?.trendsComputed) {
-                this.computedDistance(
-                    this.positonsAry[this.positonsAry.length - 1],
-                    currentPosition
-                );
-                this.createRay(this.positonsAry[this.positonsAry.length - 1], currentPosition);
+            const index = this.state.curSort;
+            if (!this.tempMovePosition) {
+                this.tempMovePosition = new Map<number, string>();
             }
-        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+            this.tempMovePosition.set(index, JSON.stringify(currentPosition));
+
+            const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                return JSON.parse(item);
+            });
+            if (tempPositions.length > 0 && this.options?.trendsComputed) {
+                this.computedDistance(
+                    tempPositions[tempPositions.length - 1],
+                    currentPosition,
+                    'move'
+                );
+            }
+        }, this.cesium.ScreenSpaceEventType.MOUSE_MOVE);
     }
 
     private createPoint(position: Cesium.Cartesian3) {
-        const pointEntity = this.viewer.entities.add({
-            position,
-            point: {
-                color: Cesium.Color.YELLOW,
-                outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 1,
-                pixelSize: 8,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-        });
-        this.pointEntityAry.push(pointEntity);
-    }
-
-    private createRay(startPosition: Cesium.Cartesian3, endPosition: Cesium.Cartesian3): void {
-        if (this.currentMouseType === MouseStatusEnum.move) {
-            this.lineEntityAry.forEach((entity) => {
-                this.viewer.entities.remove(entity);
-            });
-
-            this.lineEntityAry = [];
+        const index = this.state.curSort;
+        if (!this.pointEntitys[index]) {
+            this.pointEntitys[index] = [];
         }
-        const direction = Cesium.Cartesian3.subtract(
-            endPosition,
-            startPosition,
-            new Cesium.Cartesian3()
+        this.pointEntitys[index].push(
+            this.viewer.entities.add({
+                position: position as Cesium.Cartesian3,
+                point: {
+                    color: this.cesium.Color.YELLOW,
+                    outlineColor: this.cesium.Color.BLACK,
+                    outlineWidth: 1,
+                    pixelSize: 8,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                },
+            })
         );
-
-        // 创建射线
-        const ray = new Cesium.Ray(startPosition, direction);
-        // pick 方法可以获取到射线与地球表面的交线 https://cesium.com/learn/cesiumjs/ref-doc/Globe.html
-        const intersection = this.viewer.scene.globe.pick(ray, this.viewer.scene);
-
-        if (intersection) {
-            this.createPolylin([startPosition, intersection], Cesium.Color.CHARTREUSE);
-            this.createPolylin([intersection, endPosition], Cesium.Color.RED);
-        } else {
-            this.createPolylin([startPosition, endPosition], Cesium.Color.CHARTREUSE);
-        }
     }
 
-    private createPolylin(position: Cesium.Cartesian3[], color: Cesium.Color) {
-        const lineEntity = this.viewer.entities.add({
+    private drawingPolyline(): void {
+        const index = this.state.curSort;
+        if (this.polylineEntities[index]) return;
+
+        this.polylineEntities[index] = this.viewer.entities.add({
             polyline: {
-                positions: new Cesium.CallbackProperty(() => {
-                    return position;
+                positions: new this.cesium.CallbackProperty(() => {
+                    const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                        return JSON.parse(item);
+                    });
+                    if (this.tempMovePosition.get(index)) {
+                        tempPositions.push(JSON.parse(this.tempMovePosition.get(index)!));
+                    }
+                    return tempPositions;
                 }, false),
                 width: 2,
-                material:
-                    color === Cesium.Color.RED
-                        ? new Cesium.PolylineDashMaterialProperty({
-                              color: color,
-                              dashLength: 20, //短划线长度
-                          })
-                        : new Cesium.ColorMaterialProperty(color),
-                depthFailMaterial: new Cesium.ColorMaterialProperty(color),
-                // 是否贴地
-                clampToGround: true,
+                material: new this.cesium.ColorMaterialProperty(this.cesium.Color.CHARTREUSE),
+                depthFailMaterial: new this.cesium.ColorMaterialProperty(
+                    this.cesium.Color.CHARTREUSE
+                ),
+                clampToGround: this.options?.clampToGround,
             },
         });
-
-        if (this.currentMouseType === MouseStatusEnum.move) {
-            this.lineEntityAry.push(lineEntity);
-        }
-        if (this.currentMouseType === MouseStatusEnum.click) {
-            this.polyRayAry.push(lineEntity);
-        }
     }
+
+    private computedDistance = (
+        start: Cesium.Cartesian3,
+        end: Cesium.Cartesian3,
+        type: 'click' | 'move'
+    ) => {
+        const distance_2d = compute_placeDistance_2d(Cesium, start, end);
+        const ditance_3d = compute_geodesicaDistance_3d(Cesium, start, end);
+        this.createTip(start, end, distance_2d.toFixed(2), ditance_3d.toFixed(2), type);
+    };
 
     private createTip(
         start: Cesium.Cartesian3,
         end: Cesium.Cartesian3,
         distance_2d: string,
-        distance_3d: string
+        distance_3d: string,
+        type: 'click' | 'move'
     ) {
-        this.tipEntity && this.viewer.entities.remove(this.tipEntity);
+        this.tipMoveEntity && this.viewer.entities.remove(this.tipMoveEntity);
         // 计算线的中点位置
-        const midPoint = Cesium.Cartesian3.midpoint(start, end, new Cesium.Cartesian3());
+        const midPoint = this.cesium.Cartesian3.midpoint(start, end, new Cesium.Cartesian3());
 
         // 将中点向下移动一小段距离，以便将标签显示在线的下方
-        const offset = Cesium.Cartesian3.multiplyByScalar(
-            Cesium.Cartesian3.normalize(midPoint, new Cesium.Cartesian3()),
+        const offset = this.cesium.Cartesian3.multiplyByScalar(
+            this.cesium.Cartesian3.normalize(midPoint, new this.cesium.Cartesian3()),
             -0.0005,
-            new Cesium.Cartesian3()
+            new this.cesium.Cartesian3()
         );
-        const labelPosition = Cesium.Cartesian3.add(midPoint, offset, new Cesium.Cartesian3());
+        const labelPosition = this.cesium.Cartesian3.add(
+            midPoint,
+            offset,
+            new this.cesium.Cartesian3()
+        );
 
         const tipEntity = this.viewer.entities.add({
             position: labelPosition,
             label: {
-                text: `投影距离${distance_2d}m \n 空间距离${distance_3d}m`,
+                text: this.options?.clampToGround
+                    ? `贴地距离${distance_2d}m`
+                    : `直线距离${distance_3d}m`,
                 font: '10px sans-serif',
-                fillColor: Cesium.Color.WHITE,
-                outlineColor: Cesium.Color.BLACK,
+                fillColor: this.cesium.Color.WHITE,
+                outlineColor: this.cesium.Color.BLACK,
                 outlineWidth: 2,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                showBackground: true,
-                verticalOrigin: Cesium.VerticalOrigin.TOP,
-                pixelOffset: new Cesium.Cartesian2(0, 20), // 标签稍微下移
+                style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                showBackground: false,
+                verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                pixelOffset: new this.cesium.Cartesian2(0, 20), // 标签稍微下移
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
             },
         });
 
-        if (this.currentMouseType === MouseStatusEnum.move) {
-            this.tipEntity = tipEntity;
-        }
-
-        if (this.currentMouseType === MouseStatusEnum.click || !this.options?.trendsComputed) {
-            this.distanceAry.push({
-                distance2d: Number(distance_2d),
-                distance3d: Number(distance_3d),
-            });
-            this.polyTipAry.push(tipEntity);
+        if (type === MouseStatusEnum.click) {
+            this.tipEntities.push(tipEntity);
+        } else {
+            this.tipMoveEntity = tipEntity;
         }
     }
-
-    private createPolylineTip(positions: Cesium.Cartesian3) {
-        const total2dDistance = this.distanceAry.reduce((accumulator, currentValue) => {
-            return accumulator + currentValue.distance2d;
-        }, 0);
-
-        const total3dDistance = this.distanceAry.reduce((accumulator, currentValue) => {
-            return accumulator + currentValue.distance3d;
-        }, 0);
-
-        this.polylineTip = this.viewer.entities.add({
-            position: positions,
-            label: {
-                text: `折线投影距离${total2dDistance.toFixed(2)}m \n 折线空间距离${total3dDistance.toFixed(2)}m`,
-                font: '10px sans-serif',
-                fillColor: Cesium.Color.WHITE,
-                outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 2,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                showBackground: true,
-                verticalOrigin: Cesium.VerticalOrigin.TOP,
-                pixelOffset: new Cesium.Cartesian2(0, 20), // 标签稍微下移
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-        });
-    }
-
-    private computedDistance = (start: Cesium.Cartesian3, end: Cesium.Cartesian3) => {
-        const distance_2d = compute_placeDistance_2d(Cesium, start, end);
-        const ditance_3d = compute_geodesicaDistance_3d(Cesium, start, end);
-        this.createTip(start, end, distance_2d.toFixed(2), ditance_3d.toFixed(2));
-    };
-
-    private unTrendsComputedTip = () => {
-        const ary_2d: Cesium.Cartesian3[][] = [];
-        for (let i = 1; i < this.positonsAry.length; i++) {
-            ary_2d.push([this.positonsAry[i - 1], this.positonsAry[i]]);
-        }
-        ary_2d.forEach((positions) => {
-            this.computedDistance(positions[0], positions[1]);
-        });
-    };
-
-    private sendResult = () => {
-        this.dispatch('cesiumToolsFxt', {
-            type: ToolsEventTypeEnum.lengthMeasurement,
-            status: 'finished',
-        });
-    };
 }

@@ -29,7 +29,7 @@ export enum DrawingTypeNameEnum {
     '5' = 'LABEL',
 }
 
-type LatLng = {
+export type LatLng = {
     latitude: number;
     longitude: number;
     height: number;

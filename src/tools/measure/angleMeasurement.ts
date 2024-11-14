@@ -1,37 +1,54 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
-import PlotDrawTip from '../mouseRemove/PlotDrawTip';
 import { compute_Angle, compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
-import { ToolsEventTypeEnum } from '../../enum/enum';
+import { MouseStatusEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
 
-export default class AngleMeasurement extends MouseEvent {
-    protected viewer: Cesium.Viewer;
-    protected handler: Cesium.ScreenSpaceEventHandler;
-    private plotDrawTip?: PlotDrawTip;
-    private pointEntityAry: Cesium.Entity[];
-    private positonsAry: Cesium.Cartesian3[] = [];
-    private tempMovePosition: Cesium.Cartesian3 | undefined;
-    private lineEntity: Cesium.Entity | undefined;
-    private lineEntityAry: Cesium.Entity[] = [];
-    private angleTipEntityAry: Cesium.Entity[];
+export default class AngleMeasurement1 extends MouseEvent {
+    // 1、核心属性
+    protected readonly viewer: Cesium.Viewer;
+    protected readonly handler: Cesium.ScreenSpaceEventHandler;
+    protected readonly cesium: typeof Cesium;
 
-    constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
+    // 2、集合管理
+    private options?: { clampToGround: boolean };
+
+    // 3、状态管理
+    private state = {
+        curSort: 0,
+    };
+
+    // 4、数据管理
+    private pointDatas = new Map<number, string[]>();
+    private tempMovePosition = new Map<number, string>();
+    private pointEntitys: { [key: number]: Cesium.Entity[] };
+    private polylineEntities: { [key: number]: Cesium.Entity | undefined };
+    private tipMoveEntity: Cesium.Entity | undefined;
+    private tipEntities: Cesium.Entity[];
+    private angleTipEntities: Cesium.Entity[];
+
+    constructor(
+        viewer: Cesium.Viewer,
+        handler: Cesium.ScreenSpaceEventHandler,
+        cesium: typeof Cesium
+    ) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
-        this.pointEntityAry = [];
-        this.positonsAry = [];
-        this.tempMovePosition = undefined;
-        this.lineEntity = undefined;
-        this.angleTipEntityAry = [];
-        this.lineEntityAry = [];
+        this.cesium = cesium;
+        this.state.curSort = 0;
+        this.pointDatas = new Map<number, string[]>();
+        this.tempMovePosition = new Map<number, string>();
+        this.polylineEntities = {};
+        this.pointEntitys = {};
+        this.tipMoveEntity = undefined;
+        this.tipEntities = [];
+        this.angleTipEntities = [];
     }
 
-    active(): void {
+    active(options?: { clampToGround: boolean }): void {
+        this.options = options;
         this.registerEvents();
-        this.plotDrawTip = new PlotDrawTip(this.viewer);
-        this.plotDrawTip.setContent(['左键开始绘制']);
     }
 
     deactivate(): void {
@@ -40,20 +57,33 @@ export default class AngleMeasurement extends MouseEvent {
     }
 
     clear(): void {
-        this.plotDrawTip && this.plotDrawTip.setContent(['']);
-        this.plotDrawTip = undefined;
-        this.pointEntityAry.forEach((entity) => {
-            this.viewer.entities.remove(entity);
+        Object.entries(this.pointEntitys).forEach(([, value]) => {
+            value.forEach((entity) => {
+                this.viewer.entities.remove(entity);
+            });
         });
-        this.angleTipEntityAry.forEach((entity) => {
-            this.viewer.entities.remove(entity);
+        Object.entries(this.polylineEntities).forEach(([, value]) => {
+            if (value) {
+                this.viewer.entities.remove(value);
+            }
         });
-        this.lineEntityAry.forEach((entity) => {
-            this.viewer.entities.remove(entity);
+        this.tipEntities.forEach((entity) => {
+            return this.viewer.entities.remove(entity);
         });
-        this.positonsAry = [];
-        this.tempMovePosition = undefined;
-        this.lineEntity = undefined;
+        this.angleTipEntities.forEach((entity) => {
+            return this.viewer.entities.remove(entity);
+        });
+
+        this.tipMoveEntity && this.viewer.entities.remove(this.tipMoveEntity);
+
+        this.state.curSort = 0;
+        this.pointDatas.clear();
+        this.tempMovePosition.clear();
+        this.pointEntitys = {};
+        this.polylineEntities = {};
+        this.tipMoveEntity = undefined;
+        this.tipEntities = [];
+        this.angleTipEntities = [];
     }
 
     addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
@@ -67,120 +97,185 @@ export default class AngleMeasurement extends MouseEvent {
     protected leftClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
-            if (!currentPosition && !Cesium.defined(currentPosition)) return;
-            this.plotDrawTip?.setContent(['右键完成绘制']);
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
-            this.positonsAry.push(currentPosition);
-
+            const index = this.state.curSort;
+            if (!this.pointDatas.has(index)) {
+                this.pointDatas.set(index, []);
+            }
+            this.pointDatas.get(index)?.push(JSON.stringify(currentPosition));
             this.createPoint(currentPosition);
-            this.createPolylin();
+            this.drawingPolyline();
 
-            const currentIndex: number = this.positonsAry.indexOf(currentPosition);
-            if (this.positonsAry.length > 2) {
-                this.computedAngle(
-                    this.positonsAry[currentIndex - 2],
-                    this.positonsAry[currentIndex - 1],
-                    currentPosition
+            const points = this.pointDatas.get(index) ?? [];
+            if (points.length > 3) {
+                const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                    return JSON.parse(item);
+                });
+                // 由于第二次点击又推进来一个元素，所以需要取的开始点位是推进来的倒数第二个元素
+                this.computedDistance(
+                    tempPositions[tempPositions.length - 2],
+                    currentPosition,
+                    'click'
                 );
-            }
 
-            if (this.positonsAry.length > 1) {
-                this.computedDistance(this.positonsAry[currentIndex - 1], currentPosition);
+                const currentIndex: number = tempPositions.length;
+                if (tempPositions.length > 2) {
+                    this.computedAngle(
+                        tempPositions[currentIndex - 3],
+                        tempPositions[currentIndex - 2],
+                        currentPosition
+                    );
+                }
             }
-        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+        }, this.cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
 
     protected rightClickEvent(): void {
         this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
-            if (!currentPosition && !Cesium.defined(currentPosition)) return;
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
-            this.positonsAry.push(currentPosition);
+            const index = this.state.curSort;
+            const points = this.pointDatas.get(index) ?? [];
+            if (points.length < 3) return;
 
-            if (this.positonsAry.length < 3) {
-                // eslint-disable-next-line no-alert
-                alert('角度绘制至少三个点');
-            }
-
-            this.createPoint(currentPosition);
-            this.lineEntity && this.viewer.entities.remove(this.lineEntity);
-            const currentIndex: number = this.positonsAry.indexOf(currentPosition);
-            this.computedAngle(
-                this.positonsAry[currentIndex - 2],
-                this.positonsAry[currentIndex - 1],
-                currentPosition
-            );
-            this.computedDistance(this.positonsAry[currentIndex - 1], currentPosition);
-
-            this.lineEntity && this.viewer.entities.remove(this.lineEntity);
-            this.lineEntityAry.push(
-                this.viewer.entities.add({
-                    polyline: {
-                        positions: this.positonsAry,
-                        width: 2,
-                        material: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
-                        depthFailMaterial: new Cesium.ColorMaterialProperty(
-                            Cesium.Color.CHARTREUSE
-                        ),
-                        // 是否贴地
-                        clampToGround: true,
-                    },
-                })
-            );
-            this.positonsAry = [];
-            this.plotDrawTip && this.plotDrawTip.setContent(['']);
-            this.dispatch('cesiumToolsFxt', {
-                type: ToolsEventTypeEnum.angleMeasurement,
-                status: 'finished',
+            const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                return JSON.parse(item);
             });
+            this.tempMovePosition.set(
+                index,
+                JSON.stringify(tempPositions[tempPositions.length - 1])
+            );
+            this.tipMoveEntity && this.viewer.entities.remove(this.tipMoveEntity);
+
+            this.state.curSort = index + 1;
             this.unRegisterEvents();
-        }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+        }, this.cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
     protected mouseMoveEvent(): void {
         this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
-            if (!currentPosition && !Cesium.defined(currentPosition)) return;
-            this.plotDrawTip?.updatePosition(currentPosition);
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
-            this.tempMovePosition = currentPosition;
-        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+            const index = this.state.curSort;
+            if (!this.tempMovePosition) {
+                this.tempMovePosition = new Map<number, string>();
+            }
+            this.tempMovePosition.set(index, JSON.stringify(currentPosition));
+
+            const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                return JSON.parse(item);
+            });
+            if (tempPositions.length > 0) {
+                this.computedDistance(
+                    tempPositions[tempPositions.length - 1],
+                    currentPosition,
+                    'move'
+                );
+            }
+        }, this.cesium.ScreenSpaceEventType.MOUSE_MOVE);
     }
 
     private createPoint(position: Cesium.Cartesian3) {
-        const pointEntity = this.viewer.entities.add({
-            position,
-            point: {
-                color: Cesium.Color.YELLOW,
-                outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 1,
-                pixelSize: 8,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-        });
-
-        this.pointEntityAry.push(pointEntity);
+        const index = this.state.curSort;
+        if (!this.pointEntitys[index]) {
+            this.pointEntitys[index] = [];
+        }
+        this.pointEntitys[index].push(
+            this.viewer.entities.add({
+                position: position as Cesium.Cartesian3,
+                point: {
+                    color: this.cesium.Color.YELLOW,
+                    outlineColor: this.cesium.Color.BLACK,
+                    outlineWidth: 1,
+                    pixelSize: 8,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                },
+            })
+        );
     }
 
-    private createPolylin() {
-        const lineEntity = this.viewer.entities.add({
+    private drawingPolyline(): void {
+        const index = this.state.curSort;
+        if (this.polylineEntities[index]) return;
+
+        this.polylineEntities[index] = this.viewer.entities.add({
             polyline: {
-                positions: new Cesium.CallbackProperty(() => {
-                    const tempPositions = [...this.positonsAry];
-                    if (this.tempMovePosition) {
-                        tempPositions.push(this.tempMovePosition);
+                positions: new this.cesium.CallbackProperty(() => {
+                    const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                        return JSON.parse(item);
+                    });
+                    if (this.tempMovePosition.get(index)) {
+                        tempPositions.push(JSON.parse(this.tempMovePosition.get(index)!));
                     }
                     return tempPositions;
                 }, false),
                 width: 2,
-                material: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
-                depthFailMaterial: new Cesium.ColorMaterialProperty(Cesium.Color.CHARTREUSE),
-                // 是否贴地
-                clampToGround: true,
+                material: new this.cesium.ColorMaterialProperty(this.cesium.Color.CHARTREUSE),
+                depthFailMaterial: new this.cesium.ColorMaterialProperty(
+                    this.cesium.Color.CHARTREUSE
+                ),
+                clampToGround: this.options?.clampToGround,
+            },
+        });
+    }
+
+    private computedDistance = (
+        start: Cesium.Cartesian3,
+        end: Cesium.Cartesian3,
+        type: 'click' | 'move'
+    ) => {
+        const distance_2d = compute_placeDistance_2d(Cesium, start, end);
+        const ditance_3d = compute_geodesicaDistance_3d(Cesium, start, end);
+        this.createTip(start, end, distance_2d.toFixed(2), ditance_3d.toFixed(2), type);
+    };
+
+    private createTip(
+        start: Cesium.Cartesian3,
+        end: Cesium.Cartesian3,
+        distance_2d: string,
+        distance_3d: string,
+        type: 'click' | 'move'
+    ) {
+        this.tipMoveEntity && this.viewer.entities.remove(this.tipMoveEntity);
+        // 计算线的中点位置
+        const midPoint = this.cesium.Cartesian3.midpoint(start, end, new Cesium.Cartesian3());
+
+        // 将中点向下移动一小段距离，以便将标签显示在线的下方
+        const offset = this.cesium.Cartesian3.multiplyByScalar(
+            this.cesium.Cartesian3.normalize(midPoint, new this.cesium.Cartesian3()),
+            -0.0005,
+            new this.cesium.Cartesian3()
+        );
+        const labelPosition = this.cesium.Cartesian3.add(
+            midPoint,
+            offset,
+            new this.cesium.Cartesian3()
+        );
+
+        const tipEntity = this.viewer.entities.add({
+            position: labelPosition,
+            label: {
+                text: `贴地距离${distance_2d}m \n 直线距离${distance_3d}m`,
+                font: '10px sans-serif',
+                fillColor: this.cesium.Color.WHITE,
+                outlineColor: this.cesium.Color.BLACK,
+                outlineWidth: 2,
+                style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                showBackground: false,
+                verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                pixelOffset: new this.cesium.Cartesian2(0, 20), // 标签稍微下移
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
             },
         });
 
-        this.lineEntity = lineEntity;
+        if (type === MouseStatusEnum.click) {
+            this.tipEntities.push(tipEntity);
+        } else {
+            this.tipMoveEntity = tipEntity;
+        }
     }
 
     private computedAngle(
@@ -188,47 +283,24 @@ export default class AngleMeasurement extends MouseEvent {
         middle: Cesium.Cartesian3,
         end: Cesium.Cartesian3
     ) {
-        const angle = compute_Angle(Cesium, start, middle, end);
+        const angle = compute_Angle(this.cesium, start, middle, end);
         const angleEntity = this.viewer.entities.add({
             position: middle,
             label: {
                 text: `角度: ${angle.toFixed(2)}°`,
                 font: '14px sans-serif',
-                fillColor: Cesium.Color.WHITE,
-                outlineColor: Cesium.Color.BLACK,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                showBackground: true,
-                horizontalOrigin: Cesium.HorizontalOrigin.LEFT,
-                verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                pixelOffset: new Cesium.Cartesian2(10, -10),
+                fillColor: this.cesium.Color.WHITE,
+                outlineColor: this.cesium.Color.BLACK,
+                style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                showBackground: false,
+                horizontalOrigin: this.cesium.HorizontalOrigin.LEFT,
+                verticalOrigin: this.cesium.VerticalOrigin.BOTTOM,
+                pixelOffset: new this.cesium.Cartesian2(10, -10),
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
                 show: true,
             },
         });
 
-        this.angleTipEntityAry.push(angleEntity);
-    }
-
-    private computedDistance(start: Cesium.Cartesian3, end: Cesium.Cartesian3) {
-        const distance2d = compute_placeDistance_2d(Cesium, start, end);
-        const distance3d = compute_geodesicaDistance_3d(Cesium, start, end);
-
-        const distanceEntity = this.viewer.entities.add({
-            position: Cesium.Cartesian3.midpoint(start, end, new Cesium.Cartesian3()),
-            label: {
-                text: `投影距离${distance2d.toFixed(2)}m \n 空间距离${distance3d.toFixed(2)}m`,
-                font: '10px sans-serif',
-                fillColor: Cesium.Color.WHITE,
-                outlineColor: Cesium.Color.BLACK,
-                outlineWidth: 2,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                showBackground: true,
-                verticalOrigin: Cesium.VerticalOrigin.TOP,
-                pixelOffset: new Cesium.Cartesian2(0, 20), // 标签稍微下移
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-        });
-
-        this.angleTipEntityAry.push(distanceEntity);
+        this.angleTipEntities.push(angleEntity);
     }
 }

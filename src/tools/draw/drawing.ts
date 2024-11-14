@@ -8,6 +8,7 @@ import {
     EditPrimitiveOptions,
     DrawingTypeEnum,
     DrawingTypeNameEnum,
+    LatLng,
 } from './type';
 
 /**
@@ -163,7 +164,8 @@ export default class DrawingPrimitives extends MouseEvent {
                     this.state.drawingType === DrawingTypeEnum.POLYLINE ||
                     this.state.drawingType === DrawingTypeEnum.POLYGON_AND_POLYLINE;
 
-                if (isPolygon && this.pointDatas.get(index)?.length < 3) return;
+                const points = this.pointDatas.get(index) ?? [];
+                if (isPolygon && points.length < 3) return;
 
                 const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
                     return JSON.parse(item);

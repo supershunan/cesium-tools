@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { Delaunay } from 'd3-delaunay';
 
 /** 鞋带（Shoelace）公式计算面积 */
 const polygonArea = (points: number[][]) => {
@@ -17,78 +18,196 @@ const polygonArea = (points: number[][]) => {
 /**
  * 获取球体曲面两点的距离-3d
  * @param {*} Cesium cesium 实例
- * @param start 开始点
- * @param end 结束点
- * @returns { number } 地球表面的实际距离
+ * @param {number[]} start 开始点
+ * @param {number[]} end 结束点
+ * @returns { number } 测地距
  */
-export const compute_geodesicaDistance_3d = (
+export const compute_geodesicaDistance_3d = async (
     Cesium: typeof import('cesium'),
     start: Cesium.Cartesian3,
-    end: Cesium.Cartesian3
-): number => {
-    const { Ellipsoid, EllipsoidGeodesic } = Cesium;
-    const pickedPointCartographic = Ellipsoid.WGS84.cartesianToCartographic(start);
-    const lastPointCartographic = Ellipsoid.WGS84.cartesianToCartographic(end);
-    const geodesic = new EllipsoidGeodesic(pickedPointCartographic, lastPointCartographic);
-    return geodesic.surfaceDistance;
+    end: Cesium.Cartesian3,
+    terrainProvider: Cesium.TerrainProvider
+) => {
+    const left = start;
+    const right = end;
+
+    const startCartographic = Cesium.Cartographic.fromCartesian(left);
+    const endCartographic = Cesium.Cartographic.fromCartesian(right);
+
+    // 生成路径上的多个点
+    const positions = [];
+    const numPoints = 50;
+    for (let i = 0; i <= numPoints; i++) {
+        const fraction = i / numPoints;
+
+        // 线性插值经纬度和高度
+        const interpolatedLongitude = Cesium.Math.lerp(
+            startCartographic.longitude,
+            endCartographic.longitude,
+            fraction
+        );
+        const interpolatedLatitude = Cesium.Math.lerp(
+            startCartographic.latitude,
+            endCartographic.latitude,
+            fraction
+        );
+        const interpolatedHeight = Cesium.Math.lerp(
+            startCartographic.height,
+            endCartographic.height,
+            fraction
+        );
+
+        // 创建一个新的 Cartographic 实例并添加到 positions 数组
+        const interpolated = new Cesium.Cartographic(
+            interpolatedLongitude,
+            interpolatedLatitude,
+            interpolatedHeight
+        );
+        positions.push(interpolated);
+    }
+
+    // 使用地形数据采样函数采样路径上的地形高度
+    let totalDistance = 0;
+
+    return await Cesium.sampleTerrainMostDetailed(terrainProvider, positions).then(
+        (updatedPositions) => {
+            for (let i = 0; i < updatedPositions.length - 1; i++) {
+                const startPosition = Cesium.Cartesian3.fromRadians(
+                    updatedPositions[i].longitude,
+                    updatedPositions[i].latitude,
+                    updatedPositions[i].height
+                );
+                const endPosition = Cesium.Cartesian3.fromRadians(
+                    updatedPositions[i + 1].longitude,
+                    updatedPositions[i + 1].latitude,
+                    updatedPositions[i + 1].height
+                );
+
+                // 6. 计算每两个相邻点之间的 3D 距离
+                const segmentDistance = Cesium.Cartesian3.distance(startPosition, endPosition);
+                totalDistance += segmentDistance;
+            }
+            return totalDistance;
+        }
+    );
 };
 
 /**
- * 获取球体平面两点的距离-2d
+ * 获取球体平面两点的距离-2d 三维空间下的
  * @param {*} Cesium cesium 实例
- * @param start 开始点
- * @param end 结束点
- * @returns { number } 直线空间距离
+ * @param {number[]} start 开始点
+ * @param {number[]} end 结束点
+ * @returns { number } 直线距离
  */
 export const compute_placeDistance_2d = (
     Cesium: typeof import('cesium'),
     start: Cesium.Cartesian3,
     end: Cesium.Cartesian3
-): number => {
+) => {
     const distance = Cesium.Cartesian3.distance(start, end);
     return distance;
 };
 
+// 用于计算向量的差
+const subtractVectors = (v1: Cesium.Cartesian3, v2: Cesium.Cartesian3) => {
+    return {
+        x: v1.x - v2.x,
+        y: v1.y - v2.y,
+        z: v1.z - v2.z,
+    };
+};
+
+// 用于计算叉积
+const crossProduct = (
+    v1: { x: number; y: number; z: number },
+    v2: { x: number; y: number; z: number }
+) => {
+    return {
+        x: v1.y * v2.z - v1.z * v2.y,
+        y: v1.z * v2.x - v1.x * v2.z,
+        z: v1.x * v2.y - v1.y * v2.x,
+    };
+};
+
+// 用于计算向量的模长
+const vectorMagnitude = (v: { x: number; y: number; z: number }) => {
+    return Math.sqrt(v.x ** 2 + v.y ** 2 + v.z ** 2);
+};
+
+/** 线性插值 */
+const linearInterpolation = (Cesium: typeof import('cesium'), positions: Cesium.Cartesian3[]) => {
+    const newPositions = [];
+    const numPoints = 10;
+
+    for (let i = 0; i < positions.length - 1; i++) {
+        const leftCartographic = Cesium.Cartographic.fromCartesian(positions[i]);
+        const rightCartographic = Cesium.Cartographic.fromCartesian(positions[i + 1]);
+
+        for (let j = 0; j <= numPoints; j++) {
+            const fraction = j / numPoints;
+
+            // 对经度、纬度和高度进行线性插值
+            const interpolatedLongitude = Cesium.Math.lerp(
+                leftCartographic.longitude,
+                rightCartographic.longitude,
+                fraction
+            );
+            const interpolatedLatitude = Cesium.Math.lerp(
+                leftCartographic.latitude,
+                rightCartographic.latitude,
+                fraction
+            );
+            const interpolatedHeight = Cesium.Math.lerp(
+                leftCartographic.height,
+                rightCartographic.height,
+                fraction
+            );
+
+            // 将插值结果转换为 Cartesian3 并添加到 newPositions 数组
+            const interpolatedPosition = Cesium.Cartesian3.fromRadians(
+                interpolatedLongitude,
+                interpolatedLatitude,
+                interpolatedHeight
+            );
+            newPositions.push(interpolatedPosition);
+        }
+    }
+    return newPositions;
+};
+
+// 计算三角形面积
+const triangleArea = (a: Cesium.Cartesian3, b: Cesium.Cartesian3, c: Cesium.Cartesian3) => {
+    const ab = subtractVectors(b, a);
+    const ac = subtractVectors(c, a);
+    const cross = crossProduct(ab, ac);
+    return vectorMagnitude(cross) / 2.0;
+};
+
 /**
- * 计算曲面面积-3d
- * @param {*} Cesium cesium 实例
+ * 计算曲面面积-3d - 使用 d3-delaunay 库
  * @param {{ x: number, y: number, z: number }} positions 笛卡尔3d坐标
  * @returns {number} 曲面面积
  */
 export const compute_3DPolygonArea = (
     Cesium: typeof import('cesium'),
-    positions: { x: number; y: number; z: number }[]
+    positions: Cesium.Cartesian3[]
 ) => {
-    if (positions.length < 3) {
-        return 0;
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const indices = (Cesium as any).PolygonPipeline.triangulate(
-        positions.map((pos) => {
-            return new Cesium.Cartesian2(pos.x, pos.y);
-        })
-    );
+    if (positions.length < 3) return 0;
+    positions = linearInterpolation(Cesium, positions);
 
-    // 计算三角形面积
-    function triangleArea(a: Cesium.Cartesian3, b: Cesium.Cartesian3, c: Cesium.Cartesian3) {
-        // 得到向量的模长
-        const ab = Cesium.Cartesian3.subtract(b, a, new Cesium.Cartesian3());
-        const ac = Cesium.Cartesian3.subtract(c, a, new Cesium.Cartesian3());
-        // 通过模长计算叉积，叉积（ab * ac）的模长, 长度等于两个向量所张成的平行四边形的面积，且方向垂直于这两个向量
-        const cross = Cesium.Cartesian3.cross(ab, ac, new Cesium.Cartesian3());
-        // 计算叉积向量的模（即长度）。由于叉积向量的模表示的是平行四边形的面积，所以将其除以 2 得到的是三角形的面积。
-        return Cesium.Cartesian3.magnitude(cross) / 2.0;
-    }
+    const points = positions.map((pos) => {
+        return [pos.x, pos.y];
+    });
+    const delaunay = Delaunay.from(points);
+    const triangles = delaunay.triangles;
 
-    // 计算地表面积
-    let surfaceArea = 0.0;
-    for (let i = 0; i < indices.length; i += 3) {
-        const a = positions[indices[i]] as Cesium.Cartesian3;
-        const b = positions[indices[i + 1]] as Cesium.Cartesian3;
-        const c = positions[indices[i + 2]] as Cesium.Cartesian3;
+    let surfaceArea = 0;
+    for (let i = 0; i < triangles.length; i += 3) {
+        const a = positions[triangles[i]];
+        const b = positions[triangles[i + 1]];
+        const c = positions[triangles[i + 2]];
         surfaceArea += triangleArea(a, b, c);
     }
-
     return surfaceArea;
 };
 

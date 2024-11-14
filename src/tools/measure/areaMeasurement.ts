@@ -197,13 +197,14 @@ export default class AreaMeasurement extends MouseEvent {
         const tipEntity = this.viewer.entities.add({
             position: descartesPoints[0],
             label: {
-                text: `2D面积：${area2d.toFixed(2)}m² \n 3D面积：${area3d.toFixed(2)}m²`,
-                font: '10px sans-serif',
+                text: `平面面积：${area2d.toFixed(2)}m² \n 测地面积：${area3d.toFixed(2)}m²`,
+                font: '12px sans-serif',
                 fillColor: this.cesium.Color.WHITE,
                 outlineColor: this.cesium.Color.BLACK,
                 outlineWidth: 2,
                 style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
                 showBackground: false,
+                pixelOffset: new this.cesium.Cartesian2(0, 20), // 标签稍微下移
                 verticalOrigin: this.cesium.VerticalOrigin.TOP,
                 disableDepthTestDistance: Number.POSITIVE_INFINITY,
                 heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,

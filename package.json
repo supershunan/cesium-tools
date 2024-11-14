@@ -24,6 +24,7 @@
         "@turf/turf": "^7.0.0",
         "@types/geojson": "^7946.0.14",
         "cesium": "^1.119.0",
+        "d3-delaunay": "^6.0.4",
         "eslint-config-ts-fxt": "^1.0.1"
     },
     "devDependencies": {

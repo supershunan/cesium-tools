@@ -222,13 +222,18 @@ export default class AngleMeasurement1 extends MouseEvent {
         });
     }
 
-    private computedDistance = (
+    private computedDistance = async (
         start: Cesium.Cartesian3,
         end: Cesium.Cartesian3,
         type: 'click' | 'move'
     ) => {
         const distance_2d = compute_placeDistance_2d(Cesium, start, end);
-        const ditance_3d = compute_geodesicaDistance_3d(Cesium, start, end);
+        const ditance_3d = await compute_geodesicaDistance_3d(
+            Cesium,
+            start,
+            end,
+            this.viewer.terrainProvider
+        );
         this.createTip(start, end, distance_2d.toFixed(2), ditance_3d.toFixed(2), type);
     };
 

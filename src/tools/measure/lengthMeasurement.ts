@@ -89,7 +89,7 @@ export default class LengthMeasurement extends MouseEvent {
     }
 
     protected leftClickEvent(): void {
-        this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+        this.handler.setInputAction(async (e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
@@ -107,12 +107,11 @@ export default class LengthMeasurement extends MouseEvent {
                     return JSON.parse(item);
                 });
                 // 由于第二次点击又推进来一个元素，所以需要取的开始点位是推进来的倒数第二个元素
-                this.options?.trendsComputed &&
-                    this.computedDistance(
-                        tempPositions[tempPositions.length - 2],
-                        currentPosition,
-                        'click'
-                    );
+                await this.computedDistance(
+                    tempPositions[tempPositions.length - 2],
+                    currentPosition,
+                    'click'
+                );
             }
         }, this.cesium.ScreenSpaceEventType.LEFT_CLICK);
     }
@@ -141,7 +140,7 @@ export default class LengthMeasurement extends MouseEvent {
     }
 
     protected mouseMoveEvent(): void {
-        this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
+        this.handler.setInputAction(async (e: { endPosition: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
@@ -154,8 +153,8 @@ export default class LengthMeasurement extends MouseEvent {
             const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
                 return JSON.parse(item);
             });
-            if (tempPositions.length > 0 && this.options?.trendsComputed) {
-                this.computedDistance(
+            if (tempPositions.length > 0 && !this.options?.clampToGround) {
+                await this.computedDistance(
                     tempPositions[tempPositions.length - 1],
                     currentPosition,
                     'move'
@@ -208,13 +207,23 @@ export default class LengthMeasurement extends MouseEvent {
         });
     }
 
-    private computedDistance = (
+    private computedDistance = async (
         start: Cesium.Cartesian3,
         end: Cesium.Cartesian3,
         type: 'click' | 'move'
     ) => {
-        const distance_2d = compute_placeDistance_2d(Cesium, start, end);
-        const ditance_3d = compute_geodesicaDistance_3d(Cesium, start, end);
+        let distance_2d = 0,
+            ditance_3d = 0;
+        if (this.options?.clampToGround) {
+            ditance_3d = await compute_geodesicaDistance_3d(
+                Cesium,
+                start,
+                end,
+                this.viewer.terrainProvider
+            );
+        } else {
+            distance_2d = compute_placeDistance_2d(Cesium, start, end);
+        }
         this.createTip(start, end, distance_2d.toFixed(2), ditance_3d.toFixed(2), type);
     };
 
@@ -245,8 +254,8 @@ export default class LengthMeasurement extends MouseEvent {
             position: labelPosition,
             label: {
                 text: this.options?.clampToGround
-                    ? `贴地距离${distance_2d}m`
-                    : `直线距离${distance_3d}m`,
+                    ? `贴地距离${distance_3d}m`
+                    : `直线距离${distance_2d}m`,
                 font: '10px sans-serif',
                 fillColor: this.cesium.Color.WHITE,
                 outlineColor: this.cesium.Color.BLACK,

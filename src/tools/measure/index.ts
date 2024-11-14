@@ -8,7 +8,7 @@ import { MeasureTypeEnum } from '../../enum/enum';
 
 export interface MeasurementActions {
     /** 激活 */
-    active: (options?: { trendsComputed: boolean; clampToGround: boolean }) => void;
+    active: (options?: { clampToGround: boolean }) => void;
     /** 注销 */
     deactivate: () => void;
     /** 清除图层 */
@@ -51,7 +51,7 @@ export function useMeasure(viewer: Cesium.Viewer, cesium: typeof Cesium): Measur
         }
 
         return {
-            active: (options?: { trendsComputed: boolean; clampToGround: boolean }) => {
+            active: (options?: { clampToGround: boolean }) => {
                 currentMeasurement[type]?.active(options);
             },
             deactivate: () => {

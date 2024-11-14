@@ -11,7 +11,7 @@ export default class AreaMeasurement extends MouseEvent {
     protected readonly cesium: typeof Cesium;
 
     // 2、集合管理
-    private options?: { trendsComputed?: boolean };
+    private options?: T;
 
     // 3、状态管理
     private state = {
@@ -45,8 +45,8 @@ export default class AreaMeasurement extends MouseEvent {
         this.tipEntities = [];
     }
 
-    active(options?: { trendsComputed?: boolean }): void {
-        this.options = options ? options : { trendsComputed: true };
+    active(options?: T): void {
+        this.options = options;
         this.registerEvents();
     }
 

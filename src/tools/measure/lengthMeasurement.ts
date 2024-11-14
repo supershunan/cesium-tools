@@ -45,8 +45,8 @@ export default class LengthMeasurement extends MouseEvent {
         this.tipEntities = [];
     }
 
-    active(options?: { trendsComputed: boolean; clampToGround: boolean }): void {
-        this.options = options ? options : { trendsComputed: true, clampToGround: true };
+    active(options?: { clampToGround: boolean }): void {
+        this.options = options ? options : { clampToGround: true };
         this.registerEvents();
     }
 

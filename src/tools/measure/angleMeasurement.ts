@@ -1,6 +1,6 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
-import { compute_Angle, compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
+import { compute_Angle, compute_placeDistance_2d } from './compute';
 import { MouseStatusEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
 
@@ -108,7 +108,7 @@ export default class AngleMeasurement1 extends MouseEvent {
             this.drawingPolyline();
 
             const points = this.pointDatas.get(index) ?? [];
-            if (points.length > 3) {
+            if (points.length > 1) {
                 const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
                     return JSON.parse(item);
                 });
@@ -222,26 +222,19 @@ export default class AngleMeasurement1 extends MouseEvent {
         });
     }
 
-    private computedDistance = async (
+    private computedDistance = (
         start: Cesium.Cartesian3,
         end: Cesium.Cartesian3,
         type: 'click' | 'move'
     ) => {
         const distance_2d = compute_placeDistance_2d(Cesium, start, end);
-        const ditance_3d = await compute_geodesicaDistance_3d(
-            Cesium,
-            start,
-            end,
-            this.viewer.terrainProvider
-        );
-        this.createTip(start, end, distance_2d.toFixed(2), ditance_3d.toFixed(2), type);
+        this.createTip(start, end, distance_2d.toFixed(2), type);
     };
 
     private createTip(
         start: Cesium.Cartesian3,
         end: Cesium.Cartesian3,
         distance_2d: string,
-        distance_3d: string,
         type: 'click' | 'move'
     ) {
         this.tipMoveEntity && this.viewer.entities.remove(this.tipMoveEntity);
@@ -263,7 +256,7 @@ export default class AngleMeasurement1 extends MouseEvent {
         const tipEntity = this.viewer.entities.add({
             position: labelPosition,
             label: {
-                text: `贴地距离${distance_2d}m \n 直线距离${distance_3d}m`,
+                text: `直线距离${distance_2d}m`,
                 font: '10px sans-serif',
                 fillColor: this.cesium.Color.WHITE,
                 outlineColor: this.cesium.Color.BLACK,

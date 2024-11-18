@@ -32,7 +32,7 @@ export enum DrawingTypeNameEnum {
 export type LatLng = {
     latitude: number;
     longitude: number;
-    height: number;
+    height?: number;
 };
 
 export type Points = Cesium.Cartesian3 | LatLng;
@@ -69,4 +69,16 @@ export type EditPrimitiveOptions = {
     polygon?: { color?: Cesium.Color; positions?: Points[] };
     billboard?: Cesium.BillboardCollection;
     label?: Cesium.LabelCollection;
+    options?: Points[];
+};
+
+export type CreateEntityOptions = {
+    type?: DrawingTypeEnum;
+    point?: Cesium.Entity.ConstructorOptions & CommonPrimitiveProps;
+    polyline?: Cesium.Entity.ConstructorOptions & CommonPrimitiveProps;
+    polygon?: Cesium.Entity.ConstructorOptions & CommonPrimitiveProps;
+    polylinPolygon?: CommonPrimitiveProps;
+    billboard?: Cesium.Entity.ConstructorOptions & CommonPrimitiveProps;
+    label?: Cesium.Entity.ConstructorOptions;
+    options?: Points[];
 };

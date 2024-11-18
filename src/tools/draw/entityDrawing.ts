@@ -9,34 +9,28 @@ import {
     DrawingTypeEnum,
     DrawingTypeNameEnum,
     LatLng,
+    CreateEntityOptions,
 } from './type';
 
 /**
- * 绘图基础类，用于处理各种图形的绘制 --- 使用Primitive保存
- * @class DrawingPrimitives
+ * 绘图基础类，用于处理各种图形的绘制 --- 使用Entity保存
+ * @class DrawingEntities
  * @extends MouseEvent
  */
-export default class DrawingPrimitives extends MouseEvent {
+export default class DrawingEntities extends MouseEvent {
     // 1、核心属性
     protected readonly viewer: Cesium.Viewer;
     protected readonly handler: Cesium.ScreenSpaceEventHandler;
     protected readonly cesium: typeof Cesium;
 
-    // 2、集合管理
-    private collection = {
-        locationPoint: new Cesium.PointPrimitiveCollection(),
-        locationBillbord: new Cesium.BillboardCollection(),
-        locationLabel: new Cesium.LabelCollection(),
-    };
-
-    // 3、状态管理
+    // 2、状态管理
     private state = {
         drawingType: DrawingTypeEnum.POINT,
         curSort: 0,
         options: null as DrawingEntityOptions | CreatePrimitiveOptions | null,
     };
 
-    // 4、数据管理
+    // 3、数据管理
     private pointDatas = new Map<number, string[]>();
     private tempMovePosition = new Map<number, string>();
     private pointEntitys: { [key: number]: Cesium.Entity[] };
@@ -53,15 +47,6 @@ export default class DrawingPrimitives extends MouseEvent {
         this.viewer = viewer;
         this.handler = handler;
         this.cesium = cesium;
-        this.collection.locationPoint = this.viewer.scene.primitives.add(
-            new this.cesium.PointPrimitiveCollection()
-        );
-        this.collection.locationBillbord = this.viewer.scene.primitives.add(
-            new this.cesium.BillboardCollection()
-        );
-        this.collection.locationLabel = this.viewer.scene.primitives.add(
-            new this.cesium.LabelCollection()
-        );
         this.state.drawingType = DrawingTypeEnum.POINT;
         this.state.options = null;
         this.state.curSort = 0;
@@ -156,7 +141,7 @@ export default class DrawingPrimitives extends MouseEvent {
     }
 
     protected rightClickEvent(): void {
-        this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+        this.handler.setInputAction(() => {
             try {
                 const index = this.state.curSort;
                 const isPolygon =
@@ -385,7 +370,7 @@ export default class DrawingPrimitives extends MouseEvent {
         );
     }
 
-    create(id: string | number, positions: Points[], options: CreatePrimitiveOptions) {
+    create(id: string | number, positions: Points[], options: CreateEntityOptions) {
         /**
          * TODO: 保存的时候 右键导致 curSort 加1 所以需要将他还原
          */
@@ -418,22 +403,22 @@ export default class DrawingPrimitives extends MouseEvent {
 
         switch (options.type) {
             case DrawingTypeEnum.POINT:
-                this.drawPointPrimitive(index, id, cartesianPositions, options);
+                this.createPointEntity(index, id, cartesianPositions, options);
                 break;
             case DrawingTypeEnum.POLYLINE:
-                this.drawingPolylinePrimitive(index, id, cartesianPositions, options);
+                this.createPolylineEntity(index, id, cartesianPositions, options);
                 break;
             case DrawingTypeEnum.POLYGON:
-                this.drawingPolygonPrimitive(index, id, cartesianPositions, options);
+                this.createPolygonEntity(index, id, cartesianPositions, options);
                 break;
             case DrawingTypeEnum.POLYGON_AND_POLYLINE:
-                this.drawingPolylinePolygonPrimitive(index, id, cartesianPositions, options);
+                this.createPolylinePolygonEntity(index, id, cartesianPositions, options);
                 break;
             case DrawingTypeEnum.BILLBOARD:
                 this.drawingBillboardPrimitive(index, id, cartesianPositions, options);
                 break;
             case DrawingTypeEnum.LABEL:
-                this.drawingLabelPrimitive(index, id, cartesianPositions, options);
+                this.createLabelEntity(index, id, cartesianPositions, options);
                 break;
 
             default:
@@ -449,207 +434,243 @@ export default class DrawingPrimitives extends MouseEvent {
         return cartesianPositions;
     }
 
-    drawPointPrimitive(
+    createPointEntity(
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: CreatePrimitiveOptions
+        options: CreateEntityOptions
     ) {
         this.clearAllEntity(index);
 
-        if (options.point?.showLabel) {
-            this.drawingLabelPrimitive(index, id, cartesianPositions, options);
-        }
-
         cartesianPositions.forEach((point: Cesium.Cartesian3) => {
-            this.collection.locationPoint.add({
-                id,
-                position: point,
-                color: this.cesium.Color.RED,
-                outlineColor: this.cesium.Color.BLACK,
-                outlineWidth: 1,
-                pixelSize: 8,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                ...options.point,
+            this.viewer.entities.add({
+                id: String(id),
+                position: point as Cesium.Cartesian3,
+                point: {
+                    color: this.cesium.Color.YELLOW,
+                    outlineColor: this.cesium.Color.BLACK,
+                    outlineWidth: 1,
+                    pixelSize: 8,
+                    clampToGround: true,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    classificationType: Cesium.ClassificationType.BOTH, // 支持类型： 地形、3DTile、或者在地面上
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND, //设置HeightReference高度参考类型为CLAMP_TO_GROUND贴地类型
+                    ...options.point,
+                },
+                label: options.point?.showLabel
+                    ? {
+                          text: 'Point',
+                          font: '10px sans-serif',
+                          fillColor: this.cesium.Color.WHITE,
+                          outlineColor: this.cesium.Color.BLACK,
+                          outlineWidth: 2,
+                          style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                          showBackground: true,
+                          verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                          pixelOffset: new this.cesium.Cartesian2(0, 20),
+                          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                          heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
+                          ...options.label,
+                      }
+                    : {},
             });
         });
     }
 
-    drawingPolylinePrimitive(
+    createPolylineEntity(
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: CreatePrimitiveOptions
+        options: CreateEntityOptions
     ) {
         this.clearAllEntity(index);
 
-        if (options.polyline?.showLabel) {
-            this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
-        }
-
-        const instance = new this.cesium.GeometryInstance({
-            id,
-            geometry: new this.cesium.GroundPolylineGeometry({
+        this.viewer.entities.add({
+            id: String(id),
+            polyline: {
                 positions: cartesianPositions,
-                loop: true,
-                width: options.polyline?.width ?? 4.0,
-            }),
-            attributes: {
-                color: this.cesium.ColorGeometryInstanceAttribute.fromColor(
-                    options.polyline?.color ?? this.cesium.Color.CHARTREUSE.withAlpha(0.8)
+                width: 2,
+                material: new this.cesium.ColorMaterialProperty(this.cesium.Color.CHARTREUSE),
+                depthFailMaterial: new this.cesium.ColorMaterialProperty(
+                    this.cesium.Color.CHARTREUSE
                 ),
+                clampToGround: true,
+                ...options.polyline,
             },
+            label: options.polyline?.showLabel
+                ? {
+                      text: 'Point',
+                      font: '10px sans-serif',
+                      fillColor: this.cesium.Color.WHITE,
+                      outlineColor: this.cesium.Color.BLACK,
+                      outlineWidth: 2,
+                      style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                      showBackground: true,
+                      verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                      pixelOffset: new this.cesium.Cartesian2(0, 20),
+                      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                      heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
+                      ...options.label,
+                  }
+                : {},
         });
-
-        const linePrimitive = new this.cesium.GroundPolylinePrimitive({
-            geometryInstances: instance,
-            appearance: new this.cesium.PolylineColorAppearance(),
-        });
-
-        this.viewer.scene.groundPrimitives.add(linePrimitive);
     }
 
-    drawingPolygonPrimitive(
+    createPolygonEntity(
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: CreatePrimitiveOptions
+        options: CreateEntityOptions
     ) {
         this.clearAllEntity(index);
 
-        if (options.polygon?.showLabel) {
-            this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
-        }
-
-        const polygon = new this.cesium.GeometryInstance({
-            geometry: new this.cesium.PolygonGeometry({
-                polygonHierarchy: new this.cesium.PolygonHierarchy(cartesianPositions),
-            }),
-            id,
+        this.viewer.entities.add({
+            id: String(id),
+            polygon: {
+                hierarchy: new this.cesium.CallbackProperty(() => {
+                    return new this.cesium.PolygonHierarchy(cartesianPositions);
+                }, false),
+                material: new this.cesium.ColorMaterialProperty(
+                    this.cesium.Color.YELLOW.withAlpha(0.3)
+                ),
+                classificationType: this.cesium.ClassificationType.BOTH,
+                ...options.polygon,
+            },
+            label: options.polygon?.showLabel
+                ? {
+                      text: 'Point',
+                      font: '10px sans-serif',
+                      fillColor: this.cesium.Color.WHITE,
+                      outlineColor: this.cesium.Color.BLACK,
+                      outlineWidth: 2,
+                      style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                      showBackground: true,
+                      verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                      pixelOffset: new this.cesium.Cartesian2(0, 20),
+                      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                      heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
+                      ...options.label,
+                  }
+                : {},
         });
-
-        const polygonAppearance = new this.cesium.MaterialAppearance({
-            material: this.cesium.Material.fromType('Color', {
-                color: options.polygon?.color ?? this.cesium.Color.YELLOW.withAlpha(0.3),
-            }),
-            faceForward: true,
-        });
-
-        const addPolygonGroundPrimitive = new this.cesium.GroundPrimitive({
-            //贴地面
-            geometryInstances: polygon,
-            appearance: polygonAppearance,
-        });
-
-        this.viewer.scene.primitives.add(addPolygonGroundPrimitive);
     }
 
-    drawingPolylinePolygonPrimitive(
+    createPolylinePolygonEntity(
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: CreatePrimitiveOptions
+        options: CreateEntityOptions
     ) {
         this.clearAllEntity(index);
 
-        if (options.polylinPolygon?.showLabel) {
-            this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
-        }
-
-        const instance = new this.cesium.GeometryInstance({
-            id,
-            geometry: new this.cesium.GroundPolylineGeometry({
+        this.viewer.entities.add({
+            id: String(id),
+            polyline: {
                 positions: cartesianPositions,
-                loop: true,
-                width: options.polyline?.width ?? 4.0,
-            }),
-            attributes: {
-                color: this.cesium.ColorGeometryInstanceAttribute.fromColor(
-                    options.polyline?.color ?? this.cesium.Color.CHARTREUSE.withAlpha(0.8)
+                width: 2,
+                material: new this.cesium.ColorMaterialProperty(this.cesium.Color.CHARTREUSE),
+                depthFailMaterial: new this.cesium.ColorMaterialProperty(
+                    this.cesium.Color.CHARTREUSE
                 ),
+                clampToGround: true,
+                ...options.polyline,
             },
+            polygon: {
+                hierarchy: new this.cesium.CallbackProperty(() => {
+                    return new this.cesium.PolygonHierarchy(cartesianPositions);
+                }, false),
+                material: new this.cesium.ColorMaterialProperty(
+                    this.cesium.Color.YELLOW.withAlpha(0.3)
+                ),
+                classificationType: this.cesium.ClassificationType.BOTH,
+                ...options.polygon,
+            },
+            label: options.polylinPolygon?.showLabel
+                ? {
+                      text: 'Point',
+                      font: '10px sans-serif',
+                      fillColor: this.cesium.Color.WHITE,
+                      outlineColor: this.cesium.Color.BLACK,
+                      outlineWidth: 2,
+                      style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                      showBackground: true,
+                      verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                      pixelOffset: new this.cesium.Cartesian2(0, 20),
+                      disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                      heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
+                      ...options.label,
+                  }
+                : {},
         });
-
-        const linePrimitive = new this.cesium.GroundPolylinePrimitive({
-            geometryInstances: instance,
-            appearance: new this.cesium.PolylineColorAppearance(),
-        });
-
-        this.viewer.scene.groundPrimitives.add(linePrimitive);
-
-        const polygon = new this.cesium.GeometryInstance({
-            geometry: new this.cesium.PolygonGeometry({
-                polygonHierarchy: new this.cesium.PolygonHierarchy(cartesianPositions),
-            }),
-            id,
-        });
-
-        const polygonAppearance = new this.cesium.MaterialAppearance({
-            material: this.cesium.Material.fromType('Color', {
-                color: options.polygon?.color ?? this.cesium.Color.YELLOW.withAlpha(0.3),
-            }),
-            faceForward: true,
-        });
-
-        const addPolygonGroundPrimitive = new this.cesium.GroundPrimitive({
-            //贴地面
-            geometryInstances: polygon,
-            appearance: polygonAppearance,
-        });
-
-        this.viewer.scene.primitives.add(addPolygonGroundPrimitive);
     }
 
     drawingBillboardPrimitive(
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: CreatePrimitiveOptions
+        options: CreateEntityOptions
     ) {
         this.clearAllEntity(index);
 
-        if (options.billboard?.showLabel) {
-            this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
-        }
-
         cartesianPositions.forEach((point: Cesium.Cartesian3) => {
-            this.collection.locationBillbord.add({
-                id,
-                position: point,
-                image: '/public/resources/images/特征点_选中.png',
-                width: 24,
-                height: 24,
-                // disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                horizontalOrigin: this.cesium.HorizontalOrigin.CENTER,
-                verticalOrigin: this.cesium.VerticalOrigin.BOTTOM, // 使用 BOTTOM 确保图标底部固定在地形上
-                ...options?.billboard,
+            this.viewer.entities.add({
+                id: String(id),
+                position: point as Cesium.Cartesian3,
+                billboard: {
+                    image: '/public/resources/images/特征点_选中.png',
+                    width: 24,
+                    height: 24,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    horizontalOrigin: this.cesium.HorizontalOrigin.CENTER,
+                    verticalOrigin: this.cesium.VerticalOrigin.CENTER,
+                    ...options.billboard,
+                },
+                label: options.billboard?.showLabel
+                    ? {
+                          text: 'Point',
+                          font: '10px sans-serif',
+                          fillColor: this.cesium.Color.WHITE,
+                          outlineColor: this.cesium.Color.BLACK,
+                          outlineWidth: 2,
+                          style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                          showBackground: true,
+                          verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                          pixelOffset: new this.cesium.Cartesian2(0, 20),
+                          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                          heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
+                          ...options.label,
+                      }
+                    : {},
             });
         });
     }
 
-    drawingLabelPrimitive(
+    createLabelEntity(
         index: number,
         id: number | string,
         cartesianPositions: Cesium.Cartesian3[],
-        options: CreatePrimitiveOptions
+        options: CreateEntityOptions
     ) {
         this.clearAllEntity(index);
 
         cartesianPositions.forEach((point: Cesium.Cartesian3) => {
-            this.collection.locationLabel.add({
-                id,
-                position: point,
-                text: `Point`,
-                font: '14px sans-serif',
-                fillColor: this.cesium.Color.WHITE,
-                outlineColor: this.cesium.Color.BLACK,
-                outlineWidth: 2,
-                style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
-                showBackground: true,
-                verticalOrigin: this.cesium.VerticalOrigin.TOP,
-                pixelOffset: new this.cesium.Cartesian2(-12, -35),
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                ...options?.label,
+            this.viewer.entities.add({
+                id: String(id),
+                position: point as Cesium.Cartesian3,
+                label: {
+                    text: 'Point',
+                    font: '10px sans-serif',
+                    fillColor: this.cesium.Color.WHITE,
+                    outlineColor: this.cesium.Color.BLACK,
+                    outlineWidth: 2,
+                    style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                    showBackground: true,
+                    verticalOrigin: this.cesium.VerticalOrigin.TOP,
+                    pixelOffset: new this.cesium.Cartesian2(0, 20),
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
+                    ...options.label,
+                },
             });
         });
     }
@@ -688,181 +709,66 @@ export default class DrawingPrimitives extends MouseEvent {
         }
     }
 
-    edit(
-        id: number | string,
-        viewer: Cesium.Viewer,
-        options: EditPrimitiveOptions // Partial<Options> 全部设为可选 Omit<Options, 'type'> & Partial<Pick<Options, 'type'>>
-    ) {
+    edit(id: number | string, viewer: Cesium.Viewer, options: CreateEntityOptions) {
         let isEdited = false;
-        const primitivesLength = viewer.scene.primitives.length;
-        const groundPrimitivesLength = viewer.scene.groundPrimitives.length;
 
         try {
-            for (let i = 0; i < primitivesLength; i++) {
-                const primitive = viewer.scene.primitives.get(i);
-                if (primitive instanceof this.cesium.BillboardCollection) {
-                    for (let j = 0; j < primitive.length; j++) {
-                        const curBillboard = primitive.get(j);
-                        // eslint-disable-next-line max-depth
-                        if (curBillboard.id === id && options?.billboard) {
-                            Object.assign(curBillboard, options?.billboard);
-                            isEdited = true;
+            // 如果传入的是经纬度坐标，转换为笛卡尔坐标
+            const cartesianPositions =
+                options?.options && 'latitude' in options?.options[0]
+                    ? this.latLngToCartesians(options?.options as LatLng[])
+                    : (options?.options as Cesium.Cartesian3[]);
+
+            viewer.entities.values.forEach((entity) => {
+                if (entity.id === String(id)) {
+                    // 更新位置信息
+                    if (cartesianPositions) {
+                        // 对于点、广告牌、标签等单点实体
+                        if (entity.position && cartesianPositions.length > 0) {
+                            entity.position = new this.cesium.CallbackProperty(() => {
+                                return cartesianPositions[0];
+                            }, false);
+                        }
+
+                        // 对于线实体
+                        if (entity.polyline) {
+                            entity.polyline.positions = new this.cesium.CallbackProperty(() => {
+                                return cartesianPositions;
+                            }, false);
+                        }
+
+                        // 对于面实体
+                        if (entity.polygon) {
+                            entity.polygon.hierarchy = new this.cesium.CallbackProperty(() => {
+                                return new this.cesium.PolygonHierarchy(cartesianPositions);
+                            }, false);
                         }
                     }
-                }
 
-                if (primitive instanceof this.cesium.LabelCollection) {
-                    for (let j = 0; j < primitive.length; j++) {
-                        const curLabel = primitive.get(j);
-                        console.log('Found label primitive with id:', curLabel.id);
-                        // eslint-disable-next-line max-depth
-                        if (curLabel.id === id && options.label) {
-                            Object.assign(curLabel, options.label);
-                            isEdited = true;
-                        }
-                    }
-                }
-
-                if (primitive instanceof this.cesium.PointPrimitiveCollection) {
-                    for (let j = 0; j < primitive.length; j++) {
-                        const curPoint = primitive.get(j);
-                        // eslint-disable-next-line max-depth
-                        if (curPoint.id === id && options?.point) {
-                            Object.assign(curPoint, options?.point);
-                            isEdited = true;
-                        }
-                    }
-                }
-
-                if (
-                    primitive instanceof this.cesium.GroundPrimitive &&
-                    primitive._boundingSpheresKeys[0] === id &&
-                    options?.polygon
-                ) {
-                    // 处理位置数据
-                    let cartesianPositions;
-                    if (options.polygon.positions) {
-                        const uniquePositions = Array.from(
-                            new Set(
-                                (options.polygon.positions as Cesium.Cartesian3[]).map((pos) => {
-                                    return JSON.stringify(pos);
-                                })
-                            )
-                        ).map((pos) => {
-                            return JSON.parse(pos);
-                        });
-
-                        cartesianPositions =
-                            Array.isArray(uniquePositions) &&
-                            uniquePositions[0] &&
-                            typeof uniquePositions[0] === 'object' &&
-                            'latitude' in uniquePositions[0]
-                                ? this.latLngToCartesians(uniquePositions as LatLng[])
-                                : (uniquePositions as Cesium.Cartesian3[]);
-                    } else {
-                        cartesianPositions =
-                            primitive._primitiveOptions.geometryInstances[0].geometry
-                                ._polygonHierarchy.positions;
+                    // 更新样式属性
+                    if (entity.point && options.point) {
+                        Object.assign(entity.point, options.point);
                     }
 
-                    // 创建新的多边形实例
-                    const polygon = new this.cesium.GeometryInstance({
-                        geometry: new this.cesium.PolygonGeometry({
-                            polygonHierarchy: new this.cesium.PolygonHierarchy(cartesianPositions),
-                        }),
-                        id: primitive._boundingSpheresKeys[0],
-                    });
-
-                    // 创建外观
-                    const polygonAppearance = new this.cesium.MaterialAppearance({
-                        material: this.cesium.Material.fromType('Color', {
-                            color:
-                                options.polygon?.color ??
-                                primitive._appearance.material.uniforms.color ?? // 使用原来的颜色
-                                this.cesium.Color.YELLOW.withAlpha(0.3), // 默认颜色作为后备
-                        }),
-                        faceForward: true,
-                    });
-
-                    // 创建新的地面图元
-                    const newPolygonGroundPrimitive = new this.cesium.GroundPrimitive({
-                        geometryInstances: polygon,
-                        appearance: polygonAppearance,
-                    });
-
-                    // 移除旧图元并添加新图元
-                    viewer.scene.primitives.remove(primitive);
-                    viewer.scene.primitives.add(newPolygonGroundPrimitive);
-                    viewer.scene.requestRender();
-                }
-            }
-
-            for (let i = 0; i < groundPrimitivesLength; i++) {
-                const primitive = viewer.scene.groundPrimitives.get(i);
-
-                if (
-                    primitive instanceof this.cesium.GroundPolylinePrimitive &&
-                    primitive._primitiveOptions.geometryInstances[0].id === id &&
-                    options?.polyline
-                ) {
-                    // 获取旧的实例
-                    const oldInstance = primitive._primitiveOptions.geometryInstances[0];
-
-                    // 创建一个新的颜色
-                    const newColor = options?.polyline?.color
-                        ? options.polyline.color
-                        : this.cesium.Color.CHARTREUSE.withAlpha(0.8);
-
-                    let cartesianPositions;
-                    if (options.polyline.positions) {
-                        const uniquePositions = Array.from(
-                            new Set(
-                                (options.polyline.positions as Cesium.Cartesian3[]).map((pos) => {
-                                    return JSON.stringify(pos);
-                                })
-                            )
-                        ).map((pos) => {
-                            return JSON.parse(pos);
-                        });
-                        cartesianPositions =
-                            Array.isArray(uniquePositions) &&
-                            uniquePositions[0] &&
-                            typeof uniquePositions[0] === 'object' &&
-                            'latitude' in uniquePositions[0]
-                                ? this.latLngToCartesians(uniquePositions as LatLng[])
-                                : (uniquePositions as Cesium.Cartesian3[]);
+                    if (entity.polyline && options.polyline) {
+                        Object.assign(entity.polyline, options.polyline);
                     }
 
-                    // 创建新的实例
-                    const newInstance = new this.cesium.GeometryInstance({
-                        geometry: new this.cesium.GroundPolylineGeometry({
-                            positions: cartesianPositions || oldInstance.geometry._positions,
-                            width: options.polyline?.width ?? 4.0,
-                            loop: true,
-                        }),
-                        attributes: {
-                            color: this.cesium.ColorGeometryInstanceAttribute.fromColor(newColor),
-                        },
-                        id: oldInstance.id,
-                    });
+                    if (entity.polygon && options.polygon) {
+                        Object.assign(entity.polygon, options.polygon);
+                    }
 
-                    // 创建新的线条 primitive
-                    const newLinePrimitive = new this.cesium.GroundPolylinePrimitive({
-                        geometryInstances: newInstance,
-                        appearance: new this.cesium.PolylineColorAppearance(),
-                    });
+                    if (entity.billboard && options.billboard) {
+                        Object.assign(entity.billboard, options.billboard);
+                    }
 
-                    // 移除旧的 primitive
-                    viewer.scene.groundPrimitives.remove(primitive);
+                    if (entity.label && options.label) {
+                        Object.assign(entity.label, options.label);
+                    }
 
-                    // 添加新的 primitive
-                    viewer.scene.groundPrimitives.add(newLinePrimitive);
-
-                    // 请求重新渲染
-                    viewer.scene.requestRender();
+                    isEdited = true;
                 }
-            }
-
+            });
             if (isEdited) {
                 this.dispatch('cesiumToolsFxt', {
                     type: options?.type && DrawingTypeNameEnum[options?.type] + ' Edit',

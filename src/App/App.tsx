@@ -21,7 +21,7 @@ function App() {
         measure as Cesium.Viewer,
         Cesium
     );
-    const drawing = useDrawing(
+    const { drawing, drawingEntity } = useDrawing(
         measure as Cesium.Viewer,
         Cesium
     );
@@ -73,6 +73,7 @@ function App() {
         visibilityAnalysis.clear();
         turntableSwing.clear();
         drawing.clear()
+        drawingEntity.clear()
 
     };
 
@@ -148,7 +149,27 @@ function App() {
 
     }
 
+    const handleDrawingEntity = () => {
+        drawingEntity.active({
+            type: 3
+        });
+        drawingEntity.addToolsEventListener('cesiumToolsFxt', (e) => {
+            console.log(e)
+        })
+    }
+
     const getPrimvite = () => {
+        drawingEntity.create('wkkk', [
+            {
+                "longitude": 109.99036237572159,
+                "latitude": 34.21700361286686
+            },
+        ], {
+            type: 0,
+            point: {
+                showLabel: true,
+            },
+        })
         // const primitivesLength = measure?.scene.primitives.length;
         /**
          * TODO: 显示隐藏
@@ -254,7 +275,10 @@ function App() {
                 画点
             </button>
             <button className="btn13" onClick={handleDrawingDraw}>
-                画面
+                primitive绘制
+            </button>
+            <button className="btn14" onClick={handleDrawingEntity}>
+                entity绘制
             </button>
         </div>
     );

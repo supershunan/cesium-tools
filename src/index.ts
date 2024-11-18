@@ -12,6 +12,7 @@ import {
     DrawingEntityOptions,
     CreatePrimitiveOptions,
     EditPrimitiveOptions,
+    CreateEntityOptions,
 } from '@tools/draw/type';
 import { useDrawing, DrawingActions } from '@tools/draw/index';
 import useCesiumToolsManage from '@tools/eventTarget/index';
@@ -39,4 +40,5 @@ export type {
     DrawingEntityOptions,
     CreatePrimitiveOptions,
     EditPrimitiveOptions,
+    CreateEntityOptions,
 };

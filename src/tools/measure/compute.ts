@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+// @ts-expect-error: Enumeration member cannot have numeric name
 import { Delaunay } from 'd3-delaunay';
 
 /** 鞋带（Shoelace）公式计算面积 */

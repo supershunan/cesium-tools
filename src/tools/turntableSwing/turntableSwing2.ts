@@ -88,7 +88,7 @@ export default class TurntableSwing {
         const scratchCartesian3Normal = new Cesium.Cartesian3();
         const scratchCartesian3Normal1 = new Cesium.Cartesian3();
 
-        const u_rotationOffset = Cesium.Math.toRadians(0); // 例如设置为30度
+        // const u_rotationOffset = Cesium.Math.toRadians(0); // 例如设置为30度
 
         const ScanPostStage = new Cesium.PostProcessStage({
             fragmentShader: ScanSegmentShader,

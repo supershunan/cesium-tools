@@ -11,6 +11,7 @@ export default class AreaMeasurement extends MouseEvent {
     protected readonly cesium: typeof Cesium;
 
     // 2、集合管理
+    // @ts-expect-error: Enumeration member cannot have numeric name
     private options?: T;
 
     // 3、状态管理
@@ -45,6 +46,7 @@ export default class AreaMeasurement extends MouseEvent {
         this.tipEntities = [];
     }
 
+    // @ts-expect-error: Enumeration member cannot have numeric name
     active(options?: T): void {
         this.options = options;
         this.registerEvents();

@@ -5,7 +5,6 @@ import {
     CreatePrimitiveOptions,
     DrawingEntityOptions,
     Points,
-    EditPrimitiveOptions,
     DrawingTypeEnum,
     DrawingTypeNameEnum,
     LatLng,
@@ -257,6 +256,7 @@ export default class DrawingEntities extends MouseEvent {
     drawingPolylinEntity(index: number, type: DrawingTypeEnum): void {
         if (this.polylinePolygonEntities[index]) return;
         this.polylinePolygonEntities[index] = this.viewer.entities.add({
+            // @ts-expect-error: Enumeration member cannot have numeric name
             polyline:
                 type !== DrawingTypeEnum.POLYGON
                     ? {
@@ -309,6 +309,7 @@ export default class DrawingEntities extends MouseEvent {
                     : {},
             position: JSON.parse(this.tempMovePosition.get(index)!) as Cesium.Cartesian3,
             label: {
+                // @ts-expect-error: Enumeration member cannot have numeric name
                 text: `${(this.state.options?.name ?? '面') + index}`,
                 font: '10px sans-serif',
                 fillColor: this.cesium.Color.WHITE,
@@ -451,6 +452,7 @@ export default class DrawingEntities extends MouseEvent {
                     outlineColor: this.cesium.Color.BLACK,
                     outlineWidth: 1,
                     pixelSize: 8,
+                    // @ts-expect-error: Enumeration member cannot have numeric name
                     clampToGround: true,
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
                     classificationType: Cesium.ClassificationType.BOTH, // 支持类型： 地形、3DTile、或者在地面上
@@ -725,6 +727,7 @@ export default class DrawingEntities extends MouseEvent {
                     if (cartesianPositions) {
                         // 对于点、广告牌、标签等单点实体
                         if (entity.position && cartesianPositions.length > 0) {
+                            // @ts-expect-error: Enumeration member cannot have numeric name
                             entity.position = new this.cesium.CallbackProperty(() => {
                                 return cartesianPositions[0];
                             }, false);

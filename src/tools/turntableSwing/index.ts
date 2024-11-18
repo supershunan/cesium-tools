@@ -47,6 +47,7 @@ const turntableSwingProps: TurntableSwingProps = {
         currentViewer = viewer;
         instance = null; // Reset instance when viewer changes
     },
+    // @ts-expect-error: Enumeration member cannot have numeric name
     getInstance: () => {
         return instance?.turntableSwing ?? null;
     },

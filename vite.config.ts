@@ -1,10 +1,10 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+// import react from '@vitejs/plugin-react';
 import path from 'path';
 import dts from 'vite-plugin-dts';
 
 export default defineConfig({
-    plugins: [react(), dts()],
+    plugins: [dts()],
     resolve: {
         alias: {
             '@src': path.resolve(__dirname, './src'),
@@ -22,11 +22,11 @@ export default defineConfig({
             },
         },
         rollupOptions: {
-            external: ['react', 'cesium', '@turf/turf'],
+            external: ['cesium', '@turf/turf'],
             output: {
                 globals: {
                     cesium: 'Cesium',
-                    react: 'React',
+                    // react: 'React',
                     '@turf/turf': 'turf',
                 },
             },

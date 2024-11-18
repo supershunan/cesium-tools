@@ -29,6 +29,7 @@ export default class Draw extends MouseEvent {
     }
 
     deactivate(): void {
+        // @ts-expect-error: Enumeration member cannot have numeric name
         this.turntableSwing?.clear();
         this.unRegisterEvents();
     }
@@ -49,6 +50,7 @@ export default class Draw extends MouseEvent {
             this.turntableSwing = new TurntableSwing(
                 this.viewer,
                 currentPosition,
+                // @ts-expect-error: Enumeration member cannot have numeric name
                 this.turntableParams
             );
             // this.turntableSwing.add();
@@ -66,31 +68,37 @@ export default class Draw extends MouseEvent {
 
     /** 左偏角值 */
     private minimumClock(val: number) {
+        // @ts-expect-error: Enumeration member cannot have numeric name
         this.turntableSwing?.minimumClock(val);
     }
 
     /** 右偏角值 */
     private maximumClock(val: number) {
+        // @ts-expect-error: Enumeration member cannot have numeric name
         this.turntableSwing?.maximumClock(val);
     }
 
     /** 外径大小 */
     private radii(val: number) {
+        // @ts-expect-error: Enumeration member cannot have numeric name
         this.turntableSwing?.radii(val);
     }
 
     /** 内径大小 */
     private innerRadii(val: number) {
+        // @ts-expect-error: Enumeration member cannot have numeric name
         this.turntableSwing?.innerRadii(val);
     }
 
     /** 填充色 rgba */
     private fillColor(val: string) {
+        // @ts-expect-error: Enumeration member cannot have numeric name
         this.turntableSwing?.fillColor(val);
     }
 
     /** 边框色 rgba */
     private outlineColor(val: string) {
+        // @ts-expect-error: Enumeration member cannot have numeric name
         this.turntableSwing?.outlineColor(val);
     }
 

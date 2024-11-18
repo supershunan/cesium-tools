@@ -16,16 +16,22 @@ export enum DrawingTypeEnum {
 
 export enum DrawingTypeNameEnum {
     /** 点 */
+    // @ts-expect-error: Enumeration member cannot have numeric name
     '0' = 'POINT',
     /** 线 */
+    // @ts-expect-error: Enumeration member cannot have numeric name
     '1' = 'POLYLINE',
     /** 面 */
+    // @ts-expect-error: Enumeration member cannot have numeric name
     '2' = 'POLYGON',
     /** 线与面 */
+    // @ts-expect-error: Enumeration member cannot have numeric name
     '3' = 'POLYGON_AND_POLYLINE',
     /** 广告牌 */
+    // @ts-expect-error: Enumeration member cannot have numeric name
     '4' = 'BILLBOARD',
     /** 标签 */
+    // @ts-expect-error: Enumeration member cannot have numeric name
     '5' = 'LABEL',
 }
 

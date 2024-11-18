@@ -1,4 +1,4 @@
-const size = 30;
+// const size = 30;
 export default `
     #version 300 es
     precision highp float;

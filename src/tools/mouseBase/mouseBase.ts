@@ -19,7 +19,8 @@ export default abstract class MouseDrawBase {
 
     active(): void;
     active(options: unknown): void;
-    active(options?: unknown): void {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    active(_options?: unknown): void {
         this.deactivate();
         this.registerEvents();
     }

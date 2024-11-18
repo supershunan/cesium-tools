@@ -156,7 +156,7 @@ export default class DrawingPrimitives extends MouseEvent {
     }
 
     protected rightClickEvent(): void {
-        this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+        this.handler.setInputAction(() => {
             try {
                 const index = this.state.curSort;
                 const isPolygon =
@@ -272,6 +272,7 @@ export default class DrawingPrimitives extends MouseEvent {
     drawingPolylinEntity(index: number, type: DrawingTypeEnum): void {
         if (this.polylinePolygonEntities[index]) return;
         this.polylinePolygonEntities[index] = this.viewer.entities.add({
+            // @ts-expect-error: Enumeration member cannot have numeric name
             polyline:
                 type !== DrawingTypeEnum.POLYGON
                     ? {
@@ -324,6 +325,7 @@ export default class DrawingPrimitives extends MouseEvent {
                     : {},
             position: JSON.parse(this.tempMovePosition.get(index)!) as Cesium.Cartesian3,
             label: {
+                // @ts-expect-error: Enumeration member cannot have numeric name
                 text: `${(this.state.options?.name ?? '面') + index}`,
                 font: '10px sans-serif',
                 fillColor: this.cesium.Color.WHITE,
@@ -483,6 +485,7 @@ export default class DrawingPrimitives extends MouseEvent {
     ) {
         this.clearAllEntity(index);
 
+        // @ts-expect-error: Enumeration member cannot have numeric name
         if (options.polyline?.showLabel) {
             this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
         }
@@ -496,6 +499,7 @@ export default class DrawingPrimitives extends MouseEvent {
             }),
             attributes: {
                 color: this.cesium.ColorGeometryInstanceAttribute.fromColor(
+                    // @ts-expect-error: Enumeration member cannot have numeric name
                     options.polyline?.color ?? this.cesium.Color.CHARTREUSE.withAlpha(0.8)
                 ),
             },
@@ -516,7 +520,7 @@ export default class DrawingPrimitives extends MouseEvent {
         options: CreatePrimitiveOptions
     ) {
         this.clearAllEntity(index);
-
+        // @ts-expect-error: Enumeration member cannot have numeric name
         if (options.polygon?.showLabel) {
             this.drawingLabelPrimitive(index, id, [cartesianPositions[0]], options);
         }
@@ -530,6 +534,7 @@ export default class DrawingPrimitives extends MouseEvent {
 
         const polygonAppearance = new this.cesium.MaterialAppearance({
             material: this.cesium.Material.fromType('Color', {
+                // @ts-expect-error: Enumeration member cannot have numeric name
                 color: options.polygon?.color ?? this.cesium.Color.YELLOW.withAlpha(0.3),
             }),
             faceForward: true,
@@ -565,6 +570,7 @@ export default class DrawingPrimitives extends MouseEvent {
             }),
             attributes: {
                 color: this.cesium.ColorGeometryInstanceAttribute.fromColor(
+                    // @ts-expect-error: Enumeration member cannot have numeric name
                     options.polyline?.color ?? this.cesium.Color.CHARTREUSE.withAlpha(0.8)
                 ),
             },
@@ -586,6 +592,7 @@ export default class DrawingPrimitives extends MouseEvent {
 
         const polygonAppearance = new this.cesium.MaterialAppearance({
             material: this.cesium.Material.fromType('Color', {
+                // @ts-expect-error: Enumeration member cannot have numeric name
                 color: options.polygon?.color ?? this.cesium.Color.YELLOW.withAlpha(0.3),
             }),
             faceForward: true,
@@ -736,6 +743,7 @@ export default class DrawingPrimitives extends MouseEvent {
 
                 if (
                     primitive instanceof this.cesium.GroundPrimitive &&
+                    // @ts-expect-error: Enumeration member cannot have numeric name
                     primitive._boundingSpheresKeys[0] === id &&
                     options?.polygon
                 ) {
@@ -761,6 +769,7 @@ export default class DrawingPrimitives extends MouseEvent {
                                 : (uniquePositions as Cesium.Cartesian3[]);
                     } else {
                         cartesianPositions =
+                            // @ts-expect-error: Enumeration member cannot have numeric name
                             primitive._primitiveOptions.geometryInstances[0].geometry
                                 ._polygonHierarchy.positions;
                     }
@@ -770,6 +779,7 @@ export default class DrawingPrimitives extends MouseEvent {
                         geometry: new this.cesium.PolygonGeometry({
                             polygonHierarchy: new this.cesium.PolygonHierarchy(cartesianPositions),
                         }),
+                        // @ts-expect-error: Enumeration member cannot have numeric name
                         id: primitive._boundingSpheresKeys[0],
                     });
 
@@ -778,6 +788,7 @@ export default class DrawingPrimitives extends MouseEvent {
                         material: this.cesium.Material.fromType('Color', {
                             color:
                                 options.polygon?.color ??
+                                // @ts-expect-error: Enumeration member cannot have numeric name
                                 primitive._appearance.material.uniforms.color ?? // 使用原来的颜色
                                 this.cesium.Color.YELLOW.withAlpha(0.3), // 默认颜色作为后备
                         }),
@@ -802,10 +813,12 @@ export default class DrawingPrimitives extends MouseEvent {
 
                 if (
                     primitive instanceof this.cesium.GroundPolylinePrimitive &&
+                    // @ts-expect-error: Enumeration member cannot have numeric name
                     primitive._primitiveOptions.geometryInstances[0].id === id &&
                     options?.polyline
                 ) {
                     // 获取旧的实例
+                    // @ts-expect-error: Enumeration member cannot have numeric name
                     const oldInstance = primitive._primitiveOptions.geometryInstances[0];
 
                     // 创建一个新的颜色

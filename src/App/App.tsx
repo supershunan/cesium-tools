@@ -38,7 +38,7 @@ function App() {
 
     const initCesium = () => {
         Cesium.Ion.defaultAccessToken =
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIwYTU3ZjNkZS1hYjFmLTQzMzUtOWY5My0yNzg0ODA0NjQ2MzUiLCJpZCI6MjAxNzc0LCJpYXQiOjE3MTAzODYxOTF9.lHSMHockfqCj7uSpmt66tRxt2__yQ4E3Dr-k5PsBjiQ';
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI1MWQzMDI1Ni1kMjljLTQzZWEtYWIyZS0wYzRiMTA3ZTRlZjEiLCJpZCI6MzY3NDEyLCJpYXQiOjE3NjUyMDE5MjF9.CzIQ4rTSniTTEW4tt2CQkqmTRPGhEvCJqtu6SlTrJKM';
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,

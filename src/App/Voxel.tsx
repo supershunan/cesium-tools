@@ -1,6 +1,8 @@
 import React from 'react';
 import * as Cesium from 'cesium';
 import { useEffect } from 'react';
+import { ZipReader, BlobReader, BlobWriter } from '@zip.js/zip.js';
+import { GridDataReader } from '../tools/radarLayer';
 
 export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
     const globalTransform = Cesium.Matrix4.fromScale(
@@ -15,41 +17,132 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
 
     useEffect(() => {
         if (viewer) {
-            viewer.extend(Cesium.viewerVoxelInspectorMixin);
-            viewer.scene.debugShowFramesPerSecond = true;
+            // viewer.extend(Cesium.viewerVoxelInspectorMixin);
+            // viewer.scene.debugShowFramesPerSecond = true;
+            // getVoxel();
         }
+        getNcData();
     }, [viewer]);
 
-    const getVoxel = async () => {
-        const provider = new ProceduralMultiTileVoxelProvider(Cesium.VoxelShapeType.ELLIPSOID);
-        console.log(provider);
-        provider.minBounds.z = 0.0;
-        provider.maxBounds.z = 1000000.0;
-        createPrimitive(provider);
-
-        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        const pickedCoordinate = document.getElementById('pickedCoordinate');
-        const pickedColor = document.getElementById('pickedColor');
-        handler.setInputAction((movement) => {
-            const mousePosition = movement.endPosition;
-            const voxelCell = viewer.scene.pickVoxel(mousePosition);
-            if (!Cesium.defined(voxelCell)) {
-                return;
-            }
-            const { tileIndex, sampleIndex, orientedBoundingBox } = voxelCell;
-            const [x, y, z] = Object.values(orientedBoundingBox.center).map(Math.round);
-            pickedCoordinate.innerHTML = `Sample center x = ${x}, y = ${y}, z = ${z}`;
-            const rgbaValues = voxelCell.getProperty('color');
-            const color = new Cesium.Color(...rgbaValues);
-            pickedColor.style.backgroundColor = color.toCssColorString() || '';
-
-            const { customShader } = voxelCell.primitive;
-            customShader.setUniform('u_selectedTile', tileIndex);
-            customShader.setUniform('u_selectedSample', sampleIndex);
-        }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+    const getNcData = async () => {
+        try {
+            const res = await fetch('/public/resources/SX002_20250809190000_CR.zip', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/zip',
+                },
+            });
+            const gridDataReader = new GridDataReader();
+            await gridDataReader.readCompressedGridData(await res.blob());
+        } catch (error) {
+            console.error('读取ZIP文件错误:', error);
+        }
     };
 
-    function ProceduralMultiTileVoxelProvider(shape) {
+    const getVoxel = async () => {
+        // 定义地理边界 [纬度, 经度]
+        const bounds = [
+            [31.01, 104], // 西南角 [最小纬度, 最小经度]
+            [40, 113], // 东北角 [最大纬度, 最大经度]
+        ];
+
+        // 将地理边界转换为体素空间坐标
+        const minLon = bounds[0][1];
+        const minLat = bounds[0][0];
+        const maxLon = bounds[1][1];
+        const maxLat = bounds[1][0];
+
+        // 计算中心点
+        const centerLon = (minLon + maxLon) / 2;
+        const centerLat = (minLat + maxLat) / 2;
+        const centerHeight = 0; // 地面高度
+
+        // 将中心点转换为 Cartesian3
+        const center = Cesium.Cartesian3.fromDegrees(centerLon, centerLat, centerHeight);
+
+        // 计算四个角点
+        const southwest = Cesium.Cartesian3.fromDegrees(minLon, minLat, centerHeight);
+        const northeast = Cesium.Cartesian3.fromDegrees(maxLon, maxLat, centerHeight);
+        const northwest = Cesium.Cartesian3.fromDegrees(minLon, maxLat, centerHeight);
+        const southeast = Cesium.Cartesian3.fromDegrees(maxLon, minLat, centerHeight);
+
+        // 创建局部坐标系（东-北-上）
+        const transform = Cesium.Transforms.eastNorthUpToFixedFrame(center);
+        const inverseTransform = Cesium.Matrix4.inverse(transform, new Cesium.Matrix4());
+
+        // 将边界点转换到局部坐标系
+        const localSW = Cesium.Matrix4.multiplyByPoint(
+            inverseTransform,
+            southwest,
+            new Cesium.Cartesian3()
+        );
+        const localNE = Cesium.Matrix4.multiplyByPoint(
+            inverseTransform,
+            northeast,
+            new Cesium.Cartesian3()
+        );
+        const localNW = Cesium.Matrix4.multiplyByPoint(
+            inverseTransform,
+            northwest,
+            new Cesium.Cartesian3()
+        );
+        const localSE = Cesium.Matrix4.multiplyByPoint(
+            inverseTransform,
+            southeast,
+            new Cesium.Cartesian3()
+        );
+
+        // 计算局部坐标系中的最小和最大边界
+        const minX = Math.min(localSW.x, localNW.x, localSE.x, localNE.x);
+        const maxX = Math.max(localSW.x, localNW.x, localSE.x, localNE.x);
+        const minY = Math.min(localSW.y, localNW.y, localSE.y, localNE.y);
+        const maxY = Math.max(localSW.y, localNW.y, localSE.y, localNE.y);
+
+        // 使用 BOX 形状以便更好地控制边界
+        const provider = new ProceduralMultiTileVoxelProvider(Cesium.VoxelShapeType.BOX);
+
+        // 设置边界（在局部坐标系中，单位：米）
+        // 只显示一层：将高度范围设置得很小，只显示地面层
+        const layerHeight = 100; // 层高度（米），只显示一层体素
+        provider.minBounds = new Cesium.Cartesian3(
+            minX,
+            minY,
+            0 // 从地面开始
+        );
+        provider.maxBounds = new Cesium.Cartesian3(
+            maxX,
+            maxY,
+            10000 // 只显示一层的高度
+        );
+
+        // 设置全局变换矩阵，将体素空间映射到地理空间
+        provider.globalTransform = transform;
+
+        createPrimitive(provider);
+
+        // const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        // const pickedCoordinate = document.getElementById('pickedCoordinate');
+        // const pickedColor = document.getElementById('pickedColor');
+        // handler.setInputAction((movement) => {
+        //     const mousePosition = movement.endPosition;
+        //     const voxelCell = viewer.scene.pickVoxel(mousePosition);
+        //     if (!Cesium.defined(voxelCell)) {
+        //         return;
+        //     }
+        //     const { tileIndex, sampleIndex, orientedBoundingBox } = voxelCell;
+        //     const [x, y, z] = Object.values(orientedBoundingBox.center).map(Math.round);
+        //     pickedCoordinate.innerHTML = `Sample center x = ${x}, y = ${y}, z = ${z}`;
+        //     const rgbaValues = voxelCell.getProperty('color');
+        //     const color = new Cesium.Color(...rgbaValues);
+        //     pickedColor.style.backgroundColor = color.toCssColorString() || '';
+
+        //     const { customShader } = voxelCell.primitive;
+        //     customShader.setUniform('u_selectedTile', tileIndex);
+        //     customShader.setUniform('u_selectedSample', sampleIndex);
+        // }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
+    };
+
+    function ProceduralMultiTileVoxelProvider(shape: Cesium.VoxelShapeType) {
         this.shape = shape;
         this.dimensions = new Cesium.Cartesian3(4, 4, 4);
         this.minBounds = Cesium.VoxelShapeType.getMinBounds(shape).clone();
@@ -57,7 +150,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         this.names = ['color'];
         this.types = [Cesium.MetadataType.VEC4];
         this.componentTypes = [Cesium.MetadataComponentType.FLOAT32];
-        this.availableLevels = 3;
+        this.availableLevels = 1; // 只使用一个LOD层级（最粗糙的层级），不进行细节细分
         this.globalTransform = globalTransform;
     }
 
@@ -149,6 +242,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         });
         voxelPrimitive.nearestSampling = true;
         voxelPrimitive.stepSize = 0.7;
+        voxelPrimitive.depthTest = false;
 
         viewer.scene.primitives.add(voxelPrimitive);
         viewer.camera.flyToBoundingSphere(voxelPrimitive.boundingSphere, {

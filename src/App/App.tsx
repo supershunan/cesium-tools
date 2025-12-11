@@ -11,6 +11,7 @@ import {
     useDrawing,
 } from '../index';
 import './App.css';
+import Voxel from './Voxel';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
@@ -21,10 +22,7 @@ function App() {
         measure as Cesium.Viewer,
         Cesium
     );
-    const { drawing, drawingEntity } = useDrawing(
-        measure as Cesium.Viewer,
-        Cesium
-    );
+    const { drawing, drawingEntity } = useDrawing(measure as Cesium.Viewer, Cesium);
     const visualFieldAnalysis = useVisualFieldAnalysis();
     const slopeDirectionAnalysis = useSlopeDirectionAnalysis();
     const visibilityAnalysis = useVisibilityAnalysis();
@@ -48,6 +46,8 @@ function App() {
                     'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
                 )
             ),
+            animation: false,
+            timeline: false,
         });
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
@@ -58,8 +58,8 @@ function App() {
         });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
         setMeasure(viewer);
-        visualFieldAnalysis.clear();
-        slopeDirectionAnalysis.setInstance(viewer);
+        visualFieldAnalysis.setInstance(viewer, Cesium);
+        slopeDirectionAnalysis.setInstance(viewer, Cesium);
         visibilityAnalysis.setInstance(viewer);
         turntableSwing.setInstance(viewer);
     };
@@ -72,51 +72,74 @@ function App() {
         slopeDirectionAnalysis.clear();
         visibilityAnalysis.clear();
         turntableSwing.clear();
-        drawing.clear()
-        drawingEntity.clear()
-
+        drawing.clear();
+        drawingEntity.clear();
     };
 
     const handleInstanceClear = () => {
-        drawing.create([
-            {
-                "x": -1808471.294914932,
-                "y": 4956398.633856876,
-                "z": 3571861.1332775145
-            },
-            {
-                "x": -1807675.7356215278,
-                "y": 4955219.547662385,
-                "z": 3573885.5568243423
-            },
-            {
-                "x": -1809780.442174821,
-                "y": 4954515.317274883,
-                "z": 3573797.3188971495
-            },
-            {
-                "x": -1811127.8268339485,
-                "y": 4955226.979883455,
-                "z": 3572138.854929411
-            },
-            {
-                "x": -1809655.8181427545,
-                "y": 4956131.233805658,
-                "z": 3571633.7658116035
-            }
-        ], { type: 'polygon', lineColor: Cesium.Color.RED, width: 1 })
+        drawing.create(
+            [
+                {
+                    x: -1808471.294914932,
+                    y: 4956398.633856876,
+                    z: 3571861.1332775145,
+                },
+                {
+                    x: -1807675.7356215278,
+                    y: 4955219.547662385,
+                    z: 3573885.5568243423,
+                },
+                {
+                    x: -1809780.442174821,
+                    y: 4954515.317274883,
+                    z: 3573797.3188971495,
+                },
+                {
+                    x: -1811127.8268339485,
+                    y: 4955226.979883455,
+                    z: 3572138.854929411,
+                },
+                {
+                    x: -1809655.8181427545,
+                    y: 4956131.233805658,
+                    z: 3571633.7658116035,
+                },
+            ],
+            { type: 'polygon', lineColor: Cesium.Color.RED, width: 1 }
+        );
     };
 
     const handleDistance = () => {
-        measureDistance.active({ trendsComputed: true, clampToGround: true });
+        measureDistance.active({
+            clampToGround: true,
+            line: {
+                customRender: (vlaue) => {
+                    return `距离自定义${vlaue}`;
+                },
+            },
+        });
     };
 
     const handleArea = () => {
-        measureArea.active();
+        measureArea.active({
+            area: {
+                customRender: (vlaue1, value2) => {
+                    return `2d面积自定义${vlaue1}, 2d面积自定义${value2}`;
+                },
+            },
+        });
     };
 
     const handleAngle = () => {
-        measureAngle.active({ trendsComputed: true, clampToGround: true });
+        measureAngle.active({
+            clampToGround: true,
+            angle: {
+                show: true,
+                font: 'bold 18px MicroSoft YaHei',
+                scale: 1.5,
+                outlineWidth: 2,
+            },
+        });
     };
 
     const handleVisbility = () => {
@@ -137,39 +160,42 @@ function App() {
 
     const handleDrawingBillboard = () => {
         drawing.active();
-    }
+    };
 
     const handleDrawingDraw = () => {
         drawing.active({
             type: 0,
         });
         drawing.addToolsEventListener('cesiumToolsFxt', (e) => {
-            console.log(e)
-        })
-
-    }
+            console.log(e);
+        });
+    };
 
     const handleDrawingEntity = () => {
         drawingEntity.active({
-            type: 3
+            type: 3,
         });
         drawingEntity.addToolsEventListener('cesiumToolsFxt', (e) => {
-            console.log(e)
-        })
-    }
+            console.log(e);
+        });
+    };
 
     const getPrimvite = () => {
-        drawingEntity.create('wkkk', [
+        drawingEntity.create(
+            'wkkk',
+            [
+                {
+                    longitude: 109.99036237572159,
+                    latitude: 34.21700361286686,
+                },
+            ],
             {
-                "longitude": 109.99036237572159,
-                "latitude": 34.21700361286686
-            },
-        ], {
-            type: 0,
-            point: {
-                showLabel: true,
-            },
-        })
+                type: 0,
+                point: {
+                    showLabel: true,
+                },
+            }
+        );
         // const primitivesLength = measure?.scene.primitives.length;
         /**
          * TODO: 显示隐藏
@@ -235,8 +261,7 @@ function App() {
         //         height: 1439.4305063281256
         //     }
         // ], { type: 'line', lineColor: Cesium.Color.RED, width: 1, id: 'wkkk' })
-
-    }
+    };
 
     return (
         <div>
@@ -280,6 +305,7 @@ function App() {
             <button className="btn14" onClick={handleDrawingEntity}>
                 entity绘制
             </button>
+            <Voxel viewer={viewerRef.current} />
         </div>
     );
 }

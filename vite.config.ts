@@ -12,6 +12,15 @@ export default defineConfig({
             '@components': path.resolve(__dirname, './src/components'),
         },
     },
+    server: {
+        proxy: {
+            '/cesium': {
+                target: 'https://sandcastle.cesium.com/',
+                changeOrigin: true,
+                rewrite: (path) => path.replace(/^\/cesium/, ''),
+            },
+        },
+    },
     build: {
         lib: {
             entry: path.resolve(__dirname, './src/index.ts'),

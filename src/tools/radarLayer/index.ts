@@ -17,7 +17,6 @@ export class GridDataReader {
 
             // 2. 只解析头文件
             return await this.parseHeaderOnly(fileData);
-
         } catch (error) {
             console.error('读取头文件失败:', error);
             throw error;
@@ -32,7 +31,6 @@ export class GridDataReader {
 
             // 2. 解析完整数据
             return await this.parseGridData(fileData);
-
         } catch (error) {
             console.error('读取格点数据失败:', error);
             throw error;
@@ -55,9 +53,7 @@ export class GridDataReader {
             const firstEntry = entries[0] as zip.FileEntry;
 
             // 获取文件数据
-            const fileData = await firstEntry.getData(
-                new zip.Uint8ArrayWriter()
-            );
+            const fileData = await firstEntry.getData(new zip.Uint8ArrayWriter());
 
             await zipReader.close();
 
@@ -101,7 +97,7 @@ export class GridDataReader {
             headerLength,
             dataOffset: offset, // 数据开始的位置
             estimatedDataSize: dataSize,
-            totalFileSize: uint8Array.length
+            totalFileSize: uint8Array.length,
         };
     }
 
@@ -129,7 +125,7 @@ export class GridDataReader {
             },
             getLatLonSlice: (timeIndex, levelIndex, latIndex) => {
                 return this.data[timeIndex][levelIndex][latIndex];
-            }
+            },
         };
     }
 
@@ -146,7 +142,7 @@ export class GridDataReader {
 
         // 如果是负数，进行符号扩展
         if (value & 0x80000000) {
-            value = -((~value + 1) & 0xFFFFFFFF);
+            value = -((~value + 1) & 0xffffffff);
         }
 
         return value;
@@ -154,13 +150,7 @@ export class GridDataReader {
 
     // 计算数据部分的大小
     calculateDataSize(header: any) {
-        const {
-            times,
-            levels,
-            ySize,
-            xSize,
-            dataType
-        } = header;
+        const { times, levels, ySize, xSize, dataType } = header;
 
         // 计算每个数据点的大小
         const elementSize = this.getDataTypeSize(dataType);
@@ -184,7 +174,7 @@ export class GridDataReader {
             unsigned = false,
             dataScale = 1.0,
             dataOffset = 0.0,
-            undef
+            undef,
         } = header;
 
         // 验证数据大小
@@ -212,7 +202,9 @@ export class GridDataReader {
                     for (let x = 0; x < xSize; x++) {
                         // 检查是否超出数组边界
                         if (offset >= uint8Array.length) {
-                            throw new Error(`数据读取超出边界: offset=${offset}, arrayLength=${uint8Array.length}`);
+                            throw new Error(
+                                `数据读取超出边界: offset=${offset}, arrayLength=${uint8Array.length}`
+                            );
                         }
 
                         const rawValue = readDataItem(uint8Array, offset);
@@ -226,7 +218,6 @@ export class GridDataReader {
                             finalValue = NaN;
                         }
 
-
                         data[t][l][y][x] = finalValue;
                     }
                 }
@@ -234,7 +225,6 @@ export class GridDataReader {
         }
 
         console.log(`成功读取 ${times * levels * ySize * xSize} 个数据点`);
-        console.log('data', data);
         return data;
     }
 
@@ -246,7 +236,7 @@ export class GridDataReader {
             case 'int8':
                 return (arr: Uint8Array, offset: number) => {
                     const value = arr[offset];
-                    return unsigned ? value : (value << 24 >> 24);
+                    return unsigned ? value : (value << 24) >> 24;
                 };
 
             case 'uint8':
@@ -266,8 +256,8 @@ export class GridDataReader {
                         value = (arr[offset] << 8) | arr[offset + 1];
                     }
 
-                    if (type === 'int16' && !unsigned && (value & 0x8000)) {
-                        value = -((~value + 1) & 0xFFFF);
+                    if (type === 'int16' && !unsigned && value & 0x8000) {
+                        value = -((~value + 1) & 0xffff);
                     }
 
                     return value;
@@ -291,8 +281,8 @@ export class GridDataReader {
                         }
                     }
 
-                    if (type === 'int32' && !unsigned && (value & 0x80000000)) {
-                        value = -((~value + 1) & 0xFFFFFFFF);
+                    if (type === 'int32' && !unsigned && value & 0x80000000) {
+                        value = -((~value + 1) & 0xffffffff);
                     }
 
                     return value;
@@ -330,14 +320,14 @@ export class GridDataReader {
     getDataTypeSize(dataType: string) {
         const type = dataType.toLowerCase() as keyof typeof sizes;
         const sizes = {
-            'int8': 1,
-            'uint8': 1,
-            'int16': 2,
-            'uint16': 2,
-            'int32': 4,
-            'uint32': 4,
-            'float32': 4,
-            'float64': 8
+            int8: 1,
+            uint8: 1,
+            int16: 2,
+            uint16: 2,
+            int32: 4,
+            uint32: 4,
+            float32: 4,
+            float64: 8,
         };
 
         const size = sizes[type];
@@ -360,8 +350,7 @@ export class GridDataReader {
         const latIndex = Math.round((lat - yStart) / yDelta);
 
         // 检查边界
-        if (lonIndex < 0 || lonIndex >= xSize ||
-            latIndex < 0 || latIndex >= ySize) {
+        if (lonIndex < 0 || lonIndex >= xSize || latIndex < 0 || latIndex >= ySize) {
             console.warn(`坐标超出范围: lon=${lon}, lat=${lat}`);
             return null;
         }
@@ -396,7 +385,8 @@ export class GridDataReader {
                     subset[t - tStart][l - lStart][y - yStart] = [];
 
                     for (let x = xStart; x < xEnd; x++) {
-                        subset[t - tStart][l - lStart][y - yStart][x - xStart] = this.data[t][l][y][x];
+                        subset[t - tStart][l - lStart][y - yStart][x - xStart] =
+                            this.data[t][l][y][x];
                     }
                 }
             }
@@ -421,11 +411,10 @@ export async function readGridHeaderFromFile(file) {
             经度格点数: result.header.xSize,
             数据范围: `${result.header.xStart}°E - ${result.header.xEnd}°E, ${result.header.yStart}°N - ${result.header.yEnd}°N`,
             数据类型: result.header.dataType,
-            数据大小: `${(result.estimatedDataSize / 1024 / 1024).toFixed(2)} MB`
+            数据大小: `${(result.estimatedDataSize / 1024 / 1024).toFixed(2)} MB`,
         });
 
         return result;
-
     } catch (error) {
         console.error('读取头文件失败:', error);
         throw error;
@@ -444,11 +433,10 @@ export async function readGridDataFromFile(file) {
             时间: result.header.times,
             层次: result.header.levels,
             纬度: result.header.ySize,
-            经度: result.header.xSize
+            经度: result.header.xSize,
         });
 
         return result;
-
     } catch (error) {
         console.error('处理文件失败:', error);
         throw error;

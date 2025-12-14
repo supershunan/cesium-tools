@@ -41,22 +41,24 @@ function App() {
         const viewer = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
             // terrain: Cesium.Terrain.fromWorldTerrain(),
-            terrain: new Cesium.Terrain(
-                Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
-                    'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
-                )
-            ),
+            // terrain: new Cesium.Terrain(
+            //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+            //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+            //     )
+            // ),
             animation: false,
             timeline: false,
         });
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
-        viewer.scene.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(109.976043, 34.213954, 10000.0),
-            duration: 2.0,
-        });
-        viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
+        // viewer.scene.camera.flyTo({
+        //     destination: Cesium.Cartesian3.fromDegrees(109.976043, 34.213954, 10000.0),
+        //     duration: 2.0,
+        // });
+        // viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
+        viewer.scene.globe.enableLighting = false;
+        viewer.shadows = false;
         setMeasure(viewer);
         visualFieldAnalysis.setInstance(viewer, Cesium);
         slopeDirectionAnalysis.setInstance(viewer, Cesium);

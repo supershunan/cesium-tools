@@ -52,13 +52,14 @@ function App() {
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
-        // viewer.scene.camera.flyTo({
-        //     destination: Cesium.Cartesian3.fromDegrees(109.976043, 34.213954, 10000.0),
-        //     duration: 2.0,
-        // });
+        viewer.scene.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(108.3, 32.5, 200000.0),
+            duration: 2.0,
+        });
         // viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
         viewer.scene.globe.enableLighting = false;
         viewer.shadows = false;
+        viewer.scene.debugShowFramesPerSecond = true;
         setMeasure(viewer);
         visualFieldAnalysis.setInstance(viewer, Cesium);
         slopeDirectionAnalysis.setInstance(viewer, Cesium);

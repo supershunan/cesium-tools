@@ -4,29 +4,84 @@ import { useEffect } from 'react';
 import { GridDataReader } from '../tools/radarLayer';
 
 export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
-    const globalTransform = Cesium.Matrix4.fromScale(
-        Cesium.Cartesian3.fromElements(
-            Cesium.Ellipsoid.WGS84.maximumRadius,
-            Cesium.Ellipsoid.WGS84.maximumRadius,
-            Cesium.Ellipsoid.WGS84.maximumRadius
-        )
-    );
+    const dataURL = [
+        "pythonfile/SX002/2025-08-09/SX002_20250809120000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809120500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809121000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809121500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809122000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809122500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809123000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809123500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809124000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809124500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809125000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809125500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809130000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809130500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809131000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809131500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809132000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809132500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809133000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809133500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809134000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809134500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809135000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809135500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809140000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809140500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809141000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809141500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809142000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809142500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809143000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809143500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809144000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809144500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809145000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809145500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809150000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809150500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809151000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809151500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809152000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809152500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809153000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809153500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809154000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809154500_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809155000_CR.zip",
+        "pythonfile/SX002/2025-08-09/SX002_20250809155500_CR.zip"
+    ]
 
-    const scratchColor = new Cesium.Color();
+    let currentIndex = 0;
 
     useEffect(() => {
         if (viewer) {
-            viewer.extend(Cesium.viewerVoxelInspectorMixin);
             viewer.scene.debugShowFramesPerSecond = true;
-            getVoxel();
+            const gl = viewer.scene.context._gl;
+            const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+            const max3DTextureSize = gl.getParameter(gl.MAX_3D_TEXTURE_SIZE);
+            console.log(`WebGL限制 - 最大2D纹理: ${maxTextureSize}, 最大3D纹理: ${max3DTextureSize}`);
+
+            setTimeout(() => {
+                getVoxel();
+                if (currentIndex < dataURL.length - 1) {
+                    currentIndex = currentIndex + 1
+                } else {
+                    currentIndex = 0
+                }
+            }, 500)
 
         }
     }, [viewer]);
 
-    const getNcData = async (): Promise<any> => {
+    const getNcData = async (url: string): Promise<any> => {
         let dataResult = {};
         try {
-            const res = await fetch('/public/resources/SX002_20250809190000_CR.zip', {
+            console.time('getNcData');
+            const res = await fetch('http://222.74.18.86:7085/fxtraincold/' + url, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/zip',
@@ -36,6 +91,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
             const data = await gridDataReader.readCompressedGridData(await res.blob());
             dataResult = data;
             console.log('wkkk', dataResult);
+            console.timeEnd('getNcData');
         } catch (error) {
             console.error('读取ZIP文件错误:', error);
         } finally {
@@ -44,11 +100,11 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
     };
 
     const getVoxel = async () => {
-        const result = await getNcData();
+        const result = await getNcData(dataURL[currentIndex]);
         if (!result) {
             return;
         }
-        const { header, data } = result;
+        const { header } = result;
         const bounds = header;
 
         // 将地理边界转换为体素空间坐标
@@ -106,15 +162,8 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         // 使用 BOX 形状以便更好地控制边界
         const provider = new ProceduralMultiTileVoxelProvider(Cesium.VoxelShapeType.BOX);
 
-        // 设置较小的tile尺寸以避免megatexture溢出
-        // 对于大尺寸数据（如470x470），使用降采样到128x128
-        const maxTileSize = 128;
-        provider.dimensions = new Cesium.Cartesian3(maxTileSize, maxTileSize, 1);
-        console.log(`设置tile dimensions: ${maxTileSize}x${maxTileSize}x1 (将自动降采样原始数据)`);
-
         // 设置边界（在局部坐标系中，单位：米）
         // 只显示一层：将高度范围设置得很小，只显示地面层
-        const layerHeight = 100; // 层高度（米），只显示一层体素
         provider.minBounds = new Cesium.Cartesian3(
             minX,
             minY,
@@ -155,6 +204,8 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
 
     function ProceduralMultiTileVoxelProvider(shape: Cesium.VoxelShapeType) {
         this.shape = shape;
+        // 设置较小的tile尺寸以避免megatexture溢出
+        // 对于大尺寸数据（如470x470），使用降采样到128x128
         // 降低dimensions以避免megatexture溢出
         // 对于220900个点，使用降采样：470x470 -> 约128x128（或更小）
         // 这样可以减少单个tile的大小
@@ -177,7 +228,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
 
         // 只在第一次请求时加载数据
         if (!this.rawData) {
-            const resultData = await getNcData();
+            const resultData = await getNcData(dataURL[currentIndex]);
             const nestedArray = resultData.data[0][0];
 
             // 计算实际数据的维度
@@ -196,13 +247,9 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
             console.log(`原始数据维度: ${xSize} x ${ySize} = ${xSize * ySize} 个点`);
         }
 
-        const dimensions = this.dimensions;
-        const type = this.types[0];
-
         // 计算降采样后的tile数据
         // 对于大尺寸数据，我们需要降采样或分块
         const tileData = this.downsampleDataForTile(tileX, tileY, tileZ);
-        console.log('wkkk5', tileData);
 
         const content = Cesium.VoxelContent.fromMetadataArray([tileData]);
         return Promise.resolve(content);
@@ -262,45 +309,13 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         return tileData;
     };
 
-    function constructRandomTileData(dimensions, type, randomSeed) {
-        Cesium.Math.setRandomNumberSeed(randomSeed);
-        const voxelCount = dimensions.x * dimensions.y * dimensions.z;
-        const channelCount = Cesium.MetadataType.getComponentCount(type);
-        const dataColor = new Float32Array(voxelCount * channelCount);
-
-        for (let z = 0; z < dimensions.z; z++) {
-            const indexZ = z * dimensions.y * dimensions.x;
-            for (let y = 0; y < dimensions.y; y++) {
-                const indexZY = indexZ + y * dimensions.x;
-                for (let x = 0; x < dimensions.x; x++) {
-                    const lerperY = y / (dimensions.y - 1);
-
-                    const h = Cesium.Math.nextRandomNumber();
-                    const s = 1.0 - lerperY * 0.2;
-                    const l = 0.5;
-                    const color = Cesium.Color.fromHsl(h, s, l, 1.0, scratchColor);
-
-                    const random2 = Cesium.Math.nextRandomNumber();
-                    const alphaRandom = Math.floor(random2 + 0.5);
-
-                    const index = (indexZY + x) * channelCount;
-                    dataColor[index + 0] = color.red;
-                    dataColor[index + 1] = color.green;
-                    dataColor[index + 2] = color.blue;
-                    dataColor[index + 3] = alphaRandom;
-                }
-            }
-        }
-
-        return dataColor;
-    }
 
     const customShader = new Cesium.CustomShader({
         fragmentShaderText: `void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material)
         {
             vec3 voxelNormal = fsInput.attributes.normalEC;
             float diffuse = max(0.0, dot(voxelNormal, czm_lightDirectionEC));
-            float lighting = 0.5 + 0.5 * diffuse;
+            float lighting = 1.0;
 
             int tileIndex = fsInput.voxel.tileIndex;
             int sampleIndex = fsInput.voxel.sampleIndex;
@@ -337,9 +352,6 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         voxelPrimitive.depthTest = false;
 
         viewer.scene.primitives.add(voxelPrimitive);
-        viewer.camera.flyToBoundingSphere(voxelPrimitive.boundingSphere, {
-            duration: 0.0,
-        });
 
         return voxelPrimitive;
     }

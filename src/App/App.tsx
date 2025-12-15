@@ -12,6 +12,7 @@ import {
 } from '../index';
 import './App.css';
 import Voxel from './Voxel';
+import FxtVoxel from './fxtVoxel';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
@@ -53,7 +54,7 @@ function App() {
         viewer.scene.globe.enableLighting = true;
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
         viewer.scene.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(108.3, 32.5, 200000.0),
+            destination: Cesium.Cartesian3.fromDegrees(111.33515718102731, 39.73786768701646, 10000.0),
             duration: 2.0,
         });
         // viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
@@ -309,6 +310,7 @@ function App() {
                 entity绘制
             </button>
             <Voxel viewer={viewerRef.current} />
+            {/* <FxtVoxel viewer={viewerRef.current} /> */}
         </div>
     );
 }

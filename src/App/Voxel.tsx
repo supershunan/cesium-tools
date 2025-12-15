@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import * as Cesium from 'cesium';
 import { useEffect } from 'react';
 import { GridDataReader } from '../tools/radarLayer';
@@ -54,17 +54,11 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         "pythonfile/SX002/2025-08-09/SX002_20250809155000_CR.zip",
         "pythonfile/SX002/2025-08-09/SX002_20250809155500_CR.zip"
     ]
-
     let currentIndex = 0;
+    const [gridDataReader, setGridDataReader] = useState<GridDataReader | null>(null);
 
     useEffect(() => {
         if (viewer) {
-            viewer.scene.debugShowFramesPerSecond = true;
-            const gl = viewer.scene.context._gl;
-            const maxTextureSize = gl.getParameter(gl.MAX_TEXTURE_SIZE);
-            const max3DTextureSize = gl.getParameter(gl.MAX_3D_TEXTURE_SIZE);
-            console.log(`WebGL限制 - 最大2D纹理: ${maxTextureSize}, 最大3D纹理: ${max3DTextureSize}`);
-
             setTimeout(() => {
                 getVoxel();
                 if (currentIndex < dataURL.length - 1) {
@@ -90,7 +84,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
             const gridDataReader = new GridDataReader();
             const data = await gridDataReader.readCompressedGridData(await res.blob());
             dataResult = data;
-            console.log('wkkk', dataResult);
+            setGridDataReader(gridDataReader)
             console.timeEnd('getNcData');
         } catch (error) {
             console.error('读取ZIP文件错误:', error);
@@ -181,8 +175,6 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         createPrimitive(provider);
 
         // const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        // const pickedCoordinate = document.getElementById('pickedCoordinate');
-        // const pickedColor = document.getElementById('pickedColor');
         // handler.setInputAction((movement) => {
         //     const mousePosition = movement.endPosition;
         //     const voxelCell = viewer.scene.pickVoxel(mousePosition);
@@ -191,124 +183,39 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         //     }
         //     const { tileIndex, sampleIndex, orientedBoundingBox } = voxelCell;
         //     const [x, y, z] = Object.values(orientedBoundingBox.center).map(Math.round);
-        //     pickedCoordinate.innerHTML = `Sample center x = ${x}, y = ${y}, z = ${z}`;
+        //     console.log(`Sample center x = ${x}, y = ${y}, z = ${z}`)
         //     const rgbaValues = voxelCell.getProperty('color');
         //     const color = new Cesium.Color(...rgbaValues);
-        //     pickedColor.style.backgroundColor = color.toCssColorString() || '';
+        //     console.log(color.toCssColorString() || '')
 
-        //     const { customShader } = voxelCell.primitive;
-        //     customShader.setUniform('u_selectedTile', tileIndex);
-        //     customShader.setUniform('u_selectedSample', sampleIndex);
+        //     const currentPosition = viewer.scene.pickPosition(mousePosition);
+        //     if (currentPosition) {
+        //         const cartographic = Cesium.Cartographic.fromCartesian(currentPosition);
+        //         const lon = Cesium.Math.toDegrees(cartographic.longitude);
+        //         const lat = Cesium.Math.toDegrees(cartographic.latitude);
+        //         const value = gridDataReader?.getValueByLonLat(1, 1, lon, lat)
+        //         console.log('pickValue', lon, lat, value)
+        //     }
         // }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     };
 
-    function ProceduralMultiTileVoxelProvider(shape: Cesium.VoxelShapeType) {
-        this.shape = shape;
-        // 设置较小的tile尺寸以避免megatexture溢出
-        // 对于大尺寸数据（如470x470），使用降采样到128x128
-        // 降低dimensions以避免megatexture溢出
-        // 对于220900个点，使用降采样：470x470 -> 约128x128（或更小）
-        // 这样可以减少单个tile的大小
-        const maxTileSize = 128; // 限制单个tile的最大尺寸
-        this.dimensions = new Cesium.Cartesian3(maxTileSize, maxTileSize, 1);
-        this.names = ['color'];
-        this.types = [Cesium.MetadataType.VEC4];
-        this.componentTypes = [Cesium.MetadataComponentType.FLOAT32];
-        this.availableLevels = 1; // 减少LOD层级，只使用一个层级
-        this.rawData = null; // 存储原始数据
-        this.rawDimensions = null; // 存储原始维度
+    function createPrimitive(provider) {
+        viewer.scene.primitives.removeAll();
+
+        const voxelPrimitive = new Cesium.VoxelPrimitive({
+            provider: provider,
+            customShader: customShader,
+        });
+        voxelPrimitive.nearestSampling = true;
+        voxelPrimitive.stepSize = 0.7;
+        voxelPrimitive.depthTest = false;
+
+        console.log('voxelPrimitive', voxelPrimitive)
+
+        viewer.scene.primitives.add(voxelPrimitive);
+
+        return voxelPrimitive;
     }
-
-    ProceduralMultiTileVoxelProvider.prototype.requestData = async function (options) {
-        const { tileLevel, tileX, tileY, tileZ } = options;
-
-        if (tileLevel >= this.availableLevels) {
-            return Promise.reject(`No tiles available beyond level ${this.availableLevels - 1}`);
-        }
-
-        // 只在第一次请求时加载数据
-        if (!this.rawData) {
-            const resultData = await getNcData(dataURL[currentIndex]);
-            const nestedArray = resultData.data[0][0];
-
-            // 计算实际数据的维度
-            let ySize, xSize;
-            if (Array.isArray(nestedArray) && Array.isArray(nestedArray[0])) {
-                ySize = nestedArray.length;
-                xSize = nestedArray[0].length;
-            } else {
-                const totalPoints = Array.isArray(nestedArray) ? nestedArray.length : 0;
-                xSize = Math.ceil(Math.sqrt(totalPoints));
-                ySize = Math.ceil(totalPoints / xSize);
-            }
-
-            this.rawDimensions = { x: xSize, y: ySize };
-            this.rawData = transformNestedArrayToColorArray(nestedArray);
-            console.log(`原始数据维度: ${xSize} x ${ySize} = ${xSize * ySize} 个点`);
-        }
-
-        // 计算降采样后的tile数据
-        // 对于大尺寸数据，我们需要降采样或分块
-        const tileData = this.downsampleDataForTile(tileX, tileY, tileZ);
-
-        const content = Cesium.VoxelContent.fromMetadataArray([tileData]);
-        return Promise.resolve(content);
-    };
-
-    // 降采样数据以适应tile
-    ProceduralMultiTileVoxelProvider.prototype.downsampleDataForTile = function (tileX, tileY, tileZ) {
-        const dimensions = this.dimensions;
-        const tileSize = dimensions.x; // 假设是正方形tile
-
-        // 如果没有原始数据，返回空tile
-        if (!this.rawData || !this.rawDimensions) {
-            console.warn('原始数据未加载，返回空tile');
-            return new Float32Array(tileSize * tileSize * dimensions.z * 4);
-        }
-
-        // 如果原始数据小于等于tile尺寸，直接使用原始数据（需要填充）
-        if (this.rawDimensions.x <= tileSize && this.rawDimensions.y <= tileSize) {
-            const tileData = new Float32Array(tileSize * tileSize * dimensions.z * 4);
-            const copyWidth = this.rawDimensions.x;
-            const copyHeight = this.rawDimensions.y;
-
-            for (let y = 0; y < copyHeight; y++) {
-                for (let x = 0; x < copyWidth; x++) {
-                    const srcIndex = (y * this.rawDimensions.x + x) * 4;
-                    const dstIndex = (y * tileSize + x) * 4;
-                    if (srcIndex + 4 <= this.rawData.length) {
-                        tileData.set(this.rawData.subarray(srcIndex, srcIndex + 4), dstIndex);
-                    }
-                }
-            }
-            return tileData;
-        }
-
-        // 降采样：计算采样步长
-        const scaleX = this.rawDimensions.x / tileSize;
-        const scaleY = this.rawDimensions.y / tileSize;
-
-        const tileData = new Float32Array(tileSize * tileSize * dimensions.z * 4);
-
-        for (let ty = 0; ty < tileSize; ty++) {
-            for (let tx = 0; tx < tileSize; tx++) {
-                // 计算在原始数据中的位置（使用最近邻采样）
-                const srcX = Math.min(Math.floor(tx * scaleX), this.rawDimensions.x - 1);
-                const srcY = Math.min(Math.floor(ty * scaleY), this.rawDimensions.y - 1);
-
-                const srcIndex = (srcY * this.rawDimensions.x + srcX) * 4;
-                const dstIndex = (ty * tileSize + tx) * 4;
-
-                // 边界检查
-                if (srcIndex + 4 <= this.rawData.length) {
-                    tileData.set(this.rawData.subarray(srcIndex, srcIndex + 4), dstIndex);
-                }
-            }
-        }
-
-        return tileData;
-    };
-
 
     const customShader = new Cesium.CustomShader({
         fragmentShaderText: `void fragmentMain(FragmentInput fsInput, inout czm_modelMaterial material)
@@ -340,26 +247,110 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         },
     });
 
-    function createPrimitive(provider) {
-        viewer.scene.primitives.removeAll();
-
-        const voxelPrimitive = new Cesium.VoxelPrimitive({
-            provider: provider,
-            customShader: customShader,
-        });
-        voxelPrimitive.nearestSampling = true;
-        voxelPrimitive.stepSize = 0.7;
-        voxelPrimitive.depthTest = false;
-
-        viewer.scene.primitives.add(voxelPrimitive);
-
-        return voxelPrimitive;
+    function ProceduralMultiTileVoxelProvider(shape: Cesium.VoxelShapeType) {
+        this.shape = shape;
+        const maxTileSize = 128;
+        this.dimensions = new Cesium.Cartesian3(maxTileSize, maxTileSize, 1);
+        this.names = ['color'];
+        this.types = [Cesium.MetadataType.VEC4];
+        this.componentTypes = [Cesium.MetadataComponentType.FLOAT32];
+        this.availableLevels = 1; // 减少LOD层级，只使用一个层级
+        this.rawData = null; // 存储原始数据
+        this.rawDimensions = null; // 存储原始维度
     }
 
+    ProceduralMultiTileVoxelProvider.prototype.requestData = async function (options) {
+        const { tileLevel } = options;
+
+        if (tileLevel >= this.availableLevels) {
+            return Promise.reject(`No tiles available beyond level ${this.availableLevels - 1}`);
+        }
+
+        if (!this.rawData) {
+            const resultData = await getNcData(dataURL[currentIndex]);
+            const nestedArray = resultData.data[0][0];
+
+            // 计算实际数据的维度
+            let ySize, xSize;
+            if (Array.isArray(nestedArray) && Array.isArray(nestedArray[0])) {
+                ySize = nestedArray.length;
+                xSize = nestedArray[0].length;
+            } else {
+                const totalPoints = Array.isArray(nestedArray) ? nestedArray.length : 0;
+                xSize = Math.ceil(Math.sqrt(totalPoints));
+                ySize = Math.ceil(totalPoints / xSize);
+            }
+
+            this.rawDimensions = { x: xSize, y: ySize };
+            this.rawData = transformNestedArrayToColorArray(nestedArray);
+            console.log(`原始数据维度: ${xSize} x ${ySize} = ${xSize * ySize} 个点`);
+        }
+
+        // 计算降采样后的tile数据
+        // 对于大尺寸数据，我们需要降采样或分块
+        const tileData = this.downsampleDataForTile();
+
+        const content = Cesium.VoxelContent.fromMetadataArray([tileData]);
+        return Promise.resolve(content);
+    };
+
+    // 降采样数据以适应tile
+    ProceduralMultiTileVoxelProvider.prototype.downsampleDataForTile = function () {
+        const dimensions = this.dimensions;
+        const tileWidth = dimensions.x;
+        const tileHeight = dimensions.y;
+
+        // 如果没有原始数据，返回空tile
+        if (!this.rawData || !this.rawDimensions) {
+            console.warn('原始数据未加载，返回空tile');
+            return new Float32Array(tileWidth * tileHeight * dimensions.z * 4);
+        }
+
+        // 如果原始数据小于等于tile尺寸，直接使用原始数据（需要填充）
+        if (this.rawDimensions.x <= tileWidth && this.rawDimensions.y <= tileHeight) {
+            const tileData = new Float32Array(tileWidth * tileHeight * dimensions.z * 4);
+            const copyWidth = this.rawDimensions.x;
+            const copyHeight = this.rawDimensions.y;
+
+            for (let y = 0; y < copyHeight; y++) {
+                for (let x = 0; x < copyWidth; x++) {
+                    const srcIndex = (y * this.rawDimensions.x + x) * 4;
+                    const dstIndex = (y * tileWidth + x) * 4;
+                    if (srcIndex + 4 <= this.rawData.length) {
+                        tileData.set(this.rawData.subarray(srcIndex, srcIndex + 4), dstIndex);
+                    }
+                }
+            }
+            return tileData;
+        }
+
+        // 降采样：计算采样步长
+        const scaleX = this.rawDimensions.x / tileWidth;
+        const scaleY = this.rawDimensions.y / tileHeight;
+
+        const tileData = new Float32Array(tileWidth * tileHeight * dimensions.z * 4);
+
+        for (let ty = 0; ty < tileHeight; ty++) {
+            for (let tx = 0; tx < tileWidth; tx++) {
+                // 计算在原始数据中的位置（使用最近邻采样）
+                const srcX = Math.min(Math.floor(tx * scaleX), this.rawDimensions.x - 1);
+                const srcY = Math.min(Math.floor(ty * scaleY), this.rawDimensions.y - 1);
+
+                const srcIndex = (srcY * this.rawDimensions.x + srcX) * 4;
+                const dstIndex = (ty * tileWidth + tx) * 4;
+
+                // 边界检查
+                if (srcIndex + 4 <= this.rawData.length) {
+                    tileData.set(this.rawData.subarray(srcIndex, srcIndex + 4), dstIndex);
+                }
+            }
+        }
+
+        return tileData;
+    };
+
     function transformNestedArrayToColorArray(nestedArray) {
-        // 颜色规则查找表
         const colorRules = [
-            // 范围 [min, max) -> 颜色数组
             { max: 10, color: [62 / 255, 160 / 255, 239 / 255, 0] },
             { max: 15, color: [62 / 255, 160 / 255, 239 / 255, 1] },
             { max: 20, color: [108 / 255, 225 / 255, 238 / 255, 1] },
@@ -373,24 +364,15 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
             { max: 60, color: [183 / 255, 36 / 255, 28 / 255, 1] },
             { max: 65, color: [236 / 255, 62 / 255, 237 / 255, 1] },
             { max: 70, color: [132 / 255, 39 / 255, 179 / 255, 1] },
-            // 最后一项处理所有大于等于 70 的值
             { max: Infinity, color: [174 / 255, 148 / 255, 237 / 255, 1] }
         ];
 
-        // 1. 使用 flat() 方法将多维数组扁平化为一维数组
         const flatArray = nestedArray.flat();
 
-        // 2. 使用 map() 方法遍历一维数组的每个元素，并应用颜色规则
         const colorArrays = flatArray.map(value => {
-            // 查找匹配的颜色规则
             const rule = colorRules.find(rule => value <= rule.max);
-
-            // 如果找到规则，返回对应的颜色数组。
-            // 如果由于某种原因找不到 (比如输入值是负数且没有定义负数规则)，可以返回一个默认值。
-            return rule ? rule.color : [0, 0, 0, 0]; // 默认返回黑色透明
+            return rule ? rule.color : [0, 0, 0, 0];
         });
-
-        // 3. 将所有颜色数组再次扁平化为一个最终的一维数组
         return new Float32Array(colorArrays.flat());
     }
 

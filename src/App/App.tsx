@@ -54,7 +54,7 @@ function App() {
         viewer.scene.globe.enableLighting = true;
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
         viewer.scene.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(111.33515718102731, 39.73786768701646, 10000.0),
+            destination: Cesium.Cartesian3.fromDegrees(107.386086, 33.045128, 600000.0),
             duration: 2.0,
         });
         // viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;

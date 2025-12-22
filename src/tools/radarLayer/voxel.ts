@@ -1,5 +1,6 @@
 import * as Cesium from 'cesium';
 import { GridDataReader } from '../../tools/radarLayer/index';
+import * as lodash from 'lodash';
 
 export default class CustomVoxel {
     private viewer: Cesium.Viewer;
@@ -38,7 +39,7 @@ export default class CustomVoxel {
     constructor(viewer: Cesium.Viewer, titleSize?: number) {
         this.viewer = viewer;
         this.voxelPrimitives = [];
-        this.titleSize = titleSize ?? 157;
+        this.titleSize = titleSize ?? 128;
     }
 
     public async startRender() {
@@ -46,54 +47,49 @@ export default class CustomVoxel {
         if (!result) {
             return;
         }
+        this.viewer.scene.primitives.removeAll();
 
         this.chunkRenderVoex(result, this.titleSize);
     }
 
     public chunkRenderVoex(result: any, titleSize: number) {
         const { header, data } = result;
-        console.log('wkkk', data);
-        const { xSize, ySize, xStart, xEnd } = header;
+        const tempData = lodash.cloneDeep(data[0][0]);
+        const { xSize, xStart, xEnd, xDelta } = header;
         const newResult: {
             header: any;
             data: any;
         }[] = [];
 
-        // if (xSize > titleSize) {
-        //     const xGroup = Math.ceil(xSize / titleSize);
-        //     const remainder = xSize % titleSize;
+        const xGroup = Math.ceil(xSize / titleSize);
 
-        //     for (let i = 0; i < xGroup; i++) {
-        //         if (!newResult[i]) {
-        //             newResult[i] = {
-        //                 header: {},
-        //                 data: [],
-        //             };
-        //         }
+        for (let i = 0; i < xGroup; i++) {
+            if (!newResult[i]) {
+                newResult[i] = {
+                    header: {},
+                    data: [],
+                };
+            }
 
-        //         const start = i === 0 ? xStart : newResult[i - 1].header.xEnd;
-        //         const end = start + ((xEnd - xStart) / xGroup) * (i + 1);
-        //         newResult[i].header = {
-        //             ...header,
-        //             xSize: titleSize,
-        //             xStart: start,
-        //             xEnd: end,
-        //         };
+            const start = i === 0 ? xStart : newResult[i - 1].header.xEnd + xDelta;
+            const end = start + xDelta * titleSize;
+            newResult[i].header = {
+                ...header,
+                xSize: titleSize,
+                xStart: start,
+                xEnd: end,
+            };
 
-        //         const startSlice = i * titleSize;
-        //         const endSlice = (i + 1) * titleSize;
-        //         // 有问题
-        //         newResult[i].data = data[0][0].slice(startSlice, endSlice);
-        //     }
+            const startSlice = i * titleSize;
+            const endSlice = (i + 1) * titleSize;
+            console.log(startSlice, endSlice);
+            newResult[i].data = tempData.slice(startSlice, endSlice);
+        }
 
-        //     Object.values(newResult).forEach((item) => {
-        //         this.renderVoex(item);
-        //     });
-
-        //     return;
-        // }
-
-        this.renderVoex(result);
+        console.log(JSON.parse(JSON.stringify(newResult)));
+        Object.values(newResult).forEach((item) => {
+            this.renderVoex(item);
+        });
     }
 
     public async renderVoex(result: any) {
@@ -153,22 +149,16 @@ export default class CustomVoxel {
         const maxY = Math.max(localSW.y, localNW.y, localSE.y, localNE.y);
 
         // 使用 BOX 形状以便更好地控制边界
-        const provider = new ProceduralMultiTileVoxelProvider(
-            Cesium.VoxelShapeType.BOX,
-            data[0][0],
-            {
-                minBounds: new Cesium.Cartesian3(minX, minY, 0),
-                maxBounds: new Cesium.Cartesian3(maxX, maxY, 1),
-                globalTransform: transform,
-            }
-        );
+        const provider = new ProceduralMultiTileVoxelProvider(Cesium.VoxelShapeType.BOX, data, {
+            minBounds: new Cesium.Cartesian3(minX, minY, 0),
+            maxBounds: new Cesium.Cartesian3(maxX, maxY, 1),
+            globalTransform: transform,
+        });
 
         this.createPrimitive(provider as unknown as Cesium.VoxelProvider);
     }
 
     private createPrimitive(provider: Cesium.VoxelProvider) {
-        this.viewer.scene.primitives.removeAll();
-
         const voxelPrimitive = new Cesium.VoxelPrimitive({
             provider: provider,
             customShader: this.customShader,
@@ -268,7 +258,7 @@ class ProceduralMultiTileVoxelProvider {
          * y 方向无最大值限制
          */
         const maxTileSize = 128;
-        this.dimensions = new Cesium.Cartesian3(maxTileSize, maxTileSize, 1);
+        this.dimensions = new Cesium.Cartesian3(resultData.length, resultData[0].length, 1);
         this.names = ['color'];
         this.types = [Cesium.MetadataType.VEC4];
         this.componentTypes = [Cesium.MetadataComponentType.FLOAT32];

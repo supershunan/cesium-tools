@@ -54,12 +54,18 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         'pythonfile/SX002/2025-08-09/SX002_20250809155000_CR.zip',
         'pythonfile/SX002/2025-08-09/SX002_20250809155500_CR.zip',
     ];
+    let currentIndex = 0;
 
     useEffect(() => {
         if (viewer) {
             setTimeout(() => {
                 const voxel = new CustomVoxel(viewer);
-                voxel.startRender();
+                voxel.startRender('http://222.74.18.86:7085/fxtraincold/' + dataURL[currentIndex]);
+                if (currentIndex < dataURL.length - 1) {
+                    currentIndex = currentIndex + 1;
+                } else {
+                    currentIndex = 0;
+                }
             }, 500);
         }
     }, [viewer]);

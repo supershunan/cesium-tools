@@ -42,8 +42,8 @@ export default class CustomVoxel {
         this.titleSize = titleSize ?? 128;
     }
 
-    public async startRender() {
-        const result = await this.unzipData('');
+    public async startRender(url: string) {
+        const result = await this.unzipData(url);
         if (!result) {
             return;
         }
@@ -55,39 +55,92 @@ export default class CustomVoxel {
     public chunkRenderVoex(result: any, titleSize: number) {
         const { header, data } = result;
         const tempData = lodash.cloneDeep(data[0][0]);
-        const { xSize, xStart, xEnd, xDelta } = header;
+        const { xSize, xStart, xEnd, xDelta, ySize, yStart, yEnd, yDelta } = header;
         const newResult: {
             header: any;
             data: any;
         }[] = [];
 
-        const xGroup = Math.ceil(xSize / titleSize);
+        // 数据结构说明：
+        // data[time][level][y][x]，所以data[0][0]是[y][x]二维数组
+        // tempData的第一维（行）对应y方向（纬度），长度为ySize
+        // tempData的第二维（列）对应x方向（经度），每行长度为xSize
+        const actualYSize = ySize || tempData.length || 0;
+        const actualXSize = xSize || tempData[0]?.length || 0;
 
-        for (let i = 0; i < xGroup; i++) {
-            if (!newResult[i]) {
-                newResult[i] = {
-                    header: {},
-                    data: [],
+        // 对y方向进行分块（第一维，行方向，纬度方向）
+        const yGroup = Math.ceil(actualYSize / titleSize);
+        const yRemainder = actualYSize % titleSize;
+
+        // 对x方向进行分块（第二维，列方向，经度方向）
+        const xGroup = Math.ceil(actualXSize / titleSize);
+        const xRemainder = actualXSize % titleSize;
+
+        let chunkIndex = 0;
+
+        // 双重循环：先按y方向分块（第一维，行），再按x方向分块（第二维，列）
+        for (let yIdx = 0; yIdx < yGroup; yIdx++) {
+            const yStartSlice = yIdx * titleSize;
+            const yEndSlice =
+                yIdx === yGroup - 1 && yRemainder > 0
+                    ? yStartSlice + yRemainder
+                    : yStartSlice + titleSize;
+            const yChunkData = tempData.slice(yStartSlice, yEndSlice);
+
+            for (let xIdx = 0; xIdx < xGroup; xIdx++) {
+                if (!newResult[chunkIndex]) {
+                    newResult[chunkIndex] = {
+                        header: {},
+                        data: [],
+                    };
+                }
+
+                // 计算y方向的边界（地理坐标，纬度）
+                const yStartBound =
+                    yIdx === 0
+                        ? yStart !== undefined
+                            ? yStart
+                            : 0
+                        : (yStart !== undefined ? yStart : 0) +
+                          (yDelta !== undefined ? yDelta : 1) * yIdx * titleSize;
+                const yEndBound =
+                    yIdx === yGroup - 1 && yRemainder > 0
+                        ? yStartBound + (yDelta !== undefined ? yDelta : 1) * yRemainder
+                        : yStartBound + (yDelta !== undefined ? yDelta : 1) * titleSize;
+
+                // 计算x方向的边界（地理坐标，经度）
+                const xStartBound = xIdx === 0 ? xStart : xStart + xDelta * xIdx * titleSize;
+                const xEndBound =
+                    xIdx === xGroup - 1 && xRemainder > 0
+                        ? xStartBound + xDelta * xRemainder
+                        : xStartBound + xDelta * titleSize;
+
+                newResult[chunkIndex].header = {
+                    ...header,
+                    ySize: yIdx === yGroup - 1 && yRemainder > 0 ? yRemainder : titleSize,
+                    xSize: xIdx === xGroup - 1 && xRemainder > 0 ? xRemainder : titleSize,
+                    yStart: yStartBound,
+                    yEnd: yEndBound,
+                    xStart: xStartBound,
+                    xEnd: xEndBound,
                 };
+
+                // 对每一行的x方向进行切片（第二维，列方向，经度方向）
+                const chunkData = yChunkData.map((row: number[]) => {
+                    const xStartSlice = xIdx * titleSize;
+                    const xEndSlice =
+                        xIdx === xGroup - 1 && xRemainder > 0
+                            ? xStartSlice + xRemainder
+                            : xStartSlice + titleSize;
+                    return row.slice(xStartSlice, xEndSlice);
+                });
+
+                newResult[chunkIndex].data = chunkData;
+                chunkIndex++;
             }
-
-            const start = i === 0 ? xStart : newResult[i - 1].header.xEnd + xDelta;
-            const end = start + xDelta * titleSize;
-            newResult[i].header = {
-                ...header,
-                xSize: titleSize,
-                xStart: start,
-                xEnd: end,
-            };
-
-            const startSlice = i * titleSize;
-            const endSlice = (i + 1) * titleSize;
-            console.log(startSlice, endSlice);
-            newResult[i].data = tempData.slice(startSlice, endSlice);
         }
 
-        console.log(JSON.parse(JSON.stringify(newResult)));
-        Object.values(newResult).forEach((item) => {
+        Object.values(newResult).forEach((item, index) => {
             this.renderVoex(item);
         });
     }
@@ -175,7 +228,7 @@ export default class CustomVoxel {
     private async unzipData(url: string): Promise<any> {
         let dataResult = {};
         try {
-            const res = await fetch('/public/resources/SX002_20250809190000_CR.zip', {
+            const res = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/zip',
@@ -254,11 +307,35 @@ class ProceduralMultiTileVoxelProvider {
     constructor(shape: Cesium.VoxelShapeType, resultData: number[][], options: any) {
         this.shape = shape;
         /**
-         * x 方向最大设置为 157
-         * y 方向无最大值限制
+         * x 方向最大设置为 157（Cesium的限制）
+         * y 方向理论上无最大值限制，但为了性能也建议限制
          */
-        const maxTileSize = 128;
-        this.dimensions = new Cesium.Cartesian3(resultData.length, resultData[0].length, 1);
+        const maxTileSize = 157;
+
+        // 计算实际数据维度（分块后的数据）
+        // 数据结构说明：
+        // resultData是data[0][0]，即[y][x]二维数组
+        // resultData的第一维（行）对应y方向（纬度），长度为resultData.length
+        // resultData的第二维（列）对应x方向（经度），每行长度为resultData[0].length
+        const actualYSize = resultData.length; // y方向（第一维，行数，纬度）
+        const actualXSize = resultData[0]?.length || 0; // x方向（第二维，列数，经度）
+
+        // Cesium的dimensions说明：
+        // dimensions.x对应数据的列数（x方向，经度），dimensions.y对应数据的行数（y方向，纬度）
+        // 所以需要确保dimensions.x（即actualXSize，经度方向）不超过157
+        const clampedXSize = Math.min(actualXSize, maxTileSize); // Cesium的x维度对应数据的x方向（列数，经度）
+        const clampedYSize = actualYSize; // Cesium的y维度对应数据的y方向（行数，纬度）
+
+        // 如果实际列数超过限制，会在downsampleDataForTile中进行降采样处理
+        this.dimensions = new Cesium.Cartesian3(clampedXSize, clampedYSize, 1);
+
+        // 添加调试信息
+        if (actualXSize > maxTileSize) {
+            console.warn(
+                `警告：分块后的数据x方向维度(${actualXSize})超过Cesium限制(${maxTileSize})，将进行降采样处理`
+            );
+        }
+
         this.names = ['color'];
         this.types = [Cesium.MetadataType.VEC4];
         this.componentTypes = [Cesium.MetadataComponentType.FLOAT32];
@@ -311,7 +388,6 @@ class ProceduralMultiTileVoxelProvider {
 
             this.rawDimensions = { x: xSize, y: ySize };
             this.rawData = this.transformNestedArrayToColorArray(nestedArray);
-            console.log(`原始数据维度: ${xSize} x ${ySize} = ${xSize * ySize} 个点`);
 
             // 计算降采样后的tile数据
             // 对于大尺寸数据，我们需要降采样或分块

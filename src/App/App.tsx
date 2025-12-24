@@ -47,18 +47,23 @@ function App() {
             //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
             //     )
             // ),
-            animation: false,
+            // animation: false,
             timeline: false,
         });
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
         viewer.scene.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(107.386086, 33.045128, 600000.0),
+            destination: Cesium.Cartesian3.fromDegrees(
+                111.33969224427842,
+                39.73786768701646,
+                600000.0
+            ),
             duration: 2.0,
         });
         // viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
         viewer.scene.globe.enableLighting = false;
+        viewer.scene.globe.depthTestAgainstTerrain = false;
         viewer.shadows = false;
         viewer.scene.debugShowFramesPerSecond = true;
         setMeasure(viewer);

@@ -60,7 +60,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         if (viewer) {
             setTimeout(() => {
                 const voxel = new CustomVoxel(viewer);
-                voxel.startRender('http://222.74.18.86:7085/fxtraincold/' + dataURL[currentIndex]);
+                voxel.startRender('/public/resources/639021950828737727.zip');
                 if (currentIndex < dataURL.length - 1) {
                     currentIndex = currentIndex + 1;
                 } else {

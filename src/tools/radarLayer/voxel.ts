@@ -204,7 +204,7 @@ export default class CustomVoxel {
         // 使用 BOX 形状以便更好地控制边界
         const provider = new ProceduralMultiTileVoxelProvider(Cesium.VoxelShapeType.BOX, data, {
             minBounds: new Cesium.Cartesian3(minX, minY, 0),
-            maxBounds: new Cesium.Cartesian3(maxX, maxY, 1),
+            maxBounds: new Cesium.Cartesian3(maxX, maxY, 0.01),
             globalTransform: transform,
         });
 

@@ -12,7 +12,7 @@ import {
 } from '../index';
 import './App.css';
 import Voxel from './Voxel';
-import FxtVoxel from './fxtVoxel';
+import FxtVoxel from './test';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
@@ -41,7 +41,7 @@ function App() {
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            // terrain: Cesium.Terrain.fromWorldTerrain(),
+            terrain: Cesium.Terrain.fromWorldTerrain(),
             // terrain: new Cesium.Terrain(
             //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
             //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
@@ -57,7 +57,7 @@ function App() {
             destination: Cesium.Cartesian3.fromDegrees(
                 111.33969224427842,
                 39.73786768701646,
-                600000.0
+                8000.0
             ),
             duration: 2.0,
         });
@@ -314,8 +314,8 @@ function App() {
             <button className="btn14" onClick={handleDrawingEntity}>
                 entity绘制
             </button>
-            <Voxel viewer={viewerRef.current} />
-            {/* <FxtVoxel viewer={viewerRef.current} /> */}
+            {/* <Voxel viewer={viewerRef.current} /> */}
+            <FxtVoxel viewer={viewerRef.current} />
         </div>
     );
 }

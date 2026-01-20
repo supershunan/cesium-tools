@@ -82,7 +82,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         try {
             console.time('getNcData');
             // /public/resources/639013914508324942.zip
-            const res = await fetch('/public/resources/639013914508324942.zip', {
+            const res = await fetch('/public/resources/639021950828737727.zip', {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/zip',
@@ -180,36 +180,10 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         provider.globalTransform = transform;
 
         createPrimitive(provider);
-
-        // const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        // const pickedCoordinate = document.getElementById('pickedCoordinate');
-        // const pickedColor = document.getElementById('pickedColor');
-        // handler.setInputAction((movement) => {
-        //     const mousePosition = movement.endPosition;
-        //     const voxelCell = viewer.scene.pickVoxel(mousePosition);
-        //     if (!Cesium.defined(voxelCell)) {
-        //         return;
-        //     }
-        //     const { tileIndex, sampleIndex, orientedBoundingBox } = voxelCell;
-        //     const [x, y, z] = Object.values(orientedBoundingBox.center).map(Math.round);
-        //     pickedCoordinate.innerHTML = `Sample center x = ${x}, y = ${y}, z = ${z}`;
-        //     const rgbaValues = voxelCell.getProperty('color');
-        //     const color = new Cesium.Color(...rgbaValues);
-        //     pickedColor.style.backgroundColor = color.toCssColorString() || '';
-
-        //     const { customShader } = voxelCell.primitive;
-        //     customShader.setUniform('u_selectedTile', tileIndex);
-        //     customShader.setUniform('u_selectedSample', sampleIndex);
-        // }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
     };
 
     function ProceduralMultiTileVoxelProvider(shape: Cesium.VoxelShapeType) {
         this.shape = shape;
-        // 设置较小的tile尺寸以避免megatexture溢出
-        // 对于大尺寸数据（如470x470），使用降采样到128x128
-        // 降低dimensions以避免megatexture溢出
-        // 对于220900个点，使用降采样：470x470 -> 约128x128（或更小）
-        // 这样可以减少单个tile的大小
         const maxTileSize = 157; // 限制单个tile的最大尺寸
         this.dimensions = new Cesium.Cartesian3(maxTileSize, maxTileSize, 1);
         this.names = ['color'];
@@ -365,16 +339,6 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
             { max: 19, color: [0 / 255, 102 / 255, 255 / 255, 1] },
             { max: 29, color: [255 / 255, 255 / 255, 0 / 255, 1] },
             { max: 39, color: [255 / 255, 153 / 255, 0 / 255, 1] },
-            // { max: 30, color: [70 / 255, 137 / 255, 37 / 255, 1] },
-            // { max: 35, color: [252 / 255, 251 / 255, 74 / 255, 1] },
-            // { max: 40, color: [223 / 255, 195 / 255, 73 / 255, 1] },
-            // { max: 45, color: [239 / 255, 147 / 255, 47 / 255, 1] },
-            // { max: 50, color: [231 / 255, 53 / 255, 31 / 255, 1] },
-            // { max: 55, color: [184 / 255, 43 / 255, 41 / 255, 1] },
-            // { max: 60, color: [183 / 255, 36 / 255, 28 / 255, 1] },
-            // { max: 65, color: [236 / 255, 62 / 255, 237 / 255, 1] },
-            // { max: 70, color: [132 / 255, 39 / 255, 179 / 255, 1] },
-            // 最后一项处理所有大于等于 70 的值
             { max: Infinity, color: [255 / 255, 0 / 255, 0 / 255, 1] }
         ];
 

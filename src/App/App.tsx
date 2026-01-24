@@ -70,7 +70,9 @@ function App() {
 
         // 加载 3D Tiles
         try {
-            const tileset = await Cesium.Cesium3DTileset.fromUrl('/3dtitles/tileset.json');
+            const tileset = await Cesium.Cesium3DTileset.fromUrl(
+                '/public/hk_3dtitles/tileset.json'
+            );
             viewer.scene.primitives.add(tileset);
 
             viewer.zoomTo(tileset);

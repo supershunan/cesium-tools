@@ -327,10 +327,10 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
             }
             data.header = {
                 ...data.header,
-                xStart: 109.299455,
-                yStart: 29.272936,
-                xEnd: 109.307083,
-                yEnd: 29.280877,
+                xStart: 113.831876,
+                yStart: 22.121618,
+                xEnd: 113.832552,
+                yEnd: 22.1222,
             };
 
             const { header } = data;

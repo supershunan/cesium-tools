@@ -109,6 +109,7 @@ export class GridDataReader {
 
         // 3. 读取数据部分
         this.data = this.readGridData(uint8Array, offset, this.header);
+        console.log('数据:', this.data);
 
         return {
             header: this.header,

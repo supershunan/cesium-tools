@@ -12,7 +12,7 @@ import {
 } from '../index';
 import './App.css';
 import Voxel from './Voxel';
-import FxtVoxel from './test';
+import EarthProjection from './earthProjection';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
@@ -41,7 +41,7 @@ function App() {
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            // terrain: Cesium.Terrain.fromWorldTerrain(),
+            terrain: Cesium.Terrain.fromWorldTerrain(),
             // terrain: new Cesium.Terrain(
             //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
             //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
@@ -54,14 +54,14 @@ function App() {
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
-        // viewer.scene.camera.flyTo({
-        //     destination: Cesium.Cartesian3.fromDegrees(
-        //         111.33969224427842,
-        //         39.73786768701646,
-        //         8000.0
-        //     ),
-        //     duration: 2.0,
-        // });
+        viewer.scene.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+                111.33515718102731,
+                39.73786768701646,
+                8000.0
+            ),
+            duration: 2.0,
+        });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
         viewer.scene.globe.enableLighting = false;
         viewer.scene.globe.depthTestAgainstTerrain = false;
@@ -69,16 +69,16 @@ function App() {
         viewer.scene.debugShowFramesPerSecond = true;
 
         // 加载 3D Tiles
-        try {
-            const tileset = await Cesium.Cesium3DTileset.fromUrl(
-                '/public/hk_3dtitles/tileset.json'
-            );
-            viewer.scene.primitives.add(tileset);
+        // try {
+        //     const tileset = await Cesium.Cesium3DTileset.fromUrl(
+        //         '/public/hk_3dtitles/tileset.json'
+        //     );
+        //     viewer.scene.primitives.add(tileset);
 
-            viewer.zoomTo(tileset);
-        } catch (error) {
-            console.error('加载 3D Tiles 失败:', error);
-        }
+        //     viewer.zoomTo(tileset);
+        // } catch (error) {
+        //     console.error('加载 3D Tiles 失败:', error);
+        // }
 
         setMeasure(viewer);
         visualFieldAnalysis.setInstance(viewer, Cesium);
@@ -329,7 +329,7 @@ function App() {
                 entity绘制
             </button>
             {/* <Voxel viewer={viewerRef.current} /> */}
-            <FxtVoxel viewer={viewerRef.current} />
+            <EarthProjection viewer={viewerRef.current} />
         </div>
     );
 }

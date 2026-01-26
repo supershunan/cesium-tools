@@ -13,6 +13,7 @@ import {
 import './App.css';
 import Voxel from './Voxel';
 import EarthProjection from './earthProjection';
+import BuildProject from './buildProject';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
@@ -36,49 +37,37 @@ function App() {
     }, []);
 
     const initCesium = async () => {
-        Cesium.Ion.defaultAccessToken =
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI1MWQzMDI1Ni1kMjljLTQzZWEtYWIyZS0wYzRiMTA3ZTRlZjEiLCJpZCI6MzY3NDEyLCJpYXQiOjE3NjUyMDE5MjF9.CzIQ4rTSniTTEW4tt2CQkqmTRPGhEvCJqtu6SlTrJKM';
+        // Cesium.Ion.defaultAccessToken =
+        //     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI1MWQzMDI1Ni1kMjljLTQzZWEtYWIyZS0wYzRiMTA3ZTRlZjEiLCJpZCI6MzY3NDEyLCJpYXQiOjE3NjUyMDE5MjF9.CzIQ4rTSniTTEW4tt2CQkqmTRPGhEvCJqtu6SlTrJKM';
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            terrain: Cesium.Terrain.fromWorldTerrain(),
-            // terrain: new Cesium.Terrain(
-            //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
-            //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
-            //     )
-            // ),
+            // terrain: Cesium.Terrain.fromWorldTerrain(),
+            terrain: new Cesium.Terrain(
+                Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+                    'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+                )
+            ),
             // animation: false,
             timeline: false,
         });
 
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
-        viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
-        viewer.scene.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(
-                111.33515718102731,
-                39.73786768701646,
-                8000.0
-            ),
-            duration: 2.0,
-        });
+        // viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
+        // viewer.scene.camera.flyTo({
+        //     destination: Cesium.Cartesian3.fromDegrees(
+        //         111.33515718102731,
+        //         39.73786768701646,
+        //         8000.0
+        //     ),
+        //     duration: 2.0,
+        // });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
         viewer.scene.globe.enableLighting = false;
         viewer.scene.globe.depthTestAgainstTerrain = false;
         viewer.shadows = false;
         viewer.scene.debugShowFramesPerSecond = true;
-
-        // 加载 3D Tiles
-        // try {
-        //     const tileset = await Cesium.Cesium3DTileset.fromUrl(
-        //         '/public/hk_3dtitles/tileset.json'
-        //     );
-        //     viewer.scene.primitives.add(tileset);
-
-        //     viewer.zoomTo(tileset);
-        // } catch (error) {
-        //     console.error('加载 3D Tiles 失败:', error);
-        // }
 
         setMeasure(viewer);
         visualFieldAnalysis.setInstance(viewer, Cesium);
@@ -329,7 +318,8 @@ function App() {
                 entity绘制
             </button>
             {/* <Voxel viewer={viewerRef.current} /> */}
-            <EarthProjection viewer={viewerRef.current} />
+            {/* <EarthProjection viewer={viewerRef.current} /> */}
+            <BuildProject viewer={viewerRef.current} />
         </div>
     );
 }

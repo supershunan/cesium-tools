@@ -4,7 +4,7 @@ import { GridDataReader } from '../tools/radarLayer';
 import * as Cesium from 'cesium';
 import { EarthProjection, GridData, ColorRule, ColorMode } from '../tools/earthProjection';
 
-export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
+export default function EarthProject({ viewer }: { viewer: Cesium.Viewer }) {
     // 使用 EarthProjection 类
     const earthProjectionRef = useRef<EarthProjection | null>(null);
 

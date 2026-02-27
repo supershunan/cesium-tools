@@ -13,6 +13,7 @@ type GridResult = {
         yDelta?: number;
         xSize?: number;
         ySize?: number;
+        levelList?: Array<string | number>;
     };
     data: number[][][][];
 };
@@ -20,6 +21,8 @@ type GridResult = {
 type GridFrame = {
     header: GridResult['header'];
     grid: number[][];
+    heightMeters?: number;
+    opacity?: number;
 };
 
 class DynamicRasterLayer {
@@ -28,10 +31,13 @@ class DynamicRasterLayer {
     private material: Cesium.Material | null;
     private textureCanvas: HTMLCanvasElement;
     private textureCtx: CanvasRenderingContext2D;
+    private textureUniformCanvas: HTMLCanvasElement;
     private gridWidth: number;
     private gridHeight: number;
     private boundsKey: string;
     private clampToGround: boolean;
+    private currentHeightMeters: number;
+    private currentOpacity: number;
 
     constructor(viewer: Cesium.Viewer, clampToGround?: boolean) {
         this.viewer = viewer;
@@ -43,10 +49,13 @@ class DynamicRasterLayer {
             throw new Error('无法创建纹理画布上下文');
         }
         this.textureCtx = ctx;
+        this.textureUniformCanvas = document.createElement('canvas');
         this.gridWidth = 1;
         this.gridHeight = 1;
         this.boundsKey = '';
         this.clampToGround = clampToGround ?? false;
+        this.currentHeightMeters = 0;
+        this.currentOpacity = 1;
     }
 
     public update(frame: GridFrame) {
@@ -66,21 +75,26 @@ class DynamicRasterLayer {
         }
         const textureData = this.packGridToTexture(grid, width, height);
         this.textureCtx.putImageData(textureData, 0, 0);
+        const textureForUniform = this.buildUniformCanvas(width, height);
         this.gridWidth = width;
         this.gridHeight = height;
+        this.currentHeightMeters = frame.heightMeters ?? 0;
+        this.currentOpacity = frame.opacity ?? 1;
 
         const rectangle = this.buildRectangle(header, width, height);
-        const nextBoundsKey = `${header.xStart}_${header.yStart}_${header.xEnd}_${header.yEnd}`;
+        const nextBoundsKey = `${header.xStart}_${header.yStart}_${header.xEnd}_${header.yEnd}_${this.currentHeightMeters}_${this.currentOpacity}`;
 
         if (!this.primitive || !this.material || this.boundsKey !== nextBoundsKey) {
-            this.rebuildPrimitive(rectangle, this.textureCanvas, nextBoundsKey);
+            this.rebuildPrimitive(rectangle, textureForUniform, nextBoundsKey);
         } else {
             const uniforms = this.material.uniforms as {
                 u_dataTex: HTMLCanvasElement;
                 u_gridSize: Cesium.Cartesian2;
+                u_layerAlpha: number;
             };
-            uniforms.u_dataTex = this.textureCanvas;
+            uniforms.u_dataTex = textureForUniform;
             uniforms.u_gridSize = new Cesium.Cartesian2(this.gridWidth, this.gridHeight);
+            uniforms.u_layerAlpha = this.currentOpacity;
         }
 
         this.viewer.scene.requestRender();
@@ -116,6 +130,7 @@ class DynamicRasterLayer {
                 uniforms: {
                     u_dataTex: texture,
                     u_gridSize: new Cesium.Cartesian2(this.gridWidth, this.gridHeight),
+                    u_layerAlpha: this.currentOpacity,
                 },
                 source: `
 czm_material czm_getMaterial(czm_materialInput materialInput)
@@ -163,7 +178,7 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
         color = vec3(132.0/255.0, 39.0/255.0, 179.0/255.0);
     }
     material.diffuse = color;
-    material.alpha = tex.a;
+    material.alpha = tex.a * clamp(u_layerAlpha, 0.0, 1.0);
     return material;
 }
                 `,
@@ -173,6 +188,7 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
 
         const geometry = new Cesium.RectangleGeometry({
             rectangle,
+            height: this.currentHeightMeters,
             vertexFormat: Cesium.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat,
         });
         const instance = new Cesium.GeometryInstance({
@@ -181,11 +197,9 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
         if (this.clampToGround) {
             this.primitive = new Cesium.GroundPrimitive({
                 geometryInstances: instance,
-                appearance: new Cesium.MaterialAppearance({
+                appearance: new Cesium.EllipsoidSurfaceAppearance({
                     material: this.material,
-                    translucent: true,
-                    closed: false,
-                    faceForward: true,
+                    aboveGround: true,
                 }),
                 classificationType: Cesium.ClassificationType.BOTH,
                 asynchronous: false,
@@ -203,6 +217,17 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
             });
         }
         this.viewer.scene.primitives.add(this.primitive);
+    }
+
+    private buildUniformCanvas(width: number, height: number) {
+        this.textureUniformCanvas = document.createElement('canvas');
+        this.textureUniformCanvas.width = width;
+        this.textureUniformCanvas.height = height;
+        const uniformCtx = this.textureUniformCanvas.getContext('2d');
+        if (uniformCtx) {
+            uniformCtx.putImageData(this.textureCtx.getImageData(0, 0, width, height), 0, 0);
+        }
+        return this.textureUniformCanvas;
     }
 
     private packGridToTexture(grid: number[][], width: number, height: number) {
@@ -260,21 +285,19 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
 }
 
 export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
-    const baseUrl = 'http://222.74.18.86:7085/fxtraincold/';
     const MAX_CACHE_SIZE = 4;
+    const LEVEL_HEIGHT_SCALE = 10;
 
     const multiLayerTestURL = useRef([
-        '/public/resources/82DA3ED6762D4E9AB594EDF9D6359461202602260030_simulated_1.bin.zip',
+        '/resources/82DA3ED6762D4E9AB594EDF9D6359461202602260030_simulated_1.bin.zip',
     ]).current;
-    // 仅保留多层zip测试图层，其他图层暂时停用
-    const layerUrlGroups = useRef([multiLayerTestURL]).current;
+    const sourceUrl = multiLayerTestURL[0];
     const rasterLayersRef = useRef<DynamicRasterLayer[]>([]);
     const frameCacheRef = useRef(new Map<string, Promise<GridResult | null>>());
     const [layerProgressText, setLayerProgressText] = useState('');
-    const [isPlaying, setIsPlaying] = useState(true);
     const isRenderingRef = useRef(false);
     const isCameraMovingRef = useRef(false);
-    const layerFrameIndexesRef = useRef<number[]>([]);
+    const timeIndexRef = useRef(0);
 
     const loadGridResult = useCallback(
         (url: string) => {
@@ -320,41 +343,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         [MAX_CACHE_SIZE]
     );
 
-    const selectFrame = (
-        result: GridResult,
-        cursor: number,
-        singleUrlMode: boolean
-    ): GridFrame | null => {
-        const times = result.data?.length ?? 0;
-        const levels = result.data?.[0]?.length ?? 0;
-        if (!times || !levels) {
-            return null;
-        }
-
-        let timeIndex = 0;
-        let levelIndex = 0;
-        if (singleUrlMode) {
-            const total = times * levels;
-            const frameIndex = total > 0 ? cursor % total : 0;
-            timeIndex = Math.floor(frameIndex / levels);
-            levelIndex = frameIndex % levels;
-        }
-
-        const grid = result.data?.[timeIndex]?.[levelIndex];
-        if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0]) || !grid[0].length) {
-            return null;
-        }
-
-        return {
-            header: result.header,
-            grid,
-        };
-    };
-
     const renderFrame = useCallback(async () => {
-        if (!layerUrlGroups.length || !rasterLayersRef.current.length) {
-            return false;
-        }
         if (isCameraMovingRef.current) {
             return false;
         }
@@ -362,87 +351,70 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
             return false;
         }
 
-        const renderableLayerIndexes = layerUrlGroups
-            .map((group, index) => {
-                return group.length > 0 ? index : -1;
-            })
-            .filter((index) => {
-                return index >= 0;
-            });
-        if (!renderableLayerIndexes.length) {
-            return false;
-        }
-
         isRenderingRef.current = true;
         try {
-            await Promise.all(
-                renderableLayerIndexes.map(async (layerIdx) => {
-                    const layerData = layerUrlGroups[layerIdx];
-                    const layer = rasterLayersRef.current[layerIdx];
-                    if (!layerData.length || !layer) {
-                        return;
-                    }
-                    const currentFrame = layerFrameIndexesRef.current[layerIdx] ?? 0;
-                    const isSingleUrlLayer = layerData.length === 1;
-                    const layerFrameIndex = isSingleUrlLayer ? 0 : currentFrame % layerData.length;
-                    const sourcePath = layerData[layerFrameIndex];
-                    const url =
-                        sourcePath.startsWith('http://') ||
-                        sourcePath.startsWith('https://') ||
-                        sourcePath.startsWith('/')
-                            ? sourcePath
-                            : baseUrl + sourcePath;
-                    const result = await loadGridResult(url);
-                    console.log('wkk', result);
-                    if (!result) {
-                        return;
-                    }
-                    const frame = selectFrame(result, currentFrame, isSingleUrlLayer);
-                    if (!frame) {
-                        return;
-                    }
-                    layer.update(frame);
-                    if (isSingleUrlLayer) {
-                        const times = result.data?.length ?? 0;
-                        const levels = result.data?.[0]?.length ?? 0;
-                        const totalFrames = Math.max(1, times * levels);
-                        layerFrameIndexesRef.current[layerIdx] = (currentFrame + 1) % totalFrames;
-                    } else {
-                        layerFrameIndexesRef.current[layerIdx] =
-                            (layerFrameIndex + 1) % layerData.length;
-                    }
-                })
-            );
-            setLayerProgressText(
-                layerFrameIndexesRef.current
-                    .map((value, idx) => {
-                        return `L${idx + 1}:${value}`;
-                    })
-                    .join(' | ')
-            );
+            const url = sourceUrl.startsWith('/') ? sourceUrl : `/${sourceUrl}`;
+            const result = await loadGridResult(url);
+            if (!result) {
+                return false;
+            }
+
+            const times = result.data?.length ?? 0;
+            const levels = result.data?.[0]?.length ?? 0;
+            if (!times || !levels) {
+                return false;
+            }
+
+            if (rasterLayersRef.current.length !== levels) {
+                rasterLayersRef.current.forEach((layer) => {
+                    layer.destroy();
+                });
+                rasterLayersRef.current = Array.from({ length: levels }, (_, idx) => {
+                    return new DynamicRasterLayer(viewer as Cesium.Viewer, idx === 0);
+                });
+            }
+
+            const timeIndex = timeIndexRef.current % times;
+            const levelList = result.header.levelList ?? [];
+            for (let levelIndex = 0; levelIndex < levels; levelIndex++) {
+                const grid = result.data?.[timeIndex]?.[levelIndex];
+                if (
+                    !Array.isArray(grid) ||
+                    !grid.length ||
+                    !Array.isArray(grid[0]) ||
+                    !grid[0].length
+                ) {
+                    continue;
+                }
+                const levelHeightRaw = levelList[levelIndex];
+                const levelHeight = Number(levelHeightRaw);
+                const layerHeight =
+                    levelIndex === 0 || !Number.isFinite(levelHeight)
+                        ? 1
+                        : levelHeight * LEVEL_HEIGHT_SCALE;
+                rasterLayersRef.current[levelIndex]?.update({
+                    header: result.header,
+                    grid,
+                    heightMeters: layerHeight,
+                    opacity: levelIndex === 0 ? 1 : 0.45,
+                });
+            }
+
+            timeIndexRef.current = (timeIndexRef.current + 1) % times;
+            setLayerProgressText(`time: ${timeIndexRef.current}/${times}, levels: ${levels}`);
             return true;
         } finally {
             isRenderingRef.current = false;
         }
-    }, [baseUrl, layerUrlGroups, loadGridResult]);
+    }, [loadGridResult, sourceUrl, viewer]);
 
     useEffect(() => {
         if (viewer) {
             const cacheRef = frameCacheRef;
             const timeoutId = setTimeout(() => {
-                rasterLayersRef.current = layerUrlGroups.map(() => {
-                    return new DynamicRasterLayer(viewer, true);
-                });
-                layerFrameIndexesRef.current = layerUrlGroups.map(() => {
-                    return 0;
-                });
-                setLayerProgressText(
-                    layerFrameIndexesRef.current
-                        .map((value, idx) => {
-                            return `L${idx + 1}:${value}`;
-                        })
-                        .join(' | ')
-                );
+                rasterLayersRef.current = [];
+                timeIndexRef.current = 0;
+                setLayerProgressText('time: 0/0, levels: 0');
                 renderFrame().then(
                     () => {
                         return;
@@ -461,10 +433,10 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
                 rasterLayersRef.current = [];
                 cacheRef.current.clear();
                 isRenderingRef.current = false;
-                layerFrameIndexesRef.current = [];
+                timeIndexRef.current = 0;
             };
         }
-    }, [layerUrlGroups, renderFrame, viewer]);
+    }, [renderFrame, viewer]);
 
     useEffect(() => {
         if (!viewer) {
@@ -487,55 +459,22 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         };
     }, [viewer]);
 
-    useEffect(() => {
-        if (!isPlaying) {
-            return;
-        }
-
-        const maxLength = Math.max(
-            ...layerUrlGroups.map((group) => {
-                return group.length;
-            })
-        );
-        if (!maxLength) {
-            return;
-        }
-
-        let timerId = 0;
-        let stopped = false;
-        const frameIntervalMs = 1500;
-
-        const tick = async () => {
-            if (stopped) {
-                return;
-            }
-
-            const rendered = await renderFrame();
-            if (stopped) {
-                return;
-            }
-
-            timerId = window.setTimeout(tick, rendered ? frameIntervalMs : 800);
-        };
-        timerId = window.setTimeout(tick, frameIntervalMs);
-
-        return () => {
-            stopped = true;
-            window.clearTimeout(timerId);
-        };
-    }, [isPlaying, layerUrlGroups, renderFrame]);
-
     return (
         <div>
             <button
                 onClick={() => {
-                    setIsPlaying((prev) => {
-                        return !prev;
-                    });
+                    renderFrame().then(
+                        () => {
+                            return;
+                        },
+                        () => {
+                            return;
+                        }
+                    );
                 }}
                 style={{ position: 'absolute', top: 60, left: 0, zIndex: 10 }}
             >
-                {isPlaying ? '暂停' : '自动播放'}
+                下一帧
             </button>
             <div
                 id="pickedCoordinate"

@@ -17,7 +17,16 @@ export interface GridDataHeader {
 
 export interface GridData {
     header: GridDataHeader;
-    data: number[][][][];
+    data?: number[][][][];
+    flatData?: Float32Array;
+    getLevelSlice?: (timeIndex: number, levelIndex: number) => number[][];
+    getTimeSlice?: (timeIndex: number) => number[][][];
+    getValue?: (
+        timeIndex: number,
+        levelIndex: number,
+        latIndex: number,
+        lonIndex: number
+    ) => number;
 }
 
 export interface ColorRule {
@@ -79,7 +88,7 @@ export class EarthProjection {
      * 渲染数据
      */
     public render(data: GridData): void {
-        if (!this.viewer || !data || !data.header || !data.data) {
+        if (!this.viewer || !data || !data.header) {
             // eslint-disable-next-line no-console
             console.error('数据无效');
             return;
@@ -87,8 +96,10 @@ export class EarthProjection {
 
         const { header } = data;
 
-        // 提取第一个time和level的数据 [times][levels][y][x]
-        const gridData = data.data[0]?.[0];
+        // 支持两种读取结构：
+        // 1) 传统 data[time][level][y][x]
+        // 2) Worker 模式下的 getLevelSlice 访问器
+        const gridData = data.getLevelSlice ? data.getLevelSlice(0, 0) : data.data?.[0]?.[0];
         if (!gridData) {
             // eslint-disable-next-line no-console
             console.error('数据为空');

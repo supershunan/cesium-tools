@@ -12,8 +12,8 @@ import {
 } from '../index';
 import './App.css';
 import Voxel from './Voxel';
-import EarthProjection from './earthProjection';
-import BuildProject from './buildProject';
+import EarthProjection from './earthProject';
+import BuildProject from './BuildProject';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 

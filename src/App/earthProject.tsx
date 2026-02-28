@@ -98,9 +98,9 @@ export default function EarthProject({ viewer }: { viewer: Cesium.Viewer }) {
                     'Content-Type': 'application/zip',
                 },
             });
-            const gridDataReader = new GridDataReader();
-            const data = await gridDataReader.readCompressedGridData(await res.blob());
-            dataResult = data as GridData;
+            const reader = new GridDataReader();
+            const parsed = await reader.readCompressedGridData(await res.blob());
+            dataResult = parsed as GridData;
         } catch (error) {
             // eslint-disable-next-line no-console
             console.error('读取ZIP文件错误:', error);

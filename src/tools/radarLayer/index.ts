@@ -1,22 +1,239 @@
 import * as zip from '@zip.js/zip.js';
+export { DynamicRasterLayer } from './DynamicRasterLayer';
+export type { GridFrame, GridHeader } from './DynamicRasterLayer';
+
+type WorkerMode = 'header' | 'data';
+
+type WorkerPending = {
+    resolve: (value: any) => void;
+    reject: (reason?: unknown) => void;
+};
 
 export class GridDataReader {
     public header: any;
     public data: any;
+    private static perfEnabled = false;
+    private static perfStats = new Map<
+        string,
+        { count: number; totalMs: number; maxMs: number; minMs: number }
+    >();
+    private static worker: Worker | null = null;
+    private static workerReqId = 1;
+    private static workerPending = new Map<number, WorkerPending>();
+
+    private static createFlatDataAccessors(header: any, flatData: Float32Array) {
+        const times = header?.times ?? 0;
+        const levels = header?.levels ?? 0;
+        const ySize = header?.ySize ?? 0;
+        const xSize = header?.xSize ?? 0;
+        const levelStride = ySize * xSize;
+        const timeStride = levels * levelStride;
+        const levelSliceCache = new Map<number, number[][]>();
+        const timeSliceCache = new Map<number, number[][][]>();
+
+        const getValue = (
+            timeIndex: number,
+            levelIndex: number,
+            latIndex: number,
+            lonIndex: number
+        ) => {
+            const idx =
+                timeIndex * timeStride + levelIndex * levelStride + latIndex * xSize + lonIndex;
+            return flatData[idx];
+        };
+
+        const getLevelSlice = (timeIndex: number, levelIndex: number) => {
+            const cacheKey = timeIndex * levels + levelIndex;
+            const cached = levelSliceCache.get(cacheKey);
+            if (cached) {
+                return cached;
+            }
+            const base = timeIndex * timeStride + levelIndex * levelStride;
+            const grid = new Array(ySize);
+            for (let y = 0; y < ySize; y++) {
+                const row = new Array(xSize);
+                const rowBase = base + y * xSize;
+                for (let x = 0; x < xSize; x++) {
+                    row[x] = flatData[rowBase + x];
+                }
+                grid[y] = row;
+            }
+            levelSliceCache.set(cacheKey, grid);
+            return grid;
+        };
+
+        const getTimeSlice = (timeIndex: number) => {
+            const cached = timeSliceCache.get(timeIndex);
+            if (cached) {
+                return cached;
+            }
+            const levelList = new Array(levels);
+            for (let l = 0; l < levels; l++) {
+                levelList[l] = getLevelSlice(timeIndex, l);
+            }
+            timeSliceCache.set(timeIndex, levelList);
+            return levelList;
+        };
+
+        const getLatLonSlice = (timeIndex: number, levelIndex: number, latIndex: number) => {
+            const base = timeIndex * timeStride + levelIndex * levelStride + latIndex * xSize;
+            const row = new Array(xSize);
+            for (let x = 0; x < xSize; x++) {
+                row[x] = flatData[base + x];
+            }
+            return row;
+        };
+
+        return {
+            getValue,
+            getTimeSlice,
+            getLevelSlice,
+            getLatLonSlice,
+        };
+    }
 
     constructor() {
         this.header = null;
         this.data = null;
     }
 
+    public static setPerfEnabled(enabled: boolean) {
+        GridDataReader.perfEnabled = enabled;
+    }
+
+    public static resetPerfStats() {
+        GridDataReader.perfStats.clear();
+    }
+
+    public static getPerfStats() {
+        return Array.from(GridDataReader.perfStats.entries()).map(([stage, stat]) => {
+            return {
+                stage,
+                count: stat.count,
+                avgMs: stat.totalMs / Math.max(1, stat.count),
+                maxMs: stat.maxMs,
+                minMs: stat.minMs,
+                totalMs: stat.totalMs,
+            };
+        });
+    }
+
+    private static ensureWorker() {
+        if (GridDataReader.worker) {
+            return GridDataReader.worker;
+        }
+        if (typeof Worker === 'undefined') {
+            return null;
+        }
+        let worker: Worker;
+        try {
+            worker = new Worker(new URL('./gridReader.worker.ts', import.meta.url), {
+                type: 'module',
+            });
+        } catch (error) {
+            return null;
+        }
+        worker.onmessage = (event) => {
+            const payload = event.data as {
+                id: number;
+                ok: boolean;
+                result?: any;
+                error?: string;
+                perf?: {
+                    decompressMs: number;
+                    parseMs: number;
+                    totalMs: number;
+                    mode: WorkerMode;
+                };
+            };
+            const pending = GridDataReader.workerPending.get(payload.id);
+            if (!pending) {
+                return;
+            }
+            GridDataReader.workerPending = new Map(
+                Array.from(GridDataReader.workerPending.entries()).filter(([key]) => {
+                    return key !== payload.id;
+                })
+            );
+            if (payload.ok) {
+                if (payload.perf) {
+                    const prefix = payload.perf.mode === 'header' ? 'header' : 'data';
+                    GridDataReader.recordPerf(`${prefix}:decompress`, payload.perf.decompressMs);
+                    GridDataReader.recordPerf(`${prefix}:parse`, payload.perf.parseMs);
+                    GridDataReader.recordPerf(`${prefix}:total`, payload.perf.totalMs);
+                }
+                pending.resolve(payload.result);
+            } else {
+                pending.reject(new Error(payload.error || 'worker 读取失败'));
+            }
+        };
+        worker.onerror = (error) => {
+            GridDataReader.workerPending.forEach((pending) => {
+                pending.reject(error);
+            });
+            GridDataReader.workerPending.clear();
+            GridDataReader.worker = null;
+        };
+        GridDataReader.worker = worker;
+        return worker;
+    }
+
+    private static async runInWorker(mode: WorkerMode, compressedFile: Blob) {
+        const worker = GridDataReader.ensureWorker();
+        if (!worker) {
+            return null;
+        }
+        const arrayBuffer = await compressedFile.arrayBuffer();
+        const id = GridDataReader.workerReqId++;
+        const task = new Promise<any>((resolve, reject) => {
+            GridDataReader.workerPending.set(id, { resolve, reject });
+        });
+        worker.postMessage({ id, mode, arrayBuffer }, [arrayBuffer]);
+        return task;
+    }
+
+    private static recordPerf(stage: string, ms: number) {
+        if (!GridDataReader.perfEnabled) {
+            return;
+        }
+        const prev = GridDataReader.perfStats.get(stage);
+        if (!prev) {
+            GridDataReader.perfStats.set(stage, {
+                count: 1,
+                totalMs: ms,
+                maxMs: ms,
+                minMs: ms,
+            });
+        } else {
+            GridDataReader.perfStats.set(stage, {
+                count: prev.count + 1,
+                totalMs: prev.totalMs + ms,
+                maxMs: Math.max(prev.maxMs, ms),
+                minMs: Math.min(prev.minMs, ms),
+            });
+        }
+    }
+
     // 主要入口函数 - 只读取头文件
     async readHeaderOnly(compressedFile: Blob) {
         try {
+            const workerResult = await GridDataReader.runInWorker('header', compressedFile);
+            if (workerResult) {
+                this.header = workerResult.header;
+                return workerResult;
+            }
+            const totalStart = performance.now();
             // 1. 解压文件
+            const decompressStart = performance.now();
             const fileData = await this.decompressZip(compressedFile);
+            GridDataReader.recordPerf('header:decompress', performance.now() - decompressStart);
 
             // 2. 只解析头文件
-            return await this.parseHeaderOnly(fileData);
+            const parseStart = performance.now();
+            const result = await this.parseHeaderOnly(fileData);
+            GridDataReader.recordPerf('header:parse', performance.now() - parseStart);
+            GridDataReader.recordPerf('header:total', performance.now() - totalStart);
+            return result;
         } catch (error) {
             console.error('读取头文件失败:', error);
             throw error;
@@ -26,11 +243,37 @@ export class GridDataReader {
     // 读取完整数据
     async readCompressedGridData(compressedFile: Blob) {
         try {
+            const workerResult = await GridDataReader.runInWorker('data', compressedFile);
+            if (workerResult) {
+                this.header = workerResult.header;
+                const flatData =
+                    workerResult.flatData instanceof Float32Array
+                        ? workerResult.flatData
+                        : new Float32Array(workerResult.flatData);
+                this.data = flatData;
+                const accessors = GridDataReader.createFlatDataAccessors(this.header, flatData);
+                return {
+                    header: this.header,
+                    data: null,
+                    flatData,
+                    getValue: accessors.getValue,
+                    getTimeSlice: accessors.getTimeSlice,
+                    getLevelSlice: accessors.getLevelSlice,
+                    getLatLonSlice: accessors.getLatLonSlice,
+                };
+            }
+            const totalStart = performance.now();
             // 1. 解压文件
+            const decompressStart = performance.now();
             const fileData = await this.decompressZip(compressedFile);
+            GridDataReader.recordPerf('data:decompress', performance.now() - decompressStart);
 
             // 2. 解析完整数据
-            return await this.parseGridData(fileData);
+            const parseStart = performance.now();
+            const result = await this.parseGridData(fileData);
+            GridDataReader.recordPerf('data:parse', performance.now() - parseStart);
+            GridDataReader.recordPerf('data:total', performance.now() - totalStart);
+            return result;
         } catch (error) {
             console.error('读取格点数据失败:', error);
             throw error;
@@ -109,7 +352,7 @@ export class GridDataReader {
 
         // 3. 读取数据部分
         this.data = this.readGridData(uint8Array, offset, this.header);
-        console.log('数据:', this.data);
+        console.log('数据读取完成');
 
         return {
             header: this.header,
@@ -187,6 +430,12 @@ export class GridDataReader {
         }
 
         const data = new Array(times);
+        const dataView = new DataView(
+            uint8Array.buffer,
+            uint8Array.byteOffset,
+            uint8Array.byteLength
+        );
+        const elementSize = this.getDataTypeSize(dataType);
 
         // 根据数据类型创建相应的读取器
         const readDataItem = this.createDataReader(dataType, littleEndian, unsigned);
@@ -208,8 +457,8 @@ export class GridDataReader {
                             );
                         }
 
-                        const rawValue = readDataItem(uint8Array, offset);
-                        offset += this.getDataTypeSize(dataType);
+                        const rawValue = readDataItem(dataView, offset);
+                        offset += elementSize;
 
                         // 应用缩放和偏移
                         let finalValue = rawValue * dataScale + dataOffset;
@@ -235,81 +484,59 @@ export class GridDataReader {
 
         switch (type) {
             case 'int8':
-                return (arr: Uint8Array, offset: number) => {
-                    const value = arr[offset];
-                    return unsigned ? value : (value << 24) >> 24;
+                return (view: DataView, offset: number) => {
+                    if (offset + 1 > view.byteLength) {
+                        throw new Error('读取int8数据时超出边界');
+                    }
+                    return unsigned ? view.getUint8(offset) : view.getInt8(offset);
                 };
 
             case 'uint8':
-                return (arr: Uint8Array, offset: number) => arr[offset];
+                return (view: DataView, offset: number) => {
+                    if (offset + 1 > view.byteLength) {
+                        throw new Error('读取uint8数据时超出边界');
+                    }
+                    return view.getUint8(offset);
+                };
 
             case 'int16':
             case 'uint16':
-                return (arr: Uint8Array, offset: number) => {
-                    if (offset + 2 > arr.length) {
+                return (view: DataView, offset: number) => {
+                    if (offset + 2 > view.byteLength) {
                         throw new Error('读取16位数据时超出边界');
                     }
-
-                    let value;
-                    if (littleEndian) {
-                        value = arr[offset] | (arr[offset + 1] << 8);
-                    } else {
-                        value = (arr[offset] << 8) | arr[offset + 1];
+                    if (type === 'uint16' || unsigned) {
+                        return view.getUint16(offset, littleEndian);
                     }
-
-                    if (type === 'int16' && !unsigned && value & 0x8000) {
-                        value = -((~value + 1) & 0xffff);
-                    }
-
-                    return value;
+                    return view.getInt16(offset, littleEndian);
                 };
 
             case 'int32':
             case 'uint32':
-                return (arr: Uint8Array, offset: number) => {
-                    if (offset + 4 > arr.length) {
+                return (view: DataView, offset: number) => {
+                    if (offset + 4 > view.byteLength) {
                         throw new Error('读取32位数据时超出边界');
                     }
-
-                    let value = 0;
-                    if (littleEndian) {
-                        for (let i = 0; i < 4; i++) {
-                            value |= arr[offset + i] << (8 * i);
-                        }
-                    } else {
-                        for (let i = 0; i < 4; i++) {
-                            value |= arr[offset + i] << (8 * (3 - i));
-                        }
+                    if (type === 'uint32' || unsigned) {
+                        return view.getUint32(offset, littleEndian);
                     }
-
-                    if (type === 'int32' && !unsigned && value & 0x80000000) {
-                        value = -((~value + 1) & 0xffffffff);
-                    }
-
-                    return value;
+                    return view.getInt32(offset, littleEndian);
                 };
 
             case 'float32':
-                return (arr, offset) => {
-                    if (offset + 4 > arr.length) {
+                return (view: DataView, offset: number) => {
+                    if (offset + 4 > view.byteLength) {
                         throw new Error('读取float32数据时超出边界');
                     }
-
-                    // 创建DataView读取浮点数
-                    const buffer = arr.buffer.slice(offset, offset + 4);
-                    const view = new DataView(buffer);
-                    return view.getFloat32(0, littleEndian);
+                    return view.getFloat32(offset, littleEndian);
                 };
 
             case 'float64':
-                return (arr, offset) => {
-                    if (offset + 8 > arr.length) {
+                return (view: DataView, offset: number) => {
+                    if (offset + 8 > view.byteLength) {
                         throw new Error('读取float64数据时超出边界');
                     }
-
-                    const buffer = arr.buffer.slice(offset, offset + 8);
-                    const view = new DataView(buffer);
-                    return view.getFloat64(0, littleEndian);
+                    return view.getFloat64(offset, littleEndian);
                 };
 
             default:

@@ -1,303 +1,239 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
-import { useEffect } from 'react';
 import { GridDataReader } from '../tools/radarLayer';
+import {
+    DynamicRasterLayer,
+    type GridCellInfo,
+    type GridHeader,
+} from '../tools/radarLayer/DynamicRasterLayer';
 
 type GridResult = {
-    header: {
-        xStart: number;
-        xEnd: number;
-        yStart: number;
-        yEnd: number;
-        xDelta?: number;
-        yDelta?: number;
-        xSize?: number;
-        ySize?: number;
-        levelList?: Array<string | number>;
-    };
-    data: number[][][][];
+    header: GridHeader & { times?: number; levels?: number };
+    data: number[][][][] | null;
+    flatData?: Float32Array;
+    getLevelSlice?: (timeIndex: number, levelIndex: number) => number[][];
 };
-
-type GridFrame = {
-    header: GridResult['header'];
-    grid: number[][];
-    heightMeters?: number;
-    opacity?: number;
-};
-
-class DynamicRasterLayer {
-    private viewer: Cesium.Viewer;
-    private primitive: Cesium.Primitive | Cesium.GroundPrimitive | null;
-    private material: Cesium.Material | null;
-    private textureCanvas: HTMLCanvasElement;
-    private textureCtx: CanvasRenderingContext2D;
-    private textureUniformCanvas: HTMLCanvasElement;
-    private gridWidth: number;
-    private gridHeight: number;
-    private boundsKey: string;
-    private clampToGround: boolean;
-    private currentHeightMeters: number;
-    private currentOpacity: number;
-
-    constructor(viewer: Cesium.Viewer, clampToGround?: boolean) {
-        this.viewer = viewer;
-        this.primitive = null;
-        this.material = null;
-        this.textureCanvas = document.createElement('canvas');
-        const ctx = this.textureCanvas.getContext('2d');
-        if (!ctx) {
-            throw new Error('无法创建纹理画布上下文');
-        }
-        this.textureCtx = ctx;
-        this.textureUniformCanvas = document.createElement('canvas');
-        this.gridWidth = 1;
-        this.gridHeight = 1;
-        this.boundsKey = '';
-        this.clampToGround = clampToGround ?? false;
-        this.currentHeightMeters = 0;
-        this.currentOpacity = 1;
-    }
-
-    public update(frame: GridFrame) {
-        const { header, grid } = frame;
-        if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0]) || !grid[0].length) {
-            return;
-        }
-        const width = grid[0].length;
-        const height = grid.length;
-        if (width <= 0 || height <= 0) {
-            return;
-        }
-
-        if (this.textureCanvas.width !== width || this.textureCanvas.height !== height) {
-            this.textureCanvas.width = width;
-            this.textureCanvas.height = height;
-        }
-        const textureData = this.packGridToTexture(grid, width, height);
-        this.textureCtx.putImageData(textureData, 0, 0);
-        const textureForUniform = this.buildUniformCanvas(width, height);
-        this.gridWidth = width;
-        this.gridHeight = height;
-        this.currentHeightMeters = frame.heightMeters ?? 0;
-        this.currentOpacity = frame.opacity ?? 1;
-
-        const rectangle = this.buildRectangle(header, width, height);
-        const nextBoundsKey = `${header.xStart}_${header.yStart}_${header.xEnd}_${header.yEnd}_${this.currentHeightMeters}_${this.currentOpacity}`;
-
-        if (!this.primitive || !this.material || this.boundsKey !== nextBoundsKey) {
-            this.rebuildPrimitive(rectangle, textureForUniform, nextBoundsKey);
-        } else {
-            const uniforms = this.material.uniforms as {
-                u_dataTex: HTMLCanvasElement;
-                u_gridSize: Cesium.Cartesian2;
-                u_layerAlpha: number;
-            };
-            uniforms.u_dataTex = textureForUniform;
-            uniforms.u_gridSize = new Cesium.Cartesian2(this.gridWidth, this.gridHeight);
-            uniforms.u_layerAlpha = this.currentOpacity;
-        }
-
-        this.viewer.scene.requestRender();
-    }
-
-    public destroy() {
-        if (this.primitive) {
-            this.viewer.scene.primitives.remove(this.primitive);
-            if (!this.primitive.isDestroyed()) {
-                this.primitive.destroy();
-            }
-            this.primitive = null;
-        }
-        this.material = null;
-        this.boundsKey = '';
-    }
-
-    private rebuildPrimitive(
-        rectangle: Cesium.Rectangle,
-        texture: HTMLCanvasElement,
-        boundsKey: string
-    ) {
-        if (this.primitive) {
-            this.viewer.scene.primitives.remove(this.primitive);
-            if (!this.primitive.isDestroyed()) {
-                this.primitive.destroy();
-            }
-            this.primitive = null;
-        }
-        this.boundsKey = boundsKey;
-        this.material = new Cesium.Material({
-            fabric: {
-                uniforms: {
-                    u_dataTex: texture,
-                    u_gridSize: new Cesium.Cartesian2(this.gridWidth, this.gridHeight),
-                    u_layerAlpha: this.currentOpacity,
-                },
-                source: `
-czm_material czm_getMaterial(czm_materialInput materialInput)
-{
-    czm_material material = czm_getDefaultMaterial(materialInput);
-    // 栅格最近邻采样：保证每个像元是规整色块，不做线性插值
-    vec2 gridSize = max(u_gridSize, vec2(1.0));
-    vec2 uv = floor(clamp(materialInput.st, 0.0, 0.999999) * gridSize);
-    uv = (uv + 0.5) / gridSize;
-    vec4 tex = texture(u_dataTex, uv);
-    if (tex.a < 0.01) {
-        material.alpha = 0.0;
-        return material;
-    }
-
-    // RG 双通道解码（16bit），提高阈值分段精度
-    float encoded = tex.r * 255.0 * 256.0 + tex.g * 255.0;
-    float value = (encoded / 65535.0) * 80.0;
-    vec3 color = vec3(174.0/255.0, 148.0/255.0, 237.0/255.0);
-    if (value <= 10.0) {
-        color = vec3(62.0/255.0, 160.0/255.0, 239.0/255.0);
-    } else if (value <= 15.0) {
-        color = vec3(62.0/255.0, 160.0/255.0, 239.0/255.0);
-    } else if (value <= 20.0) {
-        color = vec3(108.0/255.0, 225.0/255.0, 238.0/255.0);
-    } else if (value <= 25.0) {
-        color = vec3(96.0/255.0, 214.0/255.0, 63.0/255.0);
-    } else if (value <= 30.0) {
-        color = vec3(70.0/255.0, 137.0/255.0, 37.0/255.0);
-    } else if (value <= 35.0) {
-        color = vec3(252.0/255.0, 251.0/255.0, 74.0/255.0);
-    } else if (value <= 40.0) {
-        color = vec3(223.0/255.0, 195.0/255.0, 73.0/255.0);
-    } else if (value <= 45.0) {
-        color = vec3(239.0/255.0, 147.0/255.0, 47.0/255.0);
-    } else if (value <= 50.0) {
-        color = vec3(231.0/255.0, 53.0/255.0, 31.0/255.0);
-    } else if (value <= 55.0) {
-        color = vec3(184.0/255.0, 43.0/255.0, 41.0/255.0);
-    } else if (value <= 60.0) {
-        color = vec3(183.0/255.0, 36.0/255.0, 28.0/255.0);
-    } else if (value <= 65.0) {
-        color = vec3(236.0/255.0, 62.0/255.0, 237.0/255.0);
-    } else if (value <= 70.0) {
-        color = vec3(132.0/255.0, 39.0/255.0, 179.0/255.0);
-    }
-    material.diffuse = color;
-    material.alpha = tex.a * clamp(u_layerAlpha, 0.0, 1.0);
-    return material;
-}
-                `,
-            },
-            translucent: true,
-        });
-
-        const geometry = new Cesium.RectangleGeometry({
-            rectangle,
-            height: this.currentHeightMeters,
-            vertexFormat: Cesium.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat,
-        });
-        const instance = new Cesium.GeometryInstance({
-            geometry,
-        });
-        if (this.clampToGround) {
-            this.primitive = new Cesium.GroundPrimitive({
-                geometryInstances: instance,
-                appearance: new Cesium.EllipsoidSurfaceAppearance({
-                    material: this.material,
-                    aboveGround: true,
-                }),
-                classificationType: Cesium.ClassificationType.BOTH,
-                asynchronous: false,
-            });
-        } else {
-            this.primitive = new Cesium.Primitive({
-                geometryInstances: instance,
-                appearance: new Cesium.MaterialAppearance({
-                    material: this.material,
-                    translucent: true,
-                    closed: false,
-                    faceForward: true,
-                }),
-                asynchronous: false,
-            });
-        }
-        this.viewer.scene.primitives.add(this.primitive);
-    }
-
-    private buildUniformCanvas(width: number, height: number) {
-        this.textureUniformCanvas = document.createElement('canvas');
-        this.textureUniformCanvas.width = width;
-        this.textureUniformCanvas.height = height;
-        const uniformCtx = this.textureUniformCanvas.getContext('2d');
-        if (uniformCtx) {
-            uniformCtx.putImageData(this.textureCtx.getImageData(0, 0, width, height), 0, 0);
-        }
-        return this.textureUniformCanvas;
-    }
-
-    private packGridToTexture(grid: number[][], width: number, height: number) {
-        const packed = new Uint8ClampedArray(width * height * 4);
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const value = grid[y][x];
-                const idx = (y * width + x) * 4;
-                if (!Number.isFinite(value)) {
-                    packed[idx] = 0;
-                    packed[idx + 1] = 0;
-                    packed[idx + 2] = 0;
-                    packed[idx + 3] = 0;
-                    continue;
-                }
-                const normalized = Math.max(0, Math.min(1, value / 80));
-                const encoded = Math.round(normalized * 65535);
-                packed[idx] = (encoded >> 8) & 255;
-                packed[idx + 1] = encoded & 255;
-                packed[idx + 2] = 0;
-                packed[idx + 3] = 255;
-            }
-        }
-        return new ImageData(packed, width, height);
-    }
-
-    private buildRectangle(
-        header: GridResult['header'],
-        width: number,
-        height: number
-    ): Cesium.Rectangle {
-        const { xStart, yStart, xEnd, yEnd, xDelta, yDelta, xSize, ySize } = header;
-        const gridWidth = xSize ?? width;
-        const gridHeight = ySize ?? height;
-
-        const hasDelta = Number.isFinite(xDelta) && Number.isFinite(yDelta);
-        if (hasDelta) {
-            const xStop = xStart + (xDelta as number) * gridWidth;
-            const yStop = yStart + (yDelta as number) * gridHeight;
-            return Cesium.Rectangle.fromDegrees(
-                Math.min(xStart, xStop),
-                Math.min(yStart, yStop),
-                Math.max(xStart, xStop),
-                Math.max(yStart, yStop)
-            );
-        }
-
-        return Cesium.Rectangle.fromDegrees(
-            Math.min(xStart, xEnd),
-            Math.min(yStart, yEnd),
-            Math.max(xStart, xEnd),
-            Math.max(yStart, yEnd)
-        );
-    }
-}
 
 export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
-    const MAX_CACHE_SIZE = 4;
+    const MAX_CACHE_SIZE = 24;
     const LEVEL_HEIGHT_SCALE = 10;
+    const baseUrl = 'http://222.74.18.86:7085/fxtraincold/';
+    const dataURL = [
+        'pythonfile/SX002/2025-08-09/SX002_20250809120000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809120500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809121000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809121500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809122000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809122500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809123000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809123500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809124000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809124500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809125000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809125500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809130000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809130500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809131000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809131500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809132000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809132500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809133000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809133500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809134000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809134500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809135000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809135500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809140000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809140500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809141000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809141500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809142000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809142500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809143000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809143500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809144000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809144500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809145000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809145500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809150000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809150500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809151000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809151500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809152000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809152500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809153000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809153500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809154000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809154500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809155000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809155500_CR.zip',
+    ];
 
-    const multiLayerTestURL = useRef([
-        '/resources/82DA3ED6762D4E9AB594EDF9D6359461202602260030_simulated_1.bin.zip',
-    ]).current;
-    const sourceUrl = multiLayerTestURL[0];
-    const rasterLayersRef = useRef<DynamicRasterLayer[]>([]);
+    const dataURL2 = [
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810080000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810080500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810081000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810081500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810082500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810083000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810083500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810084000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810084500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810085000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810085500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810090000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810090500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810091000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810091500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810092000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810092500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810093000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810093500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810094000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810094500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810095000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810095500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810100000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810100500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810101000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810101500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810102000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810102500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810103000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810103500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810104000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810104500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810105000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810105500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810110000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810110500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810111000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810111500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810112000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810112500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810113000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810113500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810114000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810114500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810115000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810115500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810120000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810120500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810121000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810121500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810122000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810122500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810123000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810123500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810124000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810124500_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810125000_CR.zip',
+        'pythonfile/SA000000001M/2025-08-10/SA000000001M_20250810125500_CR.zip',
+    ];
+
+    const dataURL3 = [
+        'pythonfile/SX001/2025-10-01/SX001_20251001000001_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001000501_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001001001_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001001501_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001002001_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001002501_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001003001_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001003501_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001004001_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001004501_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001005001_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001005501_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001010001_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001010531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001011031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001011531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001012031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001012531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001013031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001013531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001014031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001014531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001015031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001015531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001020031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001020531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001021031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001021531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001022031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001022531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001023031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001023531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001024031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001024531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001025031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001025531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001030031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001030531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001031031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001031531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001032031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001032531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001033031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001033531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001034031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001034531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001035031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001035531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001040031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001040531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001041031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001041531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001042031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001042531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001043031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001043531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001044031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001044531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001045031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001045531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001050031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001050531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001051031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001051531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001052031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001052531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001053031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001053531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001054031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001054531_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001055031_CR.zip',
+        'pythonfile/SX001/2025-10-01/SX001_20251001055531_CR.zip',
+    ];
+
+    const sourceGroups = useRef([dataURL, dataURL2, dataURL3]).current;
+    const rasterLayerGroupsRef = useRef<DynamicRasterLayer[][]>([]);
     const frameCacheRef = useRef(new Map<string, Promise<GridResult | null>>());
     const [layerProgressText, setLayerProgressText] = useState('');
+    const [perfEnabled, setPerfEnabled] = useState(false);
+    const [perfText, setPerfText] = useState('');
+    const [hoverText, setHoverText] = useState('');
+    const [clickText, setClickText] = useState('');
+    const hoverTextRef = useRef('');
+    const clickTextRef = useRef('');
     const isRenderingRef = useRef(false);
     const isCameraMovingRef = useRef(false);
-    const timeIndexRef = useRef(0);
+    const frameIndexRef = useRef(0);
+    const autoPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const isAutoPlayingRef = useRef(false);
+
+    const buildFrameUrls = useCallback(
+        (frameIndex: number) => {
+            return sourceGroups.map((group) => {
+                if (!group.length) {
+                    return '';
+                }
+                const relative = group[frameIndex % group.length];
+                return relative.startsWith('http') ? relative : `${baseUrl}${relative}`;
+            });
+        },
+        [baseUrl, sourceGroups]
+    );
 
     const loadGridResult = useCallback(
         (url: string) => {
@@ -343,6 +279,30 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         [MAX_CACHE_SIZE]
     );
 
+    const updateHoverText = useCallback(
+        (cell: GridCellInfo | null, groupIndex: number, levelIndex: number) => {
+            const nextText = cell
+                ? `悬浮值: ${cell.value.toFixed(2)} | group=${groupIndex} level=${levelIndex} | x=${cell.xIndex} y=${cell.yIndex} | lon=${cell.longitude.toFixed(4)} lat=${cell.latitude.toFixed(4)}`
+                : '';
+            if (hoverTextRef.current !== nextText) {
+                hoverTextRef.current = nextText;
+                setHoverText(nextText);
+            }
+        },
+        []
+    );
+
+    const updateClickText = useCallback(
+        (cell: GridCellInfo, groupIndex: number, levelIndex: number) => {
+            const nextText = `点击值: ${cell.value} | group=${groupIndex} level=${levelIndex} | x=${cell.xIndex} y=${cell.yIndex} | lon=${cell.longitude.toFixed(4)} lat=${cell.latitude.toFixed(4)}`;
+            if (clickTextRef.current !== nextText) {
+                clickTextRef.current = nextText;
+                setClickText(nextText);
+            }
+        },
+        []
+    );
+
     const renderFrame = useCallback(async () => {
         if (isCameraMovingRef.current) {
             return false;
@@ -353,68 +313,166 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
 
         isRenderingRef.current = true;
         try {
-            const url = sourceUrl.startsWith('/') ? sourceUrl : `/${sourceUrl}`;
-            const result = await loadGridResult(url);
-            if (!result) {
+            const frameIndex = frameIndexRef.current;
+            const frameUrls = buildFrameUrls(frameIndex);
+            if (
+                !frameUrls.some((url) => {
+                    return Boolean(url);
+                })
+            ) {
                 return false;
             }
-
-            const times = result.data?.length ?? 0;
-            const levels = result.data?.[0]?.length ?? 0;
-            if (!times || !levels) {
-                return false;
-            }
-
-            if (rasterLayersRef.current.length !== levels) {
-                rasterLayersRef.current.forEach((layer) => {
+            if (rasterLayerGroupsRef.current.length !== sourceGroups.length) {
+                rasterLayerGroupsRef.current.flat().forEach((layer) => {
                     layer.destroy();
                 });
-                rasterLayersRef.current = Array.from({ length: levels }, (_, idx) => {
-                    return new DynamicRasterLayer(viewer as Cesium.Viewer, idx === 0);
+                rasterLayerGroupsRef.current = Array.from({ length: sourceGroups.length }, () => {
+                    return [];
                 });
             }
 
-            const timeIndex = timeIndexRef.current % times;
-            const levelList = result.header.levelList ?? [];
-            for (let levelIndex = 0; levelIndex < levels; levelIndex++) {
-                const grid = result.data?.[timeIndex]?.[levelIndex];
-                if (
-                    !Array.isArray(grid) ||
-                    !grid.length ||
-                    !Array.isArray(grid[0]) ||
-                    !grid[0].length
-                ) {
+            let renderedGroups = 0;
+            let renderedLevels = 0;
+            for (let groupIndex = 0; groupIndex < sourceGroups.length; groupIndex++) {
+                const group = sourceGroups[groupIndex];
+                if (!group.length) {
                     continue;
                 }
-                const levelHeightRaw = levelList[levelIndex];
-                const levelHeight = Number(levelHeightRaw);
-                const layerHeight =
-                    levelIndex === 0 || !Number.isFinite(levelHeight)
-                        ? 1
-                        : levelHeight * LEVEL_HEIGHT_SCALE;
-                rasterLayersRef.current[levelIndex]?.update({
-                    header: result.header,
-                    grid,
-                    heightMeters: layerHeight,
-                    opacity: levelIndex === 0 ? 1 : 0.45,
-                });
+                const url = frameUrls[groupIndex];
+                if (!url) {
+                    continue;
+                }
+                const result = await loadGridResult(url);
+                if (!result) {
+                    continue;
+                }
+
+                const times = Number(result.header.times ?? result.data?.length ?? 0);
+                const levels = Number(result.header.levels ?? result.data?.[0]?.length ?? 0);
+                if (!times || !levels) {
+                    continue;
+                }
+
+                if (rasterLayerGroupsRef.current[groupIndex].length !== levels) {
+                    rasterLayerGroupsRef.current[groupIndex].forEach((layer) => {
+                        layer.destroy();
+                    });
+                    rasterLayerGroupsRef.current[groupIndex] = Array.from(
+                        { length: levels },
+                        (_, idx) => {
+                            const layer = new DynamicRasterLayer(viewer as Cesium.Viewer, {
+                                clampToGround: idx === 0,
+                                colorRamp: [
+                                    { maxValue: 10, color: [62, 160, 239] },
+                                    { maxValue: 15, color: [62, 160, 239] },
+                                    { maxValue: 20, color: [108, 225, 238] },
+                                    { maxValue: 25, color: [96, 214, 63] },
+                                    { maxValue: 30, color: [70, 137, 37] },
+                                    { maxValue: 35, color: [252, 251, 74] },
+                                    { maxValue: 40, color: [223, 195, 73] },
+                                    { maxValue: 45, color: [239, 147, 47] },
+                                    { maxValue: 50, color: [231, 53, 31] },
+                                    { maxValue: 55, color: [184, 43, 41] },
+                                    { maxValue: 60, color: [183, 36, 28] },
+                                    { maxValue: 65, color: [236, 62, 237] },
+                                    { maxValue: 70, color: [132, 39, 179] },
+                                    { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
+                                ],
+                                interactionOptions: {
+                                    enabled: idx === 0,
+                                    hoverEnabled: true,
+                                    hoverColor: Cesium.Color.BLACK,
+                                    hoverAlpha: 0.35,
+                                    onCellHover: (cell) => {
+                                        updateHoverText(cell, groupIndex, idx);
+                                    },
+                                    onCellClick: (cell) => {
+                                        updateClickText(cell, groupIndex, idx);
+                                    },
+                                },
+                            });
+                            return layer;
+                        }
+                    );
+                }
+
+                const timeIndex = frameIndex % times;
+                const levelList = result.header.levelList ?? [];
+                for (let levelIndex = 0; levelIndex < levels; levelIndex++) {
+                    const grid = result.getLevelSlice
+                        ? result.getLevelSlice(timeIndex, levelIndex)
+                        : result.data?.[timeIndex]?.[levelIndex];
+                    if (
+                        !Array.isArray(grid) ||
+                        !grid.length ||
+                        !Array.isArray(grid[0]) ||
+                        !grid[0].length
+                    ) {
+                        continue;
+                    }
+                    const levelHeightRaw = levelList[levelIndex];
+                    const levelHeight = Number(levelHeightRaw);
+                    const layerHeight =
+                        levelIndex === 0 || !Number.isFinite(levelHeight)
+                            ? 0
+                            : levelHeight * LEVEL_HEIGHT_SCALE;
+                    rasterLayerGroupsRef.current[groupIndex][levelIndex]?.update({
+                        header: result.header,
+                        grid,
+                        heightMeters: layerHeight,
+                        opacity: levelIndex === 0 ? 1 : 0.45,
+                    });
+                }
+                renderedGroups += 1;
+                renderedLevels = Math.max(renderedLevels, levels);
             }
 
-            timeIndexRef.current = (timeIndexRef.current + 1) % times;
-            setLayerProgressText(`time: ${timeIndexRef.current}/${times}, levels: ${levels}`);
+            frameIndexRef.current = frameIndex + 1;
+            const maxFrameCount = Math.max(
+                1,
+                ...sourceGroups.map((group) => {
+                    return group.length || 1;
+                })
+            );
+            setLayerProgressText(
+                `frame: ${frameIndexRef.current % maxFrameCount}/${maxFrameCount}, groups: ${renderedGroups}/${sourceGroups.length}, levels: ${renderedLevels}`
+            );
+            // 轻量预取：每帧最多预取一个未缓存 URL，避免和前台渲染抢占 worker
+            const nextFrameUrls = buildFrameUrls(frameIndex + 1);
+            const nextPrefetchUrl = nextFrameUrls.find((url) => {
+                if (!url) {
+                    return false;
+                }
+                return !frameCacheRef.current.has(url);
+            });
+            if (nextPrefetchUrl) {
+                setTimeout(() => {
+                    if (isRenderingRef.current) {
+                        return;
+                    }
+                    loadGridResult(nextPrefetchUrl).then(
+                        () => {
+                            return;
+                        },
+                        () => {
+                            return;
+                        }
+                    );
+                }, 0);
+            }
             return true;
         } finally {
             isRenderingRef.current = false;
         }
-    }, [loadGridResult, sourceUrl, viewer]);
+    }, [buildFrameUrls, loadGridResult, sourceGroups, updateClickText, updateHoverText, viewer]);
 
     useEffect(() => {
         if (viewer) {
             const cacheRef = frameCacheRef;
             const timeoutId = setTimeout(() => {
-                rasterLayersRef.current = [];
-                timeIndexRef.current = 0;
-                setLayerProgressText('time: 0/0, levels: 0');
+                rasterLayerGroupsRef.current = [];
+                frameIndexRef.current = 0;
+                setLayerProgressText('frame: 0/0, groups: 0/0, levels: 0');
                 renderFrame().then(
                     () => {
                         return;
@@ -427,13 +485,18 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
 
             return () => {
                 clearTimeout(timeoutId);
-                rasterLayersRef.current.forEach((layer) => {
+                rasterLayerGroupsRef.current.flat().forEach((layer) => {
                     layer.destroy();
                 });
-                rasterLayersRef.current = [];
+                rasterLayerGroupsRef.current = [];
                 cacheRef.current.clear();
                 isRenderingRef.current = false;
-                timeIndexRef.current = 0;
+                frameIndexRef.current = 0;
+                isAutoPlayingRef.current = false;
+                if (autoPlayTimerRef.current) {
+                    clearTimeout(autoPlayTimerRef.current);
+                    autoPlayTimerRef.current = null;
+                }
             };
         }
     }, [renderFrame, viewer]);
@@ -442,6 +505,12 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
         if (!viewer) {
             return;
         }
+        const prevSceneFxaa = (viewer.scene as Cesium.Scene & { fxaa?: boolean }).fxaa;
+        const prevPostFxaa = viewer.scene.postProcessStages.fxaa.enabled;
+        (viewer.scene as Cesium.Scene & { fxaa?: boolean }).fxaa = false;
+        viewer.scene.postProcessStages.fxaa.enabled = false;
+        viewer.scene.requestRender();
+
         const handleMoveStart = () => {
             isCameraMovingRef.current = true;
         };
@@ -456,8 +525,71 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
             viewer.camera.moveStart.removeEventListener(handleMoveStart);
             viewer.camera.moveEnd.removeEventListener(handleMoveEnd);
             isCameraMovingRef.current = false;
+            (viewer.scene as Cesium.Scene & { fxaa?: boolean }).fxaa = prevSceneFxaa;
+            viewer.scene.postProcessStages.fxaa.enabled = prevPostFxaa;
+            viewer.scene.requestRender();
         };
     }, [viewer]);
+
+    const handleAutoPlay = () => {
+        if (isAutoPlayingRef.current) {
+            return;
+        }
+        isAutoPlayingRef.current = true;
+        const tick = () => {
+            if (!isAutoPlayingRef.current) {
+                return;
+            }
+            renderFrame().then(
+                () => {
+                    if (!isAutoPlayingRef.current) {
+                        return;
+                    }
+                    autoPlayTimerRef.current = setTimeout(() => {
+                        tick();
+                    }, 350);
+                },
+                () => {
+                    isAutoPlayingRef.current = false;
+                }
+            );
+        };
+        tick();
+    };
+
+    const handleStopAutoPlay = () => {
+        isAutoPlayingRef.current = false;
+        if (autoPlayTimerRef.current) {
+            clearTimeout(autoPlayTimerRef.current);
+            autoPlayTimerRef.current = null;
+        }
+    };
+
+    const handleTogglePerf = () => {
+        const next = !perfEnabled;
+        setPerfEnabled(next);
+        GridDataReader.setPerfEnabled(next);
+        if (next) {
+            GridDataReader.resetPerfStats();
+            setPerfText('性能统计已开启');
+        } else {
+            setPerfText('');
+        }
+    };
+
+    const handleDumpPerf = () => {
+        const stats = GridDataReader.getPerfStats();
+        if (!stats.length) {
+            setPerfText('暂无性能统计数据');
+            return;
+        }
+        const summary = stats
+            .map((item) => {
+                return `${item.stage}: avg=${item.avgMs.toFixed(1)}ms, max=${item.maxMs.toFixed(1)}ms, count=${item.count}`;
+            })
+            .join(' | ');
+        setPerfText(summary);
+    };
 
     return (
         <div>
@@ -476,11 +608,26 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
             >
                 下一帧
             </button>
+            <button onClick={handleAutoPlay}>自动播放</button>
+            <button onClick={handleStopAutoPlay}>停止自动播放</button>
+            <button onClick={handleTogglePerf}>
+                {perfEnabled ? '关闭性能统计' : '开启性能统计'}
+            </button>
+            <button onClick={handleDumpPerf}>输出性能统计</button>
             <div
                 id="pickedCoordinate"
                 style={{ position: 'absolute', top: 100, left: 0, background: 'white' }}
             >
                 图层进度: {layerProgressText}
+            </div>
+            <div style={{ position: 'absolute', top: 130, left: 0, background: 'white' }}>
+                性能统计: {perfText}
+            </div>
+            <div style={{ position: 'absolute', top: 160, left: 0, background: 'white' }}>
+                {hoverText || '悬浮值: -'}
+            </div>
+            <div style={{ position: 'absolute', top: 190, left: 0, background: 'white' }}>
+                {clickText || '点击值: -'}
             </div>
         </div>
     );

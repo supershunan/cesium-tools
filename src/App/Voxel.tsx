@@ -2,6 +2,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
 import { GridDataReader } from '../tools/radarLayer';
 import {
+    AnimatedRasterLayer,
+    type AnimatedGridFrame,
+} from '../tools/radarLayer/AnimatedRasterLayer';
+import {
     DynamicRasterLayer,
     type GridCellInfo,
     type GridHeader,
@@ -207,7 +211,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
     ];
 
     const sourceGroups = useRef([dataURL, dataURL2, dataURL3]).current;
-    const rasterLayerGroupsRef = useRef<DynamicRasterLayer[][]>([]);
+    const rasterLayerGroupsRef = useRef<AnimatedRasterLayer[][]>([]);
     const frameCacheRef = useRef(new Map<string, Promise<GridResult | null>>());
     const [layerProgressText, setLayerProgressText] = useState('');
     const [perfEnabled, setPerfEnabled] = useState(false);
@@ -360,7 +364,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
                     rasterLayerGroupsRef.current[groupIndex] = Array.from(
                         { length: levels },
                         (_, idx) => {
-                            const layer = new DynamicRasterLayer(viewer as Cesium.Viewer, {
+                            const layer = new AnimatedRasterLayer(viewer as Cesium.Viewer, {
                                 clampToGround: idx === 0,
                                 colorRamp: [
                                     { maxValue: 10, color: [62, 160, 239] },

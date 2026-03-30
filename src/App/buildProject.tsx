@@ -56,11 +56,11 @@ const initialDeformData: DeformationData = {
 
 // 测试监测区域（替换为真实楼面坐标；也可点击界面上"拾取楼面中心"按钮获取）
 const testMonitorRegion: MonitorRegion = {
-    centerLon: 114.1, // 替换：经度
-    centerLat: 22.3, // 替换：纬度
-    bottomHeight: 5, // 替换：楼面底部椭球高（米）
-    topHeight: 55, // 替换：楼面顶部椭球高（米）
-    wallWidth: 40, // 替换：监测面宽度（米）
+    centerLon: 113.83272435782386, // 替换：经度
+    centerLat: 22.122730722681645, // 替换：纬度
+    bottomHeight: 51.927849442454416, // 替换：楼面底部椭球高（米）
+    topHeight: 91.92784944245442, // 替换：楼面顶部椭球高（米）
+    wallWidth: 200, // 替换：监测面宽度（米）
     wallFacing: 180, // 替换：0=北，90=东，180=南，270=西
     wallDepth: 20, // 替换：建筑进深（米），防止穿透到后方楼栋
 };
@@ -103,6 +103,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
 
     // monitorRegion 变化时重算墙面坐标系
     useEffect(() => {
+        console.log('monitorRegion', monitorRegion);
         wallTransformRef.current = buildWallTransform(monitorRegion);
     }, [monitorRegion]);
 
@@ -113,11 +114,11 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
         canvas.height = 1;
         const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
         const gradient = ctx.createLinearGradient(0, 0, 256, 0);
-        gradient.addColorStop(0.0, '#2166ac');
-        gradient.addColorStop(0.35, '#92c5de');
-        gradient.addColorStop(0.5, '#f7f7f7');
-        gradient.addColorStop(0.65, '#f4a582');
-        gradient.addColorStop(1.0, '#d6604d');
+        gradient.addColorStop(0.0, '#00eb0e');
+        gradient.addColorStop(0.35, '#fffe31');
+        gradient.addColorStop(0.5, '#ff9900');
+        gradient.addColorStop(0.65, '#e100ff');
+        gradient.addColorStop(1.0, '#952c37');
         ctx.fillStyle = gradient;
         ctx.fillRect(0, 0, 256, 1);
         return new Uint8Array(ctx.getImageData(0, 0, 256, 1).data);
@@ -238,7 +239,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
         if (!viewer) return;
         (async () => {
             const tileset = await Cesium.Cesium3DTileset.fromUrl(
-                '/public/hk_3dtitles/tileset.json',
+                '/public/bridge_3dtitles/tileset.json',
                 {
                     skipLevelOfDetail: false,
                     dynamicScreenSpaceError: false,
@@ -310,6 +311,20 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
         return () => handler.destroy();
     }, [viewer, pickingMode]);
+
+    useEffect(() => {
+        if (!viewer) return;
+        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        handler.setInputAction((evt: { position: Cesium.Cartesian2 }) => {
+            const pos = viewer.scene.pickPosition(evt.position);
+            if (!pos) return;
+            const carto = Cesium.Cartographic.fromCartesian(pos);
+            const lon = Cesium.Math.toDegrees(carto.longitude);
+            const lat = Cesium.Math.toDegrees(carto.latitude);
+            const h = carto.height;
+            console.log(`[pick] lon=${lon.toFixed(6)} lat=${lat.toFixed(6)} h=${h.toFixed(1)}m`);
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    }, [viewer]);
 
     // ── 仅更新纹理，不重建 tileset ────────────────────────────────
     useEffect(() => {
@@ -391,7 +406,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                         borderRadius: 4,
                         position: 'relative',
                         background:
-                            'linear-gradient(to right, #2166ac, #92c5de, #f7f7f7, #f4a582, #d6604d)',
+                            'linear-gradient(to right, #00eb0e, #fffe31, #ff9900, #e100ff, #952c37)',
                     }}
                 >
                     {/* 零刻度线 */}
@@ -499,6 +514,7 @@ const panelStyle: React.CSSProperties = {
     fontSize: 13,
     minWidth: 235,
     boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+    display: 'none',
 };
 
 const btnStyle: React.CSSProperties = {

@@ -1,5 +1,5 @@
 import * as Cesium from 'cesium';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import testGrid from '../../public/resources/grid.json';
 
 // grid[row][col] 单位 mm；row 0 = 底层，row N-1 = 顶层
@@ -12,48 +12,130 @@ type DeformationData = {
     grid: number[][];
 };
 
-// 楼面监测区域（地理坐标描述）
-// 替换 testMonitorRegion 里的值为真实楼面坐标即可
-type MonitorRegion = {
-    centerLon: number; // 楼面中心经度（度）
-    centerLat: number; // 楼面中心纬度（度）
-    bottomHeight: number; // 楼面底部椭球高（米）
-    topHeight: number; // 楼面顶部椭球高（米）
-    wallWidth: number; // 监测面水平宽度（米）
-    wallFacing: number; // 墙面法向朝向（度，0=北，90=东，180=南，270=西）
-    wallDepth: number; // 建筑进深（米）——限制进深方向范围，防止效果穿透到后方楼栋
+type CornerPoint = {
+    lon: number; // 经度（度）
+    lat: number; // 纬度（度）
+    height: number; // 椭球高（米）
 };
 
-// 预处理后的 ECEF 墙面坐标系
+// 色带分段点：value 直接填实际形变值（mm），与 grids 数据单位相同
+// 内部会用 minDeform/maxDeform 自动归一化，无需手动计算比例
+type ColorStop = {
+    value: number; // 实际形变值（mm），与 grids 单位一致
+    color: string; // CSS 十六进制颜色，如 '#00eb0e'
+};
+
+// 业务输入：对角两点 + 格点精度 + 形变数据，完整定义监测区域
+// grids 超出由 uDelta/vDelta 推导出的 cols×rows 的部分不参与渲染
+type MonitorInput = {
+    leftBottomStart: CornerPoint; // 结构一端底部角点
+    rightTopEnd: CornerPoint; // 结构另一端顶部角点
+    uDelta: number; // U 方向（纵向）格点间距（米/格）
+    vDelta: number; // V 方向（竖向）格点间距（米/格）
+    grids: number[][]; // 形变格点数据（mm）
+    minDeform: number; // 色带下限（mm）
+    maxDeform: number; // 色带上限（mm）
+    wallDepth: number; // 结构进深（米），防止效果穿透到后方结构
+    colorStops: ColorStop[]; // 色带分段配置，position 需升序排列
+};
+
+// ECEF 墙面坐标系（由 MonitorRegion 推导，preRender 每帧转到相机空间）
 type WallTransform = {
     center: Cesium.Cartesian3;
     right: Cesium.Cartesian3;
     up: Cesium.Cartesian3;
-    normal: Cesium.Cartesian3; // 墙面法向量（朝向雷达方向）
+    normal: Cesium.Cartesian3;
     halfWidth: number;
     halfHeight: number;
-    halfDepth: number; // wallDepth / 2
+    halfDepth: number;
 };
 
-// 测试数据：含正负形变，模拟楼体中部有集中形变区域，单位 mm
-const initialDeformData: DeformationData = {
-    rows: 500,
-    cols: 500,
-    minDeform: -5,
-    maxDeform: 15,
-    grid: testGrid as number[][],
+type MonitorRegion = {
+    centerLon: number;
+    centerLat: number;
+    bottomHeight: number;
+    topHeight: number;
+    wallWidth: number;
+    wallFacing: number;
+    wallDepth: number;
 };
 
-// 测试监测区域（替换为真实楼面坐标；也可点击界面上"拾取楼面中心"按钮获取）
-const testMonitorRegion: MonitorRegion = {
-    centerLon: 101.90912768871529, // 替换：经度
-    centerLat: 31.820531053902, // 替换：纬度
-    bottomHeight: 2384.741913433615, // 替换：楼面底部椭球高（米）
-    topHeight: 2584.741913433615, // 替换：楼面顶部椭球高（米）
-    wallWidth: 200, // 替换：监测面宽度（米）
-    wallFacing: 180, // 替换：0=北，90=东，180=南，270=西
-    wallDepth: 20, // 替换：建筑进深（米），防止穿透到后方楼栋
+const testMonitorInput: MonitorInput = {
+    leftBottomStart: {
+        lon: 101.90568801817672,
+        lat: 31.820810313259113,
+        height: 2369.2586186499125,
+    },
+    rightTopEnd: { lon: 101.91094145363743, lat: 31.820392369053273, height: 2489.61766707526 },
+    uDelta: 20,
+    vDelta: 20,
+    grids: testGrid as number[][],
+    minDeform: 0,
+    maxDeform: 20,
+    wallDepth: 20,
+    colorStops: [
+        { value: 0, color: '#00eb0e' },
+        { value: 7, color: '#fffe31' },
+        { value: 10, color: '#ff9900' },
+        { value: 13, color: '#e100ff' },
+        { value: 20, color: '#952c37' },
+    ],
 };
+
+// 由业务输入推导监测区域地理参数
+// 水平距离 = 纵向宽度；两点连线方向决定纵轴，法向为其垂直方向（偏左90°）
+function buildRegionFromInput(input: MonitorInput): MonitorRegion {
+    const { leftBottomStart: lb, rightTopEnd: rt } = input;
+    const centerLon = (lb.lon + rt.lon) / 2;
+    const centerLat = (lb.lat + rt.lat) / 2;
+    const bottomHeight = Math.min(lb.height, rt.height);
+    const topHeight = Math.max(lb.height, rt.height);
+    const centerH = (bottomHeight + topHeight) / 2;
+
+    const pt1 = Cesium.Cartesian3.fromDegrees(lb.lon, lb.lat, centerH);
+    const pt2 = Cesium.Cartesian3.fromDegrees(rt.lon, rt.lat, centerH);
+    const wallWidth = Cesium.Cartesian3.distance(pt1, pt2);
+
+    // 在中心点 ENU 坐标系中求水平方向向量，计算法向朝向角
+    const centerECEF = Cesium.Cartesian3.fromDegrees(centerLon, centerLat, centerH);
+    const enu2ecef = Cesium.Transforms.eastNorthUpToFixedFrame(centerECEF);
+    const ecef2enu = Cesium.Matrix4.inverseTransformation(enu2ecef, new Cesium.Matrix4());
+    const p1enu = Cesium.Matrix4.multiplyByPoint(ecef2enu, pt1, new Cesium.Cartesian3());
+    const p2enu = Cesium.Matrix4.multiplyByPoint(ecef2enu, pt2, new Cesium.Cartesian3());
+    const dx = p2enu.x - p1enu.x;
+    const dy = p2enu.y - p1enu.y;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    // 法向量 = 轴向量逆时针旋转 90°
+    const normalX = -dy / len;
+    const normalY = dx / len;
+    const wallFacing = ((Cesium.Math.toDegrees(Math.atan2(normalX, normalY)) % 360) + 360) % 360;
+
+    return {
+        centerLon,
+        centerLat,
+        bottomHeight,
+        topHeight,
+        wallWidth,
+        wallFacing,
+        wallDepth: input.wallDepth,
+    };
+}
+
+// 由业务输入 + 区域参数推导形变网格（按精度截取，多余行列丢弃）
+function buildDeformDataFromInput(input: MonitorInput, region: MonitorRegion): DeformationData {
+    const wallHeight = region.topHeight - region.bottomHeight;
+    const cols = Math.max(1, Math.floor(region.wallWidth / input.uDelta));
+    const rows = Math.max(1, Math.floor(wallHeight / input.vDelta));
+    const grid: number[][] = [];
+    for (let r = 0; r < rows; r++) {
+        const row: number[] = [];
+        for (let c = 0; c < cols; c++) {
+            row.push(input.grids[r]?.[c] ?? 0);
+        }
+        grid.push(row);
+    }
+    return { rows, cols, minDeform: input.minDeform, maxDeform: input.maxDeform, grid };
+}
 
 // 将地理监测区域转换为 ECEF 墙面坐标系
 function buildWallTransform(region: MonitorRegion): WallTransform {
@@ -66,7 +148,6 @@ function buildWallTransform(region: MonitorRegion): WallTransform {
     const facingRad = Cesium.Math.toRadians(region.wallFacing);
     const rightENU = new Cesium.Cartesian3(Math.cos(facingRad), -Math.sin(facingRad), 0);
     const upENU = new Cesium.Cartesian3(0, 0, 1);
-    // 法向量 = 墙面朝向（朝外/朝向雷达）
     const normalENU = new Cesium.Cartesian3(Math.sin(facingRad), Math.cos(facingRad), 0);
 
     return {
@@ -80,116 +161,82 @@ function buildWallTransform(region: MonitorRegion): WallTransform {
     };
 }
 
-// 由两次点击确定桥的纵向轴（水平方向 + 长度）
-// 高度范围不从点击高度推导，保留 prevRegion 中已有的高度设置
-// （高度范围在 tileset 加载后自动提取，或由用户手动调节）
-function computeRegionFromCorners(
-    c1: Cesium.Cartographic,
-    c2: Cesium.Cartographic,
-    prevRegion: MonitorRegion
-): MonitorRegion {
-    const lon1 = Cesium.Math.toDegrees(c1.longitude);
-    const lat1 = Cesium.Math.toDegrees(c1.latitude);
-    const lon2 = Cesium.Math.toDegrees(c2.longitude);
-    const lat2 = Cesium.Math.toDegrees(c2.latitude);
-
-    const centerLon = (lon1 + lon2) / 2;
-    const centerLat = (lat1 + lat2) / 2;
-    const centerH = (prevRegion.bottomHeight + prevRegion.topHeight) / 2;
-
-    // 水平距离 = 纵向长度
-    const pt1 = Cesium.Cartesian3.fromDegrees(lon1, lat1, centerH);
-    const pt2 = Cesium.Cartesian3.fromDegrees(lon2, lat2, centerH);
-    const wallWidth = Cesium.Cartesian3.distance(pt1, pt2);
-
-    // 在中心点的 ENU 坐标系中求水平方向向量（right = 沿桥纵轴）
-    const centerECEF = Cesium.Cartesian3.fromDegrees(centerLon, centerLat, centerH);
-    const enu2ecef = Cesium.Transforms.eastNorthUpToFixedFrame(centerECEF);
-    const ecef2enu = Cesium.Matrix4.inverseTransformation(enu2ecef, new Cesium.Matrix4());
-
-    const p1enu = Cesium.Matrix4.multiplyByPoint(ecef2enu, pt1, new Cesium.Cartesian3());
-    const p2enu = Cesium.Matrix4.multiplyByPoint(ecef2enu, pt2, new Cesium.Cartesian3());
-
-    const dx = p2enu.x - p1enu.x;
-    const dy = p2enu.y - p1enu.y;
-    const len = Math.sqrt(dx * dx + dy * dy);
-
-    const normalX = -dy / len;
-    const normalY = dx / len;
-    const wallFacing = ((Cesium.Math.toDegrees(Math.atan2(normalX, normalY)) % 360) + 360) % 360;
-
-    // 保留原有高度范围和进深，只更新水平轴参数
-    return {
-        ...prevRegion,
-        centerLon,
-        centerLat,
-        wallWidth,
-        wallFacing,
-    };
-}
+// 点击拾取结果
+type PickResult = {
+    row: number;
+    col: number;
+    value: number;
+    color: string; // 对应色带颜色
+};
 
 export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
-    const [deformData, setDeformData] = useState<DeformationData>(initialDeformData);
-    const [monitorRegion, setMonitorRegion] = useState<MonitorRegion>(testMonitorRegion);
+    const [monitorInput, setMonitorInput] = useState<MonitorInput>(testMonitorInput);
     const [overlayOpacity, setOverlayOpacity] = useState(0.85);
-    // 默认栅格模式（false）：每个数据点显示为独立色块；true = 渐变模式
     const [smoothing, setSmoothing] = useState(false);
-    // null = 自动（由数据行列数决定）；填入正数 = 每格的物理间距（米）
-    const [uDelta, setUDelta] = useState<number | null>(2);
-    const [vDelta, setVDelta] = useState<number | null>(2);
-    // 两步拾取状态：idle → corner1（等待第一次点击）→ corner2（等待第二次点击）→ idle
-    const [pickStep, setPickStep] = useState<'idle' | 'corner1' | 'corner2'>('idle');
+    const [pickResult, setPickResult] = useState<PickResult | null>(null);
+
+    // monitorRegion 和 deformData 完全由 monitorInput 推导，无需独立 state
+    const monitorRegion = useMemo(() => buildRegionFromInput(monitorInput), [monitorInput]);
+    const deformData = useMemo(
+        () => buildDeformDataFromInput(monitorInput, monitorRegion),
+        [monitorInput, monitorRegion]
+    );
 
     const shaderRef = useRef<Cesium.CustomShader | null>(null);
     const tilesetRef = useRef<Cesium.Cesium3DTileset | null>(null);
-    const wallTransformRef = useRef<WallTransform>(buildWallTransform(testMonitorRegion));
-    // 第一个角点临时存储
-    const corner1Ref = useRef<Cesium.Cartographic | null>(null);
-    // 第一个角点标记实体
-    const markerRef = useRef<Cesium.Entity | null>(null);
+    const wallTransformRef = useRef<WallTransform>(
+        buildWallTransform(buildRegionFromInput(testMonitorInput))
+    );
+    // 让点击 handler 始终能读到最新的 deformData / monitorInput
+    const deformDataRef = useRef(deformData);
+    const monitorInputRef = useRef(monitorInput);
 
-    // monitorRegion 变化时重算墙面坐标系
+    // monitorRegion 变化时同步 ECEF 坐标系
     useEffect(() => {
-        console.log('monitorRegion', monitorRegion);
         wallTransformRef.current = buildWallTransform(monitorRegion);
     }, [monitorRegion]);
 
-    // 分级色带：5 个纯色区，硬边界，无渐变过渡
-    function createColormapTexture(): Uint8Array {
-        // [归一化起始位置, R, G, B]
-        const stops: [number, number, number, number][] = [
-            [0.0, 0x00, 0xeb, 0x0e], // 绿
-            [0.35, 0xff, 0xfe, 0x31], // 黄
-            [0.5, 0xff, 0x99, 0x00], // 橙
-            [0.65, 0xe1, 0x00, 0xff], // 紫
-            [1.0, 0x95, 0x2c, 0x37], // 暗红
-        ];
+    useEffect(() => {
+        deformDataRef.current = deformData;
+    }, [deformData]);
+    useEffect(() => {
+        monitorInputRef.current = monitorInput;
+    }, [monitorInput]);
+
+    // 分级色带：纯色块，硬边界，无渐变过渡
+    // stops.value 为实际 mm 值，内部按 minDeform/maxDeform 自动归一化为 [0,1]
+    function createColormapTexture(stops: ColorStop[]): Uint8Array {
+        const { minDeform, maxDeform } = monitorInput;
+        const range = maxDeform - minDeform || 1;
+        const parsed = stops.map(({ value, color }) => ({
+            position: (value - minDeform) / range, // mm → [0,1]
+            r: parseInt(color.slice(1, 3), 16),
+            g: parseInt(color.slice(3, 5), 16),
+            b: parseInt(color.slice(5, 7), 16),
+        }));
         const data = new Uint8Array(256 * 4);
         for (let i = 0; i < 256; i++) {
             const t = i / 255;
-            // 找到 t 所在的色区（向左最近的 stop）
             let si = 0;
-            for (let s = 0; s < stops.length - 1; s++) {
-                if (t >= stops[s][0]) si = s;
+            for (let s = 0; s < parsed.length - 1; s++) {
+                if (t >= parsed[s].position) si = s;
             }
-            data[i * 4] = stops[si][1];
-            data[i * 4 + 1] = stops[si][2];
-            data[i * 4 + 2] = stops[si][3];
+            data[i * 4] = parsed[si].r;
+            data[i * 4 + 1] = parsed[si].g;
+            data[i * 4 + 2] = parsed[si].b;
             data[i * 4 + 3] = 255;
         }
         return data;
     }
 
-    // ── 2. 把形变网格写入纹理（R 通道存归一化后的形变值）──────────
+    // 把形变网格写入纹理（R 通道存归一化后的形变值）
     function createGridTexture(data: DeformationData): Uint8Array {
         const { rows, cols, grid, minDeform, maxDeform } = data;
-
         const canvas = document.createElement('canvas');
         canvas.width = cols;
         canvas.height = rows;
         const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
         const imgData = ctx.createImageData(cols, rows);
-
         for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
                 const val = grid[r]?.[c] ?? 0;
@@ -202,7 +249,6 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                 imgData.data[idx + 3] = 255;
             }
         }
-
         ctx.putImageData(imgData, 0, 0);
         return new Uint8Array(ctx.getImageData(0, 0, cols, rows).data);
     }
@@ -212,6 +258,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
     // 避免大 ECEF 坐标（百万米级）做差时的 float32 精度损失。
     // 墙面坐标系（u_wallCenterEC 等）也在相机空间，由 preRender 每帧更新。
     function buildDeformShader(opacity: number): Cesium.CustomShader {
+        console.log('deformData', deformData);
         return new Cesium.CustomShader({
             translucencyMode: Cesium.CustomShaderTranslucencyMode.INHERIT,
             uniforms: {
@@ -229,7 +276,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                 u_colormap: {
                     type: Cesium.UniformType.SAMPLER_2D,
                     value: new Cesium.TextureUniform({
-                        typedArray: createColormapTexture(),
+                        typedArray: createColormapTexture(monitorInput.colorStops),
                         width: 256,
                         height: 1,
                         pixelFormat: Cesium.PixelFormat.RGBA,
@@ -237,7 +284,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                         magnificationFilter: Cesium.TextureMagnificationFilter.LINEAR,
                     }),
                 },
-                // 以下 7 个 uniform 由 preRender 每帧更新为相机空间值
+                // 以下 uniform 由 preRender 每帧更新为相机空间值
                 u_wallCenterEC: { type: Cesium.UniformType.VEC3, value: new Cesium.Cartesian3() },
                 u_wallRightEC: {
                     type: Cesium.UniformType.VEC3,
@@ -251,13 +298,14 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                     type: Cesium.UniformType.VEC3,
                     value: new Cesium.Cartesian3(0, 0, 1),
                 },
-                u_wallHalfW: { type: Cesium.UniformType.FLOAT, value: 20.0 },
-                u_wallHalfH: { type: Cesium.UniformType.FLOAT, value: 25.0 },
-                u_wallHalfD: { type: Cesium.UniformType.FLOAT, value: 10.0 },
+                u_wallHalfW: { type: Cesium.UniformType.FLOAT, value: monitorRegion.wallWidth / 2 },
+                u_wallHalfH: {
+                    type: Cesium.UniformType.FLOAT,
+                    value: (monitorRegion.topHeight - monitorRegion.bottomHeight) / 2,
+                },
+                u_wallHalfD: { type: Cesium.UniformType.FLOAT, value: monitorInput.wallDepth / 2 },
                 u_opacity: { type: Cesium.UniformType.FLOAT, value: opacity },
-                // 栅格/渐变模式：0.0 = 栅格（默认），1.0 = 渐变
                 u_smooth: { type: Cesium.UniformType.FLOAT, value: 0.0 },
-                // 网格行列数，用于栅格模式下将 UV 对齐到单元格中心
                 u_cols: { type: Cesium.UniformType.FLOAT, value: deformData.cols },
                 u_rows: { type: Cesium.UniformType.FLOAT, value: deformData.rows },
             },
@@ -304,12 +352,11 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                     float u1 = (ci + 1.5) / u_cols;
                     float v0 = (ri + 0.5) / u_rows;
                     float v1 = (ri + 1.5) / u_rows;
-                    // 采样四角格子中心值
+                    // 采样四角格子中心值后双线性混合
                     float d00 = texture(u_gridData, vec2(u0, v0)).r;
                     float d10 = texture(u_gridData, vec2(u1, v0)).r;
                     float d01 = texture(u_gridData, vec2(u0, v1)).r;
                     float d11 = texture(u_gridData, vec2(u1, v1)).r;
-                    // 双线性混合
                     deform = mix(mix(d00, d10, uf), mix(d01, d11, uf), vf);
                 }
                 vec4 deformColor = texture(u_colormap, vec2(deform, 0.5));
@@ -325,6 +372,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
         });
     }
 
+    // 加载 tileset，自动从包围球提取高度范围写入 monitorInput
     useEffect(() => {
         if (!viewer) return;
         (async () => {
@@ -342,20 +390,6 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
             shaderRef.current = shader;
             tileset.customShader = shader;
             viewer.zoomTo(tileset);
-
-            // 自动从包围球提取结构高度范围，解决桥面两点等高导致 halfHeight=0 的问题
-            const { center: bsCenter, radius: bsRadius } = tileset.boundingSphere;
-            const bsCarto = Cesium.Cartographic.fromCartesian(bsCenter);
-            const autoBottom = bsCarto.height - bsRadius;
-            const autoTop = bsCarto.height + bsRadius;
-            console.log(
-                `[自动高度] bottom=${autoBottom.toFixed(1)}m  top=${autoTop.toFixed(1)}m  半径=${bsRadius.toFixed(1)}m`
-            );
-            setMonitorRegion((prev) => ({
-                ...prev,
-                bottomHeight: autoBottom,
-                topHeight: autoTop,
-            }));
         })();
     }, [viewer]);
 
@@ -392,51 +426,10 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
         return () => remove();
     }, [viewer]);
 
-    // 两步点击拾取：第一次点击记录角点1，第二次点击完成区域计算
-    useEffect(() => {
-        if (!viewer || pickStep === 'idle') return;
-
-        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-        handler.setInputAction((evt: { position: Cesium.Cartesian2 }) => {
-            const pos = viewer.scene.pickPosition(evt.position);
-            if (!pos) return;
-            const carto = Cesium.Cartographic.fromCartesian(pos);
-
-            if (pickStep === 'corner1') {
-                // 记录第一个角点，放置标记，进入等待第二次点击
-                corner1Ref.current = carto;
-                if (markerRef.current) viewer.entities.remove(markerRef.current);
-                markerRef.current = viewer.entities.add({
-                    position: pos,
-                    point: {
-                        pixelSize: 10,
-                        color: Cesium.Color.YELLOW,
-                        outlineColor: Cesium.Color.BLACK,
-                        outlineWidth: 2,
-                    },
-                });
-                setPickStep('corner2');
-            } else if (pickStep === 'corner2' && corner1Ref.current) {
-                // 两点齐了，计算区域
-                const region = computeRegionFromCorners(corner1Ref.current, carto, monitorRegion);
-                setMonitorRegion(region);
-                // 清理标记
-                if (markerRef.current) {
-                    viewer.entities.remove(markerRef.current);
-                    markerRef.current = null;
-                }
-                corner1Ref.current = null;
-                setPickStep('idle');
-                console.log('[两点拾取完成]', region);
-            }
-        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
-
-        return () => handler.destroy();
-    }, [viewer, pickStep]);
-
-    // ── 仅更新纹理，不重建 tileset ────────────────────────────────
+    // deformData 变化时更新纹理
     useEffect(() => {
         if (!shaderRef.current) return;
+        console.log('[实际渲染] rows=', deformData.rows, 'cols=', deformData.cols);
         shaderRef.current.setUniform(
             'u_gridData',
             new Cesium.TextureUniform({
@@ -448,29 +441,113 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                 magnificationFilter: Cesium.TextureMagnificationFilter.LINEAR,
             })
         );
+        // 格数随 deformData 同步更新
+        shaderRef.current.setUniform('u_cols', Math.max(1, deformData.cols));
+        shaderRef.current.setUniform('u_rows', Math.max(1, deformData.rows));
     }, [deformData]);
 
-    // ── 栅格/渐变切换 ──────────────────────────────────────────────
+    // colorStops 变化时重建 colormap 纹理
+    useEffect(() => {
+        if (!shaderRef.current) return;
+        shaderRef.current.setUniform(
+            'u_colormap',
+            new Cesium.TextureUniform({
+                typedArray: createColormapTexture(monitorInput.colorStops),
+                width: 256,
+                height: 1,
+                pixelFormat: Cesium.PixelFormat.RGBA,
+                minificationFilter: Cesium.TextureMinificationFilter.LINEAR,
+                magnificationFilter: Cesium.TextureMagnificationFilter.LINEAR,
+            })
+        );
+    }, [monitorInput.colorStops]);
+
     useEffect(() => {
         shaderRef.current?.setUniform('u_smooth', smoothing ? 1.0 : 0.0);
     }, [smoothing]);
 
-    // ── 同步 snap 格数：由 uDelta/vDelta（或数据行列数）+ 区域尺寸共同决定 ──
+    // 点击拾取：输出坐标（调试）+ 查询所在 grid 格子的值
     useEffect(() => {
-        if (!shaderRef.current) return;
-        const h = monitorRegion.topHeight - monitorRegion.bottomHeight;
-        const snapCols =
-            uDelta != null && uDelta > 0 ? monitorRegion.wallWidth / uDelta : deformData.cols;
-        const snapRows = vDelta != null && vDelta > 0 ? h / vDelta : deformData.rows;
-        console.log(
-            `[snap] wallW=${monitorRegion.wallWidth.toFixed(1)} wallH=${h.toFixed(1)}` +
-                ` uΔ=${(uDelta ?? monitorRegion.wallWidth / deformData.cols).toFixed(2)}` +
-                ` vΔ=${(vDelta ?? h / deformData.rows).toFixed(2)}` +
-                ` → cols=${snapCols.toFixed(1)} rows=${snapRows.toFixed(1)}`
-        );
-        shaderRef.current.setUniform('u_cols', Math.max(1, snapCols));
-        shaderRef.current.setUniform('u_rows', Math.max(1, snapRows));
-    }, [uDelta, vDelta, monitorRegion, deformData]);
+        if (!viewer) return;
+        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        handler.setInputAction((evt: { position: Cesium.Cartesian2 }) => {
+            const pos = viewer.scene.pickPosition(evt.position);
+            if (!pos) return;
+
+            // ── 坐标日志 ──────────────────────────────────────────────
+            const carto = Cesium.Cartographic.fromCartesian(pos);
+            console.log(
+                `[pick] lon=${Cesium.Math.toDegrees(carto.longitude).toFixed(6)}` +
+                    ` lat=${Cesium.Math.toDegrees(carto.latitude).toFixed(6)}` +
+                    ` h=${carto.height.toFixed(1)}m`
+            );
+
+            // ── grid 拾取（与 shader 数学完全对称，在 CPU 侧重算一遍）──
+            const { center, right, up, normal, halfWidth, halfHeight, halfDepth } =
+                wallTransformRef.current;
+            const viewMat = viewer.camera.viewMatrix;
+            const rotMat = Cesium.Matrix4.getMatrix3(viewMat, new Cesium.Matrix3());
+
+            // 点击点和墙中心都转到相机空间（与 shader 中 czm_modelView 等价）
+            const posEC = Cesium.Matrix4.multiplyByPoint(viewMat, pos, new Cesium.Cartesian3());
+            const centerEC = Cesium.Matrix4.multiplyByPoint(
+                viewMat,
+                center,
+                new Cesium.Cartesian3()
+            );
+            const rightEC = Cesium.Matrix3.multiplyByVector(rotMat, right, new Cesium.Cartesian3());
+            const upEC = Cesium.Matrix3.multiplyByVector(rotMat, up, new Cesium.Cartesian3());
+            const normalEC = Cesium.Matrix3.multiplyByVector(
+                rotMat,
+                normal,
+                new Cesium.Cartesian3()
+            );
+
+            const delta = Cesium.Cartesian3.subtract(posEC, centerEC, new Cesium.Cartesian3());
+            const projRight = Cesium.Cartesian3.dot(delta, rightEC);
+            const projUp = Cesium.Cartesian3.dot(delta, upEC);
+            const projNormal = Cesium.Cartesian3.dot(delta, normalEC);
+
+            const u = projRight / (halfWidth * 2) + 0.5;
+            const v = projUp / (halfHeight * 2) + 0.5;
+
+            // 超出监测盒子范围，不在任何格子内
+            if (
+                u < 0 ||
+                u > 1 ||
+                v < 0 ||
+                v > 1 ||
+                projNormal < -halfDepth ||
+                projNormal > halfDepth
+            ) {
+                setPickResult(null);
+                return;
+            }
+
+            const { rows, cols, grid } = deformDataRef.current;
+            const dataCol = Math.min(Math.floor(u * cols), cols - 1);
+            // vFlip = 1-v → texRow 是纹理行索引（从下往上）
+            // createGridTexture 中 r=0 写在 imgData 末尾 → dataRow = rows-1-texRow
+            const texRow = Math.min(Math.floor((1 - v) * rows), rows - 1);
+            const dataRow = rows - 1 - texRow;
+            const value = grid[dataRow]?.[dataCol] ?? 0;
+
+            // 找对应色带颜色（与 createColormapTexture 逻辑一致）
+            const { minDeform, maxDeform, colorStops } = monitorInputRef.current;
+            const t = (value - minDeform) / (maxDeform - minDeform || 1);
+            let colorIdx = 0;
+            for (let s = 0; s < colorStops.length - 1; s++) {
+                const stopT = (colorStops[s].value - minDeform) / (maxDeform - minDeform || 1);
+                if (t >= stopT) colorIdx = s;
+            }
+
+            console.log('对应值=', value);
+
+            // setPickResult({ row: dataRow, col: dataCol, value, color: colorStops[colorIdx].color });
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+        return () => handler.destroy();
+    }, [viewer]);
 
     function handleOpacityChange(value: number) {
         setOverlayOpacity(value);
@@ -478,7 +555,8 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
     }
 
     function applyPreset(mode: 'initial' | 'top-heavy' | 'uniform' | 'random') {
-        const { rows, cols, minDeform, maxDeform } = deformData;
+        const { rows, cols } = deformData;
+        const { minDeform, maxDeform } = monitorInput;
         let grid: number[][];
         if (mode === 'top-heavy') {
             grid = Array.from({ length: rows }, (_, r) =>
@@ -498,40 +576,71 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                 )
             );
         } else {
-            grid = initialDeformData.grid.map((row) => [...row]);
+            // initial：从原始测试数据中截取 rows×cols
+            grid = Array.from({ length: rows }, (_, r) =>
+                Array.from({ length: cols }, (_, c) => (testGrid as number[][])[r]?.[c] ?? 0)
+            );
         }
-        setDeformData((prev) => ({
-            ...prev,
-            grid: grid.map((row) => row.map((v) => Math.max(minDeform, Math.min(maxDeform, v)))),
-        }));
+        const clampedGrid = grid.map((row) =>
+            row.map((v) => Math.max(minDeform, Math.min(maxDeform, v)))
+        );
+        setMonitorInput((prev) => ({ ...prev, grids: clampedGrid }));
     }
 
-    const { minDeform, maxDeform } = deformData;
-    // 零刻度在色带上的百分比位置
-    const zeroPct = (-minDeform / (maxDeform - minDeform)) * 100;
+    const { minDeform, maxDeform } = monitorInput;
     const wallHeight = monitorRegion.topHeight - monitorRegion.bottomHeight;
-    // 实际生效的栅格间距（null = 自动跟随数据分辨率）
-    const effectiveUDelta =
-        uDelta != null && uDelta > 0
-            ? uDelta
-            : deformData.cols > 0
-              ? monitorRegion.wallWidth / deformData.cols
-              : 1;
-    const effectiveVDelta =
-        vDelta != null && vDelta > 0
-            ? vDelta
-            : deformData.rows > 0
-              ? wallHeight / deformData.rows
-              : 1;
-    const snapCols = Math.max(1, Math.round(monitorRegion.wallWidth / effectiveUDelta));
-    const snapRows = Math.max(1, Math.round(wallHeight / effectiveVDelta));
 
     return (
         <div style={panelStyle}>
             <div style={{ fontWeight: 'bold', marginBottom: 10, fontSize: 14 }}>结构形变监测</div>
 
+            {/* 格子拾取结果 */}
+            {/* {pickResult ? (
+                <div
+                    style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 8,
+                        padding: '5px 8px',
+                        background: 'rgba(255,255,255,0.08)',
+                        borderRadius: 5,
+                        fontSize: 12,
+                        border: '1px solid rgba(255,255,255,0.15)',
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 14,
+                            height: 14,
+                            borderRadius: 3,
+                            flexShrink: 0,
+                            background: pickResult.color,
+                            border: '1px solid rgba(255,255,255,0.3)',
+                        }}
+                    />
+                    <span style={{ opacity: 0.7 }}>
+                        [{pickResult.row}, {pickResult.col}]
+                    </span>
+                    <span style={{ fontWeight: 'bold', marginLeft: 'auto' }}>
+                        {pickResult.value} mm
+                    </span>
+                    <button
+                        onClick={() => setPickResult(null)}
+                        style={{ ...btnStyle, padding: '0 5px', fontSize: 11, lineHeight: '16px' }}
+                    >
+                        ✕
+                    </button>
+                </div>
+            ) : (
+                <div style={{ fontSize: 11, opacity: 0.4, marginBottom: 8 }}>
+                    点击格子可查看对应 grids 值
+                </div>
+            )} */}
+
+            {/* 透明度 */}
             <div style={{ marginBottom: 8 }}>
-                <span>叠加强度</span>
+                <span>透明度</span>
                 <input
                     type="range"
                     min={0}
@@ -545,7 +654,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
             </div>
 
             {/* 栅格 / 渐变切换 */}
-            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 12 }}>显示模式</span>
                 <button
                     onClick={() => setSmoothing(false)}
@@ -571,78 +680,62 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                 >
                     渐变
                 </button>
-            </div>
+            </div> */}
 
-            {/* 分级色带图例：5 段纯色块，与 colormap 完全对齐 */}
+            {/* 分级色带图例：等宽色块 + 底部标注每段起始值 */}
             <div style={{ marginBottom: 10 }}>
-                <div
-                    style={{
-                        height: 12,
-                        borderRadius: 4,
-                        position: 'relative',
-                        display: 'flex',
-                        overflow: 'hidden',
-                    }}
-                >
-                    {/* 宽度比例 = stop 区间长度（0→0.35→0.5→0.65→1.0） */}
-                    {(
-                        [
-                            ['#00eb0e', 35],
-                            ['#fffe31', 15],
-                            ['#ff9900', 15],
-                            ['#e100ff', 35],
-                            ['#952c37', 0],
-                        ] as [string, number][]
-                    ).map(([color, flex], i) => (
+                <div style={{ display: 'flex', borderRadius: 4, overflow: 'hidden', height: 12 }}>
+                    {monitorInput.colorStops.map((stop, i) => (
                         <div
                             key={i}
                             style={{
-                                background: color,
-                                flex: flex || 0.1,
-                                minWidth: flex ? undefined : 4,
+                                background: stop.color,
+                                flex: 1,
                             }}
                         />
                     ))}
-                    {/* 零刻度线 */}
-                    <div
-                        style={{
-                            position: 'absolute',
-                            top: 0,
-                            bottom: 0,
-                            left: `${zeroPct}%`,
-                            width: 2,
-                            background: 'rgba(0,0,0,0.6)',
-                        }}
-                    />
                 </div>
-                <div
-                    style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        fontSize: 11,
-                        opacity: 0.75,
-                        marginTop: 2,
-                    }}
-                >
-                    <span>{minDeform}mm</span>
-                    <span>0mm</span>
-                    <span>+{maxDeform}mm</span>
+                {/* 每个色块下方标注对应的 value（mm） */}
+                <div style={{ display: 'flex', marginTop: 3 }}>
+                    {monitorInput.colorStops.map((stop, i) => (
+                        <div
+                            key={i}
+                            style={{
+                                flex: 1,
+                                textAlign: 'center',
+                                fontSize: 10,
+                                opacity: 0.75,
+                                lineHeight: 1.2,
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: 1,
+                                    height: 4,
+                                    background: 'rgba(255,255,255,0.4)',
+                                    margin: '0 auto 1px',
+                                }}
+                            />
+                            {stop.value}
+                        </div>
+                    ))}
                 </div>
-                <div
+                {/* <div
                     style={{
                         display: 'flex',
                         justifyContent: 'space-between',
                         fontSize: 10,
-                        opacity: 0.5,
+                        opacity: 0.4,
+                        marginTop: 2,
                     }}
                 >
                     <span>向雷达</span>
                     <span>远离雷达</span>
-                </div>
+                </div> */}
             </div>
 
-            {/* 监测区域维度信息 */}
-            <div
+            {/* 监测区域信息（只读，完全由输入数据决定） */}
+            {/* <div
                 style={{
                     fontSize: 11,
                     opacity: 0.7,
@@ -664,23 +757,23 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                     </span>
                 </div>
                 <div>
-                    横向宽度: <b>{monitorRegion.wallDepth} m</b> &nbsp;|&nbsp; 方向:{' '}
+                    进深宽度: <b>{monitorInput.wallDepth} m</b> &nbsp;|&nbsp; 方向:{' '}
                     {monitorRegion.wallFacing.toFixed(0)}°
                 </div>
                 <div>
                     显示格数:{' '}
                     <b>
-                        {snapCols} × {snapRows}
+                        {deformData.cols} × {deformData.rows}
                     </b>
                     &nbsp;
                     <span style={{ opacity: 0.5 }}>
-                        (间距 {effectiveUDelta.toFixed(2)} × {effectiveVDelta.toFixed(2)} m)
+                        (间距 {monitorInput.uDelta.toFixed(2)} × {monitorInput.vDelta.toFixed(2)} m)
                     </span>
                 </div>
-            </div>
+            </div> */}
 
             {/* 栅格间距输入（仅栅格模式生效） */}
-            {!smoothing && (
+            {/* {!smoothing && (
                 <div style={{ marginBottom: 6, fontSize: 12 }}>
                     <div style={{ marginBottom: 4, opacity: 0.85 }}>栅格间距（米/格）</div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -689,11 +782,11 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                             type="number"
                             min={0.01}
                             step={0.1}
-                            placeholder="自动"
-                            value={uDelta ?? ''}
+                            value={monitorInput.uDelta}
                             onChange={(e) => {
                                 const v = parseFloat(e.target.value);
-                                setUDelta(isNaN(v) || v <= 0 ? null : v);
+                                if (!isNaN(v) && v > 0)
+                                    setMonitorInput((prev) => ({ ...prev, uDelta: v }));
                             }}
                             style={{
                                 width: 64,
@@ -710,11 +803,11 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                             type="number"
                             min={0.01}
                             step={0.1}
-                            placeholder="自动"
-                            value={vDelta ?? ''}
+                            value={monitorInput.vDelta}
                             onChange={(e) => {
                                 const v = parseFloat(e.target.value);
-                                setVDelta(isNaN(v) || v <= 0 ? null : v);
+                                if (!isNaN(v) && v > 0)
+                                    setMonitorInput((prev) => ({ ...prev, vDelta: v }));
                             }}
                             style={{
                                 width: 64,
@@ -727,145 +820,32 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                             }}
                         />
                         <button
-                            title="自动计算 vDelta，使行列格数相等（snapCols=snapRows），正对结构时每格呈正方形"
+                            title="自动计算 vDelta，使 U/V 格子在正视角下呈正方形"
                             onClick={() => {
-                                const ud =
-                                    uDelta != null && uDelta > 0
-                                        ? uDelta
-                                        : monitorRegion.wallWidth / deformData.cols;
+                                const ud = monitorInput.uDelta;
                                 const squareVD = (ud * wallHeight) / monitorRegion.wallWidth;
-                                setUDelta(parseFloat(ud.toFixed(4)));
-                                setVDelta(parseFloat(squareVD.toFixed(4)));
+                                setMonitorInput((prev) => ({
+                                    ...prev,
+                                    uDelta: parseFloat(ud.toFixed(4)),
+                                    vDelta: parseFloat(squareVD.toFixed(4)),
+                                }));
                             }}
                             style={{ ...btnStyle, padding: '2px 6px', fontSize: 11 }}
                         >
                             等格
                         </button>
-                        {(uDelta != null || vDelta != null) && (
-                            <button
-                                onClick={() => {
-                                    setUDelta(null);
-                                    setVDelta(null);
-                                }}
-                                style={{ ...btnStyle, padding: '2px 6px', fontSize: 11 }}
-                            >
-                                自动
-                            </button>
-                        )}
                     </div>
                 </div>
-            )}
-
-            {/* 竖向扩展 —— 包围球自动提取后可手动微调 */}
-            <div style={{ marginBottom: 6, fontSize: 12 }}>
-                <span style={{ opacity: 0.85 }}>竖向扩展</span>
-                <input
-                    type="range"
-                    min={10}
-                    max={500}
-                    step={5}
-                    value={Math.round((monitorRegion.topHeight - monitorRegion.bottomHeight) / 2)}
-                    onChange={(e) => {
-                        const half = +e.target.value;
-                        const mid = (monitorRegion.bottomHeight + monitorRegion.topHeight) / 2;
-                        setMonitorRegion((prev) => ({
-                            ...prev,
-                            bottomHeight: mid - half,
-                            topHeight: mid + half,
-                        }));
-                    }}
-                    style={{ marginLeft: 8, width: 82, verticalAlign: 'middle' }}
-                />
-                <span style={{ marginLeft: 4 }}>
-                    ±{Math.round((monitorRegion.topHeight - monitorRegion.bottomHeight) / 2)} m
-                </span>
-            </div>
-
-            {/* 横向宽度（桥宽/进深）调节 —— 须覆盖结构全宽 */}
-            <div style={{ marginBottom: 8, fontSize: 12 }}>
-                <span style={{ opacity: 0.85 }}>横向宽度</span>
-                <input
-                    type="range"
-                    min={1}
-                    max={300}
-                    step={1}
-                    value={monitorRegion.wallDepth}
-                    onChange={(e) =>
-                        setMonitorRegion((prev) => ({ ...prev, wallDepth: +e.target.value }))
-                    }
-                    style={{ marginLeft: 8, width: 82, verticalAlign: 'middle' }}
-                />
-                <span style={{ marginLeft: 4 }}>{monitorRegion.wallDepth} m</span>
-            </div>
-
-            {/* 两步拾取 */}
-            <div style={{ marginBottom: 6 }}>
-                {pickStep === 'idle' && (
-                    <button
-                        onClick={() => setPickStep('corner1')}
-                        style={{ ...btnStyle, width: '100%' }}
-                    >
-                        在模型上点击两端定位范围
-                    </button>
-                )}
-                {pickStep === 'corner1' && (
-                    <div style={{ ...hintStyle, background: 'rgba(255,200,0,0.25)' }}>
-                        <span>① 点击结构一端任意角</span>
-                        <button
-                            onClick={() => {
-                                setPickStep('idle');
-                                corner1Ref.current = null;
-                                if (markerRef.current) {
-                                    viewer.entities.remove(markerRef.current);
-                                    markerRef.current = null;
-                                }
-                            }}
-                            style={cancelBtnStyle}
-                        >
-                            取消
-                        </button>
-                    </div>
-                )}
-                {pickStep === 'corner2' && (
-                    <div style={{ ...hintStyle, background: 'rgba(100,200,100,0.25)' }}>
-                        <span>② 点击结构另一端对角</span>
-                        <button
-                            onClick={() => {
-                                setPickStep('idle');
-                                corner1Ref.current = null;
-                                if (markerRef.current) {
-                                    viewer.entities.remove(markerRef.current);
-                                    markerRef.current = null;
-                                }
-                            }}
-                            style={cancelBtnStyle}
-                        >
-                            取消
-                        </button>
-                    </div>
-                )}
-            </div>
+            )} */}
+            {/*
             <div style={{ fontSize: 10, opacity: 0.45, marginBottom: 8, lineHeight: 1.5 }}>
-                UV 映射：U = 沿纵向（col），V = 竖向（row）
+                UV 映射：U = 纵向（沿结构轴），V = 竖向（高程方向）
                 <br />
-                横向宽度须覆盖结构全宽，否则两侧会被裁剪
-            </div>
+                grids 超出 {deformData.cols}×{deformData.rows} 的部分不参与渲染
+            </div> */}
 
-            {/* 法线方向（影响进深裁剪轴） */}
-            <button
-                onClick={() =>
-                    setMonitorRegion((prev) => ({
-                        ...prev,
-                        wallFacing: (prev.wallFacing + 180) % 360,
-                    }))
-                }
-                style={{ ...btnStyle, width: '100%', marginBottom: 8 }}
-            >
-                反转横向轴（{monitorRegion.wallFacing.toFixed(0)}° →{' '}
-                {((monitorRegion.wallFacing + 180) % 360).toFixed(0)}°）
-            </button>
-
-            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+            {/* 测试预设数据 */}
+            {/* <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
                 <button onClick={() => applyPreset('initial')} style={btnStyle}>
                     集中形变
                 </button>
@@ -878,7 +858,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                 <button onClick={() => applyPreset('random')} style={btnStyle}>
                     随机模拟
                 </button>
-            </div>
+            </div> */}
         </div>
     );
 }
@@ -905,25 +885,4 @@ const btnStyle: React.CSSProperties = {
     color: '#fff',
     border: '1px solid rgba(255,255,255,0.3)',
     borderRadius: 4,
-};
-
-const hintStyle: React.CSSProperties = {
-    fontSize: 12,
-    padding: '6px 8px',
-    borderRadius: 4,
-    border: '1px solid rgba(255,255,255,0.2)',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-};
-
-const cancelBtnStyle: React.CSSProperties = {
-    fontSize: 11,
-    cursor: 'pointer',
-    background: 'rgba(255,80,80,0.3)',
-    color: '#fff',
-    border: '1px solid rgba(255,80,80,0.5)',
-    borderRadius: 3,
-    padding: '2px 6px',
-    marginLeft: 8,
 };

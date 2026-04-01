@@ -14,6 +14,7 @@ import './App.css';
 import Voxel from './Voxel';
 import EarthProjection from './earthProject';
 import BuildProject from './buildProject';
+import CloseToTheGround from '../example/closeToTheGround';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 
@@ -55,10 +56,10 @@ function App() {
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
-        // viewer.scene.camera.flyTo({
-        //     destination: Cesium.Cartesian3.fromDegrees(107.386086, 33.045128, 8000.0),
-        //     duration: 2.0,
-        // });
+        viewer.scene.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(107.386086, 33.045128, 10000.0),
+            duration: 2.0,
+        });
         viewer.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
         viewer.scene.globe.enableLighting = false;
         viewer.scene.globe.depthTestAgainstTerrain = false;
@@ -313,9 +314,10 @@ function App() {
             <button className="btn14" onClick={handleDrawingEntity}>
                 entity绘制
             </button>
-            {/* <Voxel viewer={viewerRef.current} /> */}
+            {/* <Voxel viewer={viewerRef.current as Cesium.Viewer} /> */}
+            <CloseToTheGround viewer={viewerRef.current as Cesium.Viewer} />
             {/* <EarthProjection viewer={viewerRef.current} /> */}
-            <BuildProject viewer={viewerRef.current} />
+            {/* <BuildProject viewer={viewerRef.current} /> */}
         </div>
     );
 }

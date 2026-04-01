@@ -92,6 +92,20 @@ export class AnimatedRasterLayer {
     private bufferIndex = 0;
     private reusedImageData: ImageData | null = null;
 
+    /**
+     *
+     * @param viewer - Cesium.Viewer 实例
+     * @param options - AnimatedRasterLayerOptions 配置
+     * @param options.clampToGround - 是否贴地
+     * @param options.colorRamp - 颜色渐变
+     * @param options.interactionOptions - 交互配置
+     * @param options.interactionOptions.enabled - 是否启用交互
+     * @param options.interactionOptions.hoverEnabled - 是否启用悬浮高亮
+     * @param options.interactionOptions.hoverAlpha - 悬浮高亮透明度
+     * @param options.interactionOptions.hoverColor - 悬浮高亮颜色
+     * @param options.interactionOptions.onCellHover - 悬浮高亮回调
+     * @param options.interactionOptions.onCellClick - 点击回调
+     */
     constructor(viewer: Cesium.Viewer, options?: AnimatedRasterLayerOptions) {
         this.viewer = viewer;
         this.primitive = null;
@@ -155,6 +169,7 @@ export class AnimatedRasterLayer {
         this.packGridToTexture(grid, width, height);
         ctx.putImageData(this.reusedImageData, 0, 0);
 
+        // 重建原始
         if (!this.primitive || !this.material || this.boundsKey !== nextBoundsKey) {
             this.rebuildPrimitive(rectangle, targetCanvas, nextBoundsKey);
         }
@@ -173,6 +188,19 @@ export class AnimatedRasterLayer {
         if (!frame.skipRequestRender) this.viewer.scene.requestRender();
     }
 
+    /**
+     *
+     * @param stops - RasterColorStop[] | undefined 原始颜色渐变
+     * @description 设置颜色渐变，根据原始颜色渐变设置颜色渐变
+     * @example
+     * const stops = [
+     *     { maxValue: 10, color: [62, 160, 239] }, // 10 对应颜色 [62, 160, 239]
+     *     { maxValue: 20, color: [108, 225, 238] }, // 20 对应颜色 [108, 225, 238]
+     *     { maxValue: 30, color: [96, 214, 63] }, // 30 对应颜色 [96, 214, 63]
+     * ];
+     * setColorRamp(stops); // 设置颜色渐变
+     * console.log(this.colorStops); // [ { maxValue: 10, color: [62, 160, 239] }, { maxValue: 20, color: [108, 225, 238] }, { maxValue: 30, color: [96, 214, 63] } ]
+     */
     public setColorRamp(stops?: RasterColorStop[]): void {
         this.colorStops = this.normalizeColorStops(stops ?? DEFAULT_COLOR_STOPS);
         if (this.currentHeader && this.currentGrid) {
@@ -186,6 +214,28 @@ export class AnimatedRasterLayer {
         }
     }
 
+    /**
+     *
+     * @param options - DynamicRasterInteractionOptions 交互配置
+     * @description 设置交互配置，根据交互配置设置交互配置
+     * @example
+     * const options = {
+     *     enabled: true, // 是否启用交互
+     *     hoverEnabled: true, // 是否启用悬浮高亮
+     *     hoverAlpha: 0.35, // 悬浮高亮透明度
+     *     hoverColor: Cesium.Color.BLACK, // 悬浮高亮颜色
+     *     onCellHover: undefined, // 悬浮高亮回调
+     *     onCellHover: (cell) => {
+     *         console.log(cell); // 悬浮高亮回调
+     *     },
+     *     onCellClick: undefined, // 点击回调
+     *     onCellClick: (cell) => {
+     *         console.log(cell); // 点击回调
+     *     },
+     * };
+     * setInteractionOptions(options); // 设置交互配置
+     * console.log(this.interactionOptions); // { enabled: true, hoverEnabled: true, hoverAlpha: 0.35, hoverColor: Cesium.Color.BLACK, onCellHover: undefined, onCellClick: undefined }
+     */
     public setInteractionOptions(options: DynamicRasterInteractionOptions): void {
         this.interactionOptions = { ...this.interactionOptions, ...options };
         this.interactionOptions.hoverAlpha = Math.max(
@@ -214,6 +264,18 @@ export class AnimatedRasterLayer {
         }
     }
 
+    /**
+     *
+     * @param longitude - number 经度
+     * @param latitude - number 纬度
+     * @returns number | null 值
+     * @description 根据经纬度获取值，根据经纬度获取值，如果经纬度不存在则返回 null
+     * @example
+     * const longitude = 100.0; // 100.0 对应值 100.0
+     * const latitude = 100.0; // 100.0 对应值 100.0
+     * const value = pickValue(longitude, latitude);
+     * console.log(value); // 100.0
+     */
     public pickValue(longitude: number, latitude: number): number | null {
         const cell = this.resolveCellFromLonLat(longitude, latitude);
         return cell?.value ?? null;
@@ -364,6 +426,22 @@ export class AnimatedRasterLayer {
         return index;
     }
 
+    /**
+     *
+     * @param grid - 网格数据
+     * @param width - 网格宽度
+     * @param height - 网格高度
+     * @description 将网格数据打包到纹理中
+     * @example
+     * const grid = [
+     *     [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+     *     [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+     * ];
+     * const width = 10;
+     * const height = 10;
+     * packGridToTexture(grid, width, height);
+     * console.log(packed);
+     */
     private packGridToTexture(grid: number[][], width: number, height: number): void {
         const packed = this.reusedImageData!.data;
         for (let y = 0; y < height; y++) {
@@ -387,6 +465,20 @@ export class AnimatedRasterLayer {
         }
     }
 
+    /**
+     *
+     * @param rectangle - Cesium.Rectangle 矩形
+     * @param texture - HTMLCanvasElement 纹理
+     * @param boundsKey - string 边界键
+     * @description 重建原始，根据矩形和纹理重建原始
+     * @example
+     * const rectangle = Cesium.Rectangle.fromDegrees(100, 100, 200, 200);
+     * const texture = document.createElement('canvas');
+     * texture.width = 10;
+     * texture.height = 10;
+     * const boundsKey = '100_100_200_200_0_1';
+     * rebuildPrimitive(rectangle, texture, boundsKey);
+     */
     private rebuildPrimitive(
         rectangle: Cesium.Rectangle,
         texture: HTMLCanvasElement,
@@ -406,24 +498,24 @@ export class AnimatedRasterLayer {
                     u_layerAlpha: this.currentOpacity,
                 },
                 source: `
-czm_material czm_getMaterial(czm_materialInput materialInput)
-{
-    czm_material material = czm_getDefaultMaterial(materialInput);
-    vec2 gridSize = max(u_gridSize, vec2(1.0));
-    vec2 uv = floor(clamp(materialInput.st, 0.0, 0.999999) * gridSize);
-    uv = (uv + 0.5) / gridSize;
-    vec4 tex = texture(u_dataTex, uv);
-    float encoded = floor(tex.r * 255.0 + 0.5) * 256.0 + floor(tex.g * 255.0 + 0.5);
-    if (encoded >= 65535.0) {
-        material.alpha = 0.0;
-        return material;
-    }
-    float value = (encoded / 65534.0) * 80.0;
-    ${this.buildColorRampGlsl()}
-    material.diffuse = color;
-    material.alpha = clamp(u_layerAlpha, 0.0, 1.0);
-    return material;
-}
+                    czm_material czm_getMaterial(czm_materialInput materialInput)
+                    {
+                        czm_material material = czm_getDefaultMaterial(materialInput);
+                        vec2 gridSize = max(u_gridSize, vec2(1.0));
+                        vec2 uv = floor(clamp(materialInput.st, 0.0, 0.999999) * gridSize);
+                        uv = (uv + 0.5) / gridSize;
+                        vec4 tex = texture(u_dataTex, uv);
+                        float encoded = floor(tex.r * 255.0 + 0.5) * 256.0 + floor(tex.g * 255.0 + 0.5);
+                        if (encoded >= 65535.0) {
+                            material.alpha = 0.0;
+                            return material;
+                        }
+                        float value = (encoded / 65534.0) * 80.0;
+                        ${this.buildColorRampGlsl()}
+                        material.diffuse = color;
+                        material.alpha = clamp(u_layerAlpha, 0.0, 1.0);
+                        return material;
+                    }
                 `,
             },
             translucent: true,
@@ -459,6 +551,19 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
         this.viewer.scene.primitives.add(this.primitive);
     }
 
+    /**
+     *
+     * @returns string GLSL 颜色渐变代码
+     * @description 构建颜色渐变 GLSL 代码，根据颜色渐变构建 GLSL 代码
+     * @example
+     * const colorStops = [
+     *     { maxValue: 10, color: [62, 160, 239] },
+     *     { maxValue: 20, color: [108, 225, 238] },
+     *     { maxValue: 30, color: [96, 214, 63] },
+     * ];
+     * const glsl = buildColorRampGlsl(colorStops);
+     * console.log(glsl); // vec3 color = vec3(0.243137, 0.784314, 1.0); if (value <= 10.0) { color = vec3(0.243137, 0.784314, 1.0); } else if (value <= 20.0) { color = vec3(0.423529, 0.901961, 1.0); } else if (value <= 30.0) { color = vec3(0.376471, 0.839216, 0.250980); }
+     */
     private buildColorRampGlsl(): string {
         const safeStops = this.colorStops.length ? this.colorStops : DEFAULT_COLOR_STOPS;
         const fallback = safeStops[safeStops.length - 1]?.color ?? [174, 148, 237];
@@ -473,16 +578,49 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
         return lines.join('\n    ');
     }
 
+    /**
+     *
+     * @param color - [number, number, number] 颜色
+     * @returns string GLSL 颜色代码
+     * @description 将颜色转换为 GLSL 颜色代码，根据颜色转换为 GLSL 颜色代码
+     * @example
+     * const color = [62, 160, 239];
+     * const glsl = toGlslColor(color);
+     * console.log(glsl); // vec3(0.243137, 0.784314, 1.0);
+     */
     private toGlslColor(color: [number, number, number]): string {
         return `vec3(${this.toGlslNumber(color[0] / 255)}, ${this.toGlslNumber(color[1] / 255)}, ${this.toGlslNumber(color[2] / 255)})`;
     }
-
+    /**
+     *
+     * @param value - number 值
+     * @returns string GLSL 数字代码
+     * @description 将数字转换为 GLSL 数字代码，根据数字转换为 GLSL 数字代码
+     * @example
+     * const value = 10.0;
+     * const glsl = toGlslNumber(value);
+     * console.log(glsl); // 10.0
+     */
     private toGlslNumber(value: number): string {
         if (!Number.isFinite(value)) return '0.0';
         const text = value.toFixed(6).replace(/\.?0+$/, '');
         return text.includes('.') ? text : `${text}.0`;
     }
 
+    /**
+     *
+     * @param stops - RasterColorStop[] | undefined 原始颜色渐变
+     * @returns RasterColorStop[] 规范化后的颜色渐变
+     * @description 规范化颜色渐变，根据颜色渐变规范化颜色渐变
+     * @example
+     * const stops = [
+     *     { maxValue: 10, color: [62, 160, 239] },
+     *     { maxValue: 20, color: [108, 225, 238] },
+     *     { maxValue: 30, color: [96, 214, 63] },
+     * ];
+     * const normalized = normalizeColorStops(stops);
+     * console.log(normalized); // [ { maxValue: 10, color: [62, 160, 239] }, { maxValue: 20, color: [108, 225, 238] }, { maxValue: 30, color: [96, 214, 63] } ]
+     */
     private normalizeColorStops(stops?: RasterColorStop[]): RasterColorStop[] {
         if (!Array.isArray(stops) || !stops.length) {
             return DEFAULT_COLOR_STOPS.map((s) => {
@@ -518,6 +656,30 @@ czm_material czm_getMaterial(czm_materialInput materialInput)
         return normalized;
     }
 
+    /**
+     *
+     * @param header - GridHeader 网格头信息
+     * @param width - 网格宽度
+     * @param height - 网格高度
+     * @returns Cesium.Rectangle 矩形
+     * @description 构建矩形，根据网格头信息和网格大小构建矩形
+     * @example
+     * const header = {
+     *     xStart: 100,
+     *     yStart: 100,
+     *     xEnd: 200,
+     *     yEnd: 200,
+     *     xDelta: 10,
+     *     yDelta: 10,
+     *     xSize: 10,
+     *     ySize: 10,
+     *     levelList: [10, 20, 30, 40, 50, 60, 70, 80, 90, 100],
+     *     timeList: [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000],
+     * };
+     * const width = 10;
+     * const height = 10;
+     * const rectangle = buildRectangle(header, width, height); // Cesium.Rectangle { west: 100, south: 100, east: 200, north: 200 }
+     */
     private buildRectangle(header: GridHeader, width: number, height: number): Cesium.Rectangle {
         const { xStart, yStart, xEnd, yEnd, xDelta, yDelta, xSize, ySize } = header;
         const gridWidth = xSize ?? width;

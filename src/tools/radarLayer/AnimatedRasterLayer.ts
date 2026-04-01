@@ -38,12 +38,21 @@ export type RasterColorStop = {
     color: [number, number, number];
 };
 
+/** 多边形遮罩顶点坐标，[经度, 纬度]（度数） */
+export type PolygonMaskCoord = [number, number];
+
 export type AnimatedRasterLayerOptions = {
     clampToGround?: boolean;
     /** 是否渐变颜色 */
     gradientEnabled?: boolean;
     colorRamp?: RasterColorStop[];
     interactionOptions?: DynamicRasterInteractionOptions;
+    /**
+     * 多边形遮罩顶点列表（[经度, 纬度] 度数）。
+     * 至少 3 个顶点，多边形内部可见，外部隐藏。
+     * 不传或传 null 则全部可见。
+     */
+    maskPolygon?: PolygonMaskCoord[];
 };
 
 export type AnimatedGridFrame = {
@@ -98,6 +107,10 @@ export class AnimatedRasterLayer {
     private bufferIndex = 0;
     private reusedImageData: ImageData | null = null;
 
+    private maskPolygon: PolygonMaskCoord[] | null = null;
+    private maskCanvasPool: [HTMLCanvasElement, HTMLCanvasElement];
+    private maskBufferIndex = 0;
+
     /**
      *
      * @param viewer - Cesium.Viewer 实例
@@ -129,8 +142,21 @@ export class AnimatedRasterLayer {
             onCellClick: undefined,
         };
         this.canvasPool = [document.createElement('canvas'), document.createElement('canvas')];
+        this.maskCanvasPool = [document.createElement('canvas'), document.createElement('canvas')];
+        this.maskCanvasPool.forEach((c) => {
+            c.width = 1;
+            c.height = 1;
+            const ctx = c.getContext('2d');
+            if (ctx) {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, 1, 1);
+            }
+        });
         if (options?.interactionOptions) {
             this.setInteractionOptions(options.interactionOptions);
+        }
+        if (options?.maskPolygon) {
+            this.maskPolygon = options.maskPolygon.length >= 3 ? options.maskPolygon : null;
         }
     }
 
@@ -223,6 +249,17 @@ export class AnimatedRasterLayer {
                 opacity: this.currentOpacity,
             });
         }
+    }
+
+    /**
+     * @param coords - 多边形顶点坐标数组（[经度, 纬度] 度数），至少 3 个顶点。
+     *                 传 null 或空数组时清除遮罩，恢复全部可见。
+     * @description 设置多边形遮罩，多边形内部可见，外部隐藏。
+     */
+    public setMaskPolygon(coords: PolygonMaskCoord[] | null): void {
+        this.maskPolygon = coords && coords.length >= 3 ? coords : null;
+        this.updateMaskTexture();
+        this.viewer.scene.requestRender();
     }
 
     /**
@@ -338,6 +375,75 @@ export class AnimatedRasterLayer {
         this.currentHeader = null;
         this.currentGrid = null;
         this.reusedImageData = null;
+    }
+
+    /**
+     * @description 将多边形顶点 UV 坐标编码到 1D canvas 中，供 GLSL 射线法使用。
+     * 每个顶点占 2 个像素：
+     *   像素 2i   → (r=sHi, g=sLo, b=0, a=255)  — s（经度 UV，16bit）
+     *   像素 2i+1 → (r=tHi, g=tLo, b=0, a=255)  — t（纬度 UV，16bit）
+     * alpha 固定为 255，避免 Canvas 预乘 alpha（premultiplied alpha）损坏坐标数据。
+     * s/t 直接对应 materialInput.st，无需 Y 轴翻转。
+     */
+    private updateMaskTexture(): void {
+        this.maskBufferIndex = (this.maskBufferIndex + 1) % 2;
+        const canvas = this.maskCanvasPool[this.maskBufferIndex];
+        const vertexCount = this.maskPolygon?.length ?? 0;
+
+        if (!this.maskPolygon || !this.currentRectangle || vertexCount < 3) {
+            canvas.width = 1;
+            canvas.height = 1;
+            this.syncPolyUniforms(canvas, 0);
+            return;
+        }
+
+        const west = Cesium.Math.toDegrees(this.currentRectangle.west);
+        const east = Cesium.Math.toDegrees(this.currentRectangle.east);
+        const south = Cesium.Math.toDegrees(this.currentRectangle.south);
+        const north = Cesium.Math.toDegrees(this.currentRectangle.north);
+        const lonRange = east - west;
+        const latRange = north - south;
+        if (lonRange <= 0 || latRange <= 0) return;
+
+        canvas.width = 2 * vertexCount;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const imageData = ctx.createImageData(2 * vertexCount, 1);
+        const data = imageData.data;
+
+        this.maskPolygon.forEach(([lon, lat], i) => {
+            const s = Math.max(0, Math.min(1, (lon - west) / lonRange));
+            const t = Math.max(0, Math.min(1, (lat - south) / latRange));
+            const encS = Math.round(s * 65535);
+            const encT = Math.round(t * 65535);
+            // 像素 2i：s 坐标，alpha=255 防止预乘 alpha 损坏 r/g 通道
+            const idxS = 2 * i * 4;
+            data[idxS] = (encS >> 8) & 0xff;
+            data[idxS + 1] = encS & 0xff;
+            data[idxS + 2] = 0;
+            data[idxS + 3] = 255;
+            // 像素 2i+1：t 坐标，alpha=255
+            const idxT = (2 * i + 1) * 4;
+            data[idxT] = (encT >> 8) & 0xff;
+            data[idxT + 1] = encT & 0xff;
+            data[idxT + 2] = 0;
+            data[idxT + 3] = 255;
+        });
+
+        ctx.putImageData(imageData, 0, 0);
+        this.syncPolyUniforms(canvas, vertexCount);
+    }
+
+    private syncPolyUniforms(canvas: HTMLCanvasElement, vertexCount: number): void {
+        const uniforms = this.material?.uniforms as {
+            u_maskTex?: HTMLCanvasElement;
+            u_polyCount?: number;
+        } | null;
+        if (!uniforms) return;
+        uniforms.u_maskTex = canvas;
+        uniforms.u_polyCount = vertexCount;
     }
 
     private destroyInteractionHandler(): void {
@@ -590,11 +696,14 @@ export class AnimatedRasterLayer {
                     u_hoverCell: new Cesium.Cartesian2(-1, -1),
                     u_hoverColor: new Cesium.Cartesian3(hc.red, hc.green, hc.blue),
                     u_hoverAlpha: this.interactionOptions.hoverAlpha,
+                    u_maskTex: this.maskCanvasPool[this.maskBufferIndex],
+                    u_polyCount: 0.0,
                 },
                 source: this.buildShaderSource(),
             },
             translucent: true,
         });
+        this.updateMaskTexture();
 
         const vertexFormat = Cesium.MaterialAppearance.MaterialSupport.TEXTURED.vertexFormat;
         const geometry = new Cesium.RectangleGeometry({
@@ -630,9 +739,43 @@ export class AnimatedRasterLayer {
      * @description 构建完整的 czm_getMaterial GLSL 着色器源码。
      * 非渐变模式：最近邻采样，步进色标。
      * 渐变模式：颜色双线性（4 格各自映射颜色后插值），避免数值插值产生彩虹缝隙。
-     * 两种模式均支持鼠标悬浮高亮。
+     * 两种模式均支持鼠标悬浮高亮与多边形遮罩。
+     * 多边形遮罩使用射线法（ray casting）在 UV 空间直接判断点是否在多边形内，
+     * 顶点坐标以 rg=s/ba=t（各 16bit）编码存于 u_maskTex，不依赖任何 Y 轴翻转假设。
      */
     private buildShaderSource(): string {
+        // 射线法点在多边形内判断（在 materialInput.st UV 空间执行）
+        // u_maskTex: 1D 顶点纹理，每顶点占 2 个像素（像素 2i=s, 2i+1=t），16bit 精度
+        // u_polyCount: 顶点数量，< 3 时禁用遮罩
+        const maskGlsl = `
+                int _pn = int(u_polyCount);
+                if (_pn >= 3) {
+                    vec2 _p = materialInput.st;
+                    bool _inside = false;
+                    float _tw = float(2 * _pn);
+                    int _j = _pn - 1;
+                    for (int _i = 0; _i < 1024; _i++) {
+                        if (_i >= _pn) break;
+                        vec4 _si = texture(u_maskTex, vec2((float(2 * _i)     + 0.5) / _tw, 0.5));
+                        vec4 _ti = texture(u_maskTex, vec2((float(2 * _i + 1) + 0.5) / _tw, 0.5));
+                        vec4 _sj = texture(u_maskTex, vec2((float(2 * _j)     + 0.5) / _tw, 0.5));
+                        vec4 _tj = texture(u_maskTex, vec2((float(2 * _j + 1) + 0.5) / _tw, 0.5));
+                        float _xi = (floor(_si.r * 255.0 + 0.5) * 256.0 + floor(_si.g * 255.0 + 0.5)) / 65535.0;
+                        float _yi = (floor(_ti.r * 255.0 + 0.5) * 256.0 + floor(_ti.g * 255.0 + 0.5)) / 65535.0;
+                        float _xj = (floor(_sj.r * 255.0 + 0.5) * 256.0 + floor(_sj.g * 255.0 + 0.5)) / 65535.0;
+                        float _yj = (floor(_tj.r * 255.0 + 0.5) * 256.0 + floor(_tj.g * 255.0 + 0.5)) / 65535.0;
+                        bool _crossY = (_yi > _p.y) != (_yj > _p.y);
+                        if (_crossY && _p.x < _xi + (_p.y - _yi) / (_yj - _yi) * (_xj - _xi)) {
+                            _inside = !_inside;
+                        }
+                        _j = _i;
+                    }
+                    if (!_inside) {
+                        material.alpha = 0.0;
+                        return material;
+                    }
+                }`;
+
         // 高亮片段：若当前格子 == u_hoverCell 则与高亮色混合
         const hoverGlsl = `
                 if (u_hoverCell.x >= 0.0) {
@@ -648,6 +791,7 @@ export class AnimatedRasterLayer {
                 czm_material czm_getMaterial(czm_materialInput materialInput)
                 {
                     czm_material material = czm_getDefaultMaterial(materialInput);
+                    ${maskGlsl}
                     vec2 gridSize = max(u_gridSize, vec2(1.0));
                     vec2 cellIdx = floor(clamp(materialInput.st, 0.0, 0.999999) * gridSize);
                     vec2 uv = (cellIdx + 0.5) / gridSize;
@@ -675,6 +819,7 @@ export class AnimatedRasterLayer {
             czm_material czm_getMaterial(czm_materialInput materialInput)
             {
                 czm_material material = czm_getDefaultMaterial(materialInput);
+                ${maskGlsl}
                 vec2 gridSize = max(u_gridSize, vec2(1.0));
                 vec2 gridPos = clamp(materialInput.st, 0.0, 0.999999) * gridSize;
                 vec2 cellIdx = floor(gridPos);

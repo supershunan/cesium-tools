@@ -23,9 +23,11 @@ export type AnimatedGridCellInfo = {
 
 export type DynamicRasterInteractionOptions = {
     enabled?: boolean;
-    /** 仅为兼容保留，AnimatedRasterLayer 不绘制悬浮高亮 */
+    /** 是否在鼠标悬停时高亮对应网格，默认 true */
     hoverEnabled?: boolean;
+    /** 高亮颜色，默认黑色 */
     hoverColor?: Cesium.Color;
+    /** 高亮混合强度 0-1，默认 0.35 */
     hoverAlpha?: number;
     onCellHover?: (cell: AnimatedGridCellInfo | null) => void;
     onCellClick?: (cell: AnimatedGridCellInfo) => void;
@@ -38,6 +40,8 @@ export type RasterColorStop = {
 
 export type AnimatedRasterLayerOptions = {
     clampToGround?: boolean;
+    /** 是否渐变颜色 */
+    gradientEnabled?: boolean;
     colorRamp?: RasterColorStop[];
     interactionOptions?: DynamicRasterInteractionOptions;
 };
@@ -78,10 +82,12 @@ export class AnimatedRasterLayer {
     private currentHeightMeters = 0;
     private currentOpacity = 1;
     private colorStops: RasterColorStop[];
+    private gradientEnabled: boolean;
     private currentRectangle: Cesium.Rectangle | null = null;
     private currentHeader: GridHeader | null = null;
     private currentGrid: number[][] | null = null;
 
+    private hoveredCell: { xIndex: number; yIndex: number } | null = null;
     private eventHandler: Cesium.ScreenSpaceEventHandler | null = null;
     private interactionOptions: Required<
         Pick<DynamicRasterInteractionOptions, 'enabled' | 'hoverEnabled' | 'hoverAlpha'>
@@ -97,6 +103,7 @@ export class AnimatedRasterLayer {
      * @param viewer - Cesium.Viewer 实例
      * @param options - AnimatedRasterLayerOptions 配置
      * @param options.clampToGround - 是否贴地
+     * @param options.gradientEnabled - 是否渐变颜色
      * @param options.colorRamp - 颜色渐变
      * @param options.interactionOptions - 交互配置
      * @param options.interactionOptions.enabled - 是否启用交互
@@ -111,6 +118,7 @@ export class AnimatedRasterLayer {
         this.primitive = null;
         this.material = null;
         this.clampToGround = options?.clampToGround ?? false;
+        this.gradientEnabled = options?.gradientEnabled ?? false;
         this.colorStops = this.normalizeColorStops(options?.colorRamp ?? DEFAULT_COLOR_STOPS);
         this.interactionOptions = {
             enabled: false,
@@ -178,6 +186,9 @@ export class AnimatedRasterLayer {
             u_dataTex: HTMLCanvasElement;
             u_gridSize: Cesium.Cartesian2;
             u_layerAlpha: number;
+            u_hoverCell: Cesium.Cartesian2;
+            u_hoverColor: Cesium.Cartesian3;
+            u_hoverAlpha: number;
         } | null;
         if (uniforms) {
             uniforms.u_dataTex = targetCanvas;
@@ -215,6 +226,24 @@ export class AnimatedRasterLayer {
     }
 
     /**
+     * @param enabled - 是否启用渐变模式
+     * @description 动态切换阶梯/渐变着色模式，会强制重建 Primitive
+     */
+    public setGradientEnabled(enabled: boolean): void {
+        if (this.gradientEnabled === enabled) return;
+        this.gradientEnabled = enabled;
+        if (this.currentHeader && this.currentGrid) {
+            if (!this.clampToGround) this.boundsKey = '';
+            this.update({
+                header: this.currentHeader,
+                grid: this.currentGrid,
+                heightMeters: this.currentHeightMeters,
+                opacity: this.currentOpacity,
+            });
+        }
+    }
+
+    /**
      *
      * @param options - DynamicRasterInteractionOptions 交互配置
      * @description 设置交互配置，根据交互配置设置交互配置
@@ -237,16 +266,29 @@ export class AnimatedRasterLayer {
      * console.log(this.interactionOptions); // { enabled: true, hoverEnabled: true, hoverAlpha: 0.35, hoverColor: Cesium.Color.BLACK, onCellHover: undefined, onCellClick: undefined }
      */
     public setInteractionOptions(options: DynamicRasterInteractionOptions): void {
+        const prevHoverEnabled = this.interactionOptions.hoverEnabled;
         this.interactionOptions = { ...this.interactionOptions, ...options };
         this.interactionOptions.hoverAlpha = Math.max(
             0,
             Math.min(1, this.interactionOptions.hoverAlpha)
         );
+
         if (!this.interactionOptions.enabled) {
             this.destroyInteractionHandler();
             this.clearHover();
             return;
         }
+
+        // hover 开关从开→关时清除视觉高亮
+        if (prevHoverEnabled && !this.interactionOptions.hoverEnabled) {
+            this.hoveredCell = null;
+            this.updateHoverUniform();
+            this.viewer.scene.requestRender();
+        }
+
+        // 高亮色/透明度变化时同步 uniform
+        this.updateHoverStyleUniforms();
+
         if (!this.eventHandler) {
             this.eventHandler = new Cesium.ScreenSpaceEventHandler(this.viewer.scene.canvas);
             this.eventHandler.setInputAction(
@@ -291,6 +333,7 @@ export class AnimatedRasterLayer {
         }
         this.material = null;
         this.boundsKey = '';
+        this.hoveredCell = null;
         this.currentRectangle = null;
         this.currentHeader = null;
         this.currentGrid = null;
@@ -304,6 +347,10 @@ export class AnimatedRasterLayer {
     }
 
     private clearHover(): void {
+        if (this.hoveredCell !== null) {
+            this.hoveredCell = null;
+            this.updateHoverUniform();
+        }
         this.interactionOptions.onCellHover?.(null);
         this.viewer.scene.requestRender();
     }
@@ -315,7 +362,50 @@ export class AnimatedRasterLayer {
             this.clearHover();
             return;
         }
+        if (this.interactionOptions.hoverEnabled) {
+            // cell.xIndex/yIndex 可能来自 resolveValueCell 的邻格搜索，不一定是鼠标真实所在格。
+            // 用 cell.longitude/latitude（始终是鼠标真实地理坐标）重新查询原始格子索引，
+            // 保证高亮落在鼠标实际位置的格子上，而不是被修正到有数据的邻格。
+            const rawIdx = this.resolveGridIndexFromLonLat(cell.longitude, cell.latitude);
+            const hoverIdx = rawIdx ?? { xIndex: cell.xIndex, yIndex: cell.yIndex };
+            const prev = this.hoveredCell;
+            if (prev?.xIndex !== hoverIdx.xIndex || prev?.yIndex !== hoverIdx.yIndex) {
+                this.hoveredCell = hoverIdx;
+                this.updateHoverUniform();
+                this.viewer.scene.requestRender();
+            }
+        }
         this.interactionOptions.onCellHover?.(cell);
+    }
+
+    private updateHoverUniform(): void {
+        const uniforms = this.material?.uniforms as {
+            u_hoverCell: Cesium.Cartesian2;
+        } | null;
+        if (!uniforms) return;
+        if (this.hoveredCell && this.interactionOptions.hoverEnabled) {
+            // Cesium RectangleGeometry UV 始终是标准地理约定：st.t=0 在南边，st.t=1 在北边。
+            // GLSL 中 cellIdx.y = floor(st.t * H)，故 cellIdx.y=0 在南边。
+            // 而 resolveGridIndexFromLonLat 对 clampToGround 做了 Y 翻转（数据北行优先），
+            // yIndex=0 在北边。需要将 yIndex 转换为 GLSL 坐标系：glslY = (H-1) - yIndex。
+            const glslY = this.clampToGround
+                ? this.gridHeight - 1 - this.hoveredCell.yIndex
+                : this.hoveredCell.yIndex;
+            uniforms.u_hoverCell = new Cesium.Cartesian2(this.hoveredCell.xIndex, glslY);
+        } else {
+            uniforms.u_hoverCell = new Cesium.Cartesian2(-1, -1);
+        }
+    }
+
+    private updateHoverStyleUniforms(): void {
+        const uniforms = this.material?.uniforms as {
+            u_hoverColor: Cesium.Cartesian3;
+            u_hoverAlpha: number;
+        } | null;
+        if (!uniforms) return;
+        const hc = this.interactionOptions.hoverColor ?? Cesium.Color.BLACK;
+        uniforms.u_hoverColor = new Cesium.Cartesian3(hc.red, hc.green, hc.blue);
+        uniforms.u_hoverAlpha = this.interactionOptions.hoverAlpha;
     }
 
     private handleClick(position: Cesium.Cartesian2): void {
@@ -490,33 +580,18 @@ export class AnimatedRasterLayer {
             this.primitive = null;
         }
         this.boundsKey = boundsKey;
+        const hc = this.interactionOptions.hoverColor ?? Cesium.Color.BLACK;
         this.material = new Cesium.Material({
             fabric: {
                 uniforms: {
                     u_dataTex: texture,
                     u_gridSize: new Cesium.Cartesian2(this.gridWidth, this.gridHeight),
                     u_layerAlpha: this.currentOpacity,
+                    u_hoverCell: new Cesium.Cartesian2(-1, -1),
+                    u_hoverColor: new Cesium.Cartesian3(hc.red, hc.green, hc.blue),
+                    u_hoverAlpha: this.interactionOptions.hoverAlpha,
                 },
-                source: `
-                    czm_material czm_getMaterial(czm_materialInput materialInput)
-                    {
-                        czm_material material = czm_getDefaultMaterial(materialInput);
-                        vec2 gridSize = max(u_gridSize, vec2(1.0));
-                        vec2 uv = floor(clamp(materialInput.st, 0.0, 0.999999) * gridSize);
-                        uv = (uv + 0.5) / gridSize;
-                        vec4 tex = texture(u_dataTex, uv);
-                        float encoded = floor(tex.r * 255.0 + 0.5) * 256.0 + floor(tex.g * 255.0 + 0.5);
-                        if (encoded >= 65535.0) {
-                            material.alpha = 0.0;
-                            return material;
-                        }
-                        float value = (encoded / 65534.0) * 80.0;
-                        ${this.buildColorRampGlsl()}
-                        material.diffuse = color;
-                        material.alpha = clamp(u_layerAlpha, 0.0, 1.0);
-                        return material;
-                    }
-                `,
+                source: this.buildShaderSource(),
             },
             translucent: true,
         });
@@ -552,6 +627,103 @@ export class AnimatedRasterLayer {
     }
 
     /**
+     * @description 构建完整的 czm_getMaterial GLSL 着色器源码。
+     * 非渐变模式：最近邻采样，步进色标。
+     * 渐变模式：颜色双线性（4 格各自映射颜色后插值），避免数值插值产生彩虹缝隙。
+     * 两种模式均支持鼠标悬浮高亮。
+     */
+    private buildShaderSource(): string {
+        // 高亮片段：若当前格子 == u_hoverCell 则与高亮色混合
+        const hoverGlsl = `
+                if (u_hoverCell.x >= 0.0) {
+                    vec2 _diff = abs(cellIdx - u_hoverCell);
+                    if (_diff.x < 0.5 && _diff.y < 0.5) {
+                        color = mix(color, u_hoverColor, clamp(u_hoverAlpha, 0.0, 1.0));
+                    }
+                }`;
+
+        if (!this.gradientEnabled) {
+            const colorRampCode = this.buildColorRampGlsl();
+            return `
+                czm_material czm_getMaterial(czm_materialInput materialInput)
+                {
+                    czm_material material = czm_getDefaultMaterial(materialInput);
+                    vec2 gridSize = max(u_gridSize, vec2(1.0));
+                    vec2 cellIdx = floor(clamp(materialInput.st, 0.0, 0.999999) * gridSize);
+                    vec2 uv = (cellIdx + 0.5) / gridSize;
+                    vec4 tex = texture(u_dataTex, uv);
+                    float encoded = floor(tex.r * 255.0 + 0.5) * 256.0 + floor(tex.g * 255.0 + 0.5);
+                    if (encoded >= 65535.0) {
+                        material.alpha = 0.0;
+                        return material;
+                    }
+                    float value = (encoded / 65534.0) * 80.0;
+                    ${colorRampCode}
+                    ${hoverGlsl}
+                    material.diffuse = color;
+                    material.alpha = clamp(u_layerAlpha, 0.0, 1.0);
+                    return material;
+                }
+            `;
+        }
+
+        // 渐变模式：颜色双线性 —— 4 格各自走色标，再对颜色双线性插值，
+        // 不对编码整数值直接插值，避免相邻格值差大时产生彩虹缝隙。
+        const rampFn = this.buildColorRampGlslFunction();
+        return `
+            ${rampFn}
+            czm_material czm_getMaterial(czm_materialInput materialInput)
+            {
+                czm_material material = czm_getDefaultMaterial(materialInput);
+                vec2 gridSize = max(u_gridSize, vec2(1.0));
+                vec2 gridPos = clamp(materialInput.st, 0.0, 0.999999) * gridSize;
+                vec2 cellIdx = floor(gridPos);
+                vec2 f = gridPos - cellIdx;
+                vec2 cell10 = vec2(min(cellIdx.x + 1.0, gridSize.x - 1.0), cellIdx.y);
+                vec2 cell01 = vec2(cellIdx.x, min(cellIdx.y + 1.0, gridSize.y - 1.0));
+                vec2 cell11 = vec2(min(cellIdx.x + 1.0, gridSize.x - 1.0), min(cellIdx.y + 1.0, gridSize.y - 1.0));
+                vec4 s00 = texture(u_dataTex, (cellIdx + 0.5) / gridSize);
+                vec4 s10 = texture(u_dataTex, (cell10  + 0.5) / gridSize);
+                vec4 s01 = texture(u_dataTex, (cell01  + 0.5) / gridSize);
+                vec4 s11 = texture(u_dataTex, (cell11  + 0.5) / gridSize);
+                float e00 = floor(s00.r * 255.0 + 0.5) * 256.0 + floor(s00.g * 255.0 + 0.5);
+                float e10 = floor(s10.r * 255.0 + 0.5) * 256.0 + floor(s10.g * 255.0 + 0.5);
+                float e01 = floor(s01.r * 255.0 + 0.5) * 256.0 + floor(s01.g * 255.0 + 0.5);
+                float e11 = floor(s11.r * 255.0 + 0.5) * 256.0 + floor(s11.g * 255.0 + 0.5);
+                if (e00 >= 65535.0) {
+                    material.alpha = 0.0;
+                    return material;
+                }
+                if (e10 >= 65535.0) e10 = e00;
+                if (e01 >= 65535.0) e01 = e00;
+                if (e11 >= 65535.0) e11 = e00;
+                vec3 c00 = _rampColorFn((e00 / 65534.0) * 80.0);
+                vec3 c10 = _rampColorFn((e10 / 65534.0) * 80.0);
+                vec3 c01 = _rampColorFn((e01 / 65534.0) * 80.0);
+                vec3 c11 = _rampColorFn((e11 / 65534.0) * 80.0);
+                vec3 color = mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);
+                ${hoverGlsl}
+                material.diffuse = color;
+                material.alpha = clamp(u_layerAlpha, 0.0, 1.0);
+                return material;
+            }
+        `;
+    }
+
+    /**
+     * @description 将色标代码包装为 GLSL 函数 _rampColorFn(float value)，
+     * 供渐变着色器对 4 个格子各自调用，实现颜色双线性插值。
+     */
+    private buildColorRampGlslFunction(): string {
+        const body = this.buildColorRampGlsl();
+        const indented = body
+            .split('\n')
+            .map((line) => `    ${line}`)
+            .join('\n');
+        return `vec3 _rampColorFn(float value) {\n${indented}\n    return color;\n}`;
+    }
+
+    /**
      *
      * @returns string GLSL 颜色渐变代码
      * @description 构建颜色渐变 GLSL 代码，根据颜色渐变构建 GLSL 代码
@@ -566,7 +738,11 @@ export class AnimatedRasterLayer {
      */
     private buildColorRampGlsl(): string {
         const safeStops = this.colorStops.length ? this.colorStops : DEFAULT_COLOR_STOPS;
-        const fallback = safeStops[safeStops.length - 1]?.color ?? [174, 148, 237];
+        const fallback =
+            safeStops[safeStops.length - 1]?.color ?? ([174, 148, 237] as [number, number, number]);
+        if (this.gradientEnabled) {
+            return this.buildGradientColorRampGlsl(safeStops, fallback);
+        }
         const lines: string[] = [`vec3 color = ${this.toGlslColor(fallback)};`];
         safeStops.forEach((stop, index) => {
             if (!Number.isFinite(stop.maxValue)) return;
@@ -575,6 +751,39 @@ export class AnimatedRasterLayer {
                 `${keyword} (value <= ${this.toGlslNumber(stop.maxValue)}) { color = ${this.toGlslColor(stop.color)}; }`
             );
         });
+        return lines.join('\n    ');
+    }
+
+    /**
+     * @description 构建渐变颜色 GLSL 代码，相邻色阶之间线性插值
+     */
+    private buildGradientColorRampGlsl(
+        stops: RasterColorStop[],
+        fallback: [number, number, number]
+    ): string {
+        const finiteStops = stops.filter((s) => Number.isFinite(s.maxValue));
+        const lines: string[] = [`vec3 color = ${this.toGlslColor(fallback)};`];
+
+        finiteStops.forEach((stop, index) => {
+            if (index === 0) {
+                lines.push(
+                    `if (value <= ${this.toGlslNumber(stop.maxValue)}) { color = ${this.toGlslColor(stop.color)}; }`
+                );
+                return;
+            }
+            const prev = finiteStops[index - 1];
+            const rangeSize = stop.maxValue - prev.maxValue;
+            if (rangeSize <= 0) {
+                lines.push(
+                    `else if (value <= ${this.toGlslNumber(stop.maxValue)}) { color = ${this.toGlslColor(stop.color)}; }`
+                );
+            } else {
+                lines.push(
+                    `else if (value <= ${this.toGlslNumber(stop.maxValue)}) { float t = clamp((value - ${this.toGlslNumber(prev.maxValue)}) / ${this.toGlslNumber(rangeSize)}, 0.0, 1.0); color = mix(${this.toGlslColor(prev.color)}, ${this.toGlslColor(stop.color)}, t); }`
+                );
+            }
+        });
+
         return lines.join('\n    ');
     }
 

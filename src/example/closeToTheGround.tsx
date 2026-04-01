@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import * as Cesium from 'cesium';
 import { AnimatedRasterLayer } from '@src/tools/radarLayer/AnimatedRasterLayer';
 import { GridDataReader, GridHeader } from '@src/tools/radarLayer';
@@ -70,12 +70,15 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
 
     const loadGridResult = async (url: string) => {
         try {
-            const res = await fetch(url, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/zip',
-                },
-            });
+            const res = await fetch(
+                '/public/resources/82DA3ED6762D4E9AB594EDF9D6359461202602260030_simulated_1.bin.zip',
+                {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/zip',
+                    },
+                }
+            );
             if (!res.ok) {
                 return null;
             }
@@ -110,7 +113,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                 { length: levels },
                 () =>
                     new AnimatedRasterLayer(viewer as Cesium.Viewer, {
-                        clampToGround: true,
+                        clampToGround: false,
                         colorRamp: [
                             { maxValue: 10, color: [62, 160, 239] },
                             { maxValue: 15, color: [62, 160, 239] },
@@ -134,7 +137,9 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
         const levelList = resultRef.current?.header.levelList ?? [];
 
         for (let levelIndex = 0; levelIndex < levels; levelIndex++) {
-            const grid = resultRef.current?.data?.[timeIndex]?.[levelIndex];
+            const grid = resultRef.current?.getLevelSlice
+                ? resultRef.current?.getLevelSlice(timeIndex, levelIndex)
+                : resultRef.current?.data?.[timeIndex]?.[levelIndex];
             if (
                 !Array.isArray(grid) ||
                 !grid.length ||
@@ -176,7 +181,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                 () =>
                     new AnimatedRasterLayer(viewer as Cesium.Viewer, {
                         clampToGround: true,
-                        gradientEnabled: false,
+                        gradientEnabled: true,
                         colorRamp: [
                             { maxValue: 10, color: [62, 160, 239] },
                             { maxValue: 15, color: [62, 160, 239] },
@@ -193,18 +198,18 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                             { maxValue: 70, color: [132, 39, 179] },
                             { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
                         ],
-                        interactionOptions: {
-                            enabled: true,
-                            onCellClick: (cell) => {
-                                console.log(cell);
-                            },
-                            hoverEnabled: true,
-                            hoverColor: Cesium.Color.RED,
-                            hoverAlpha: 0.35,
-                            onCellHover: (cell) => {
-                                console.log(cell);
-                            },
-                        },
+                        // interactionOptions: {
+                        //     enabled: true,
+                        //     onCellClick: (cell) => {
+                        //         console.log(cell);
+                        //     },
+                        //     hoverEnabled: true,
+                        //     hoverColor: Cesium.Color.RED,
+                        //     hoverAlpha: 0.35,
+                        //     onCellHover: (cell) => {
+                        //         console.log(cell);
+                        //     },
+                        // },
                     })
             );
         }
@@ -234,9 +239,43 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
         frameIndex.current++;
     };
 
+    useEffect(() => {
+        if (!viewer) return;
+        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        handler.setInputAction((evt: { position: Cesium.Cartesian2 }) => {
+            const pos = viewer.scene.pickPosition(evt.position);
+            if (!pos) return;
+            const carto = Cesium.Cartographic.fromCartesian(pos);
+            const lat = Cesium.Math.toDegrees(carto.latitude);
+            const lon = Cesium.Math.toDegrees(carto.longitude);
+            console.log([lon, lat]);
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+        return () => handler.destroy();
+    }, [viewer]);
+
     return (
         <div>
-            <button onClick={renderMultiStaticLayerFrame}>下一帧</button>
+            <button onClick={renderMultiAnimatedLayerFrame}>下一帧</button>
+            <button
+                onClick={() => {
+                    staticLayer.current[0]?.setMaskPolygon([
+                        [107.60387951714638, 32.36199538408126],
+                        [107.6566394330607, 32.36826934113291],
+                        [107.66553983239024, 32.31170939828828],
+                        [107.6080259861867, 32.30491929532728],
+                    ]);
+                }}
+            >
+                设置遮罩
+            </button>
+            <button
+                onClick={() => {
+                    staticLayer.current[0]?.setMaskPolygon(null);
+                }}
+            >
+                清除遮罩
+            </button>
         </div>
     );
 }

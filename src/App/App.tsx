@@ -44,7 +44,7 @@ function App() {
 
         const viewer = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            terrain: Cesium.Terrain.fromWorldTerrain(),
+            // terrain: Cesium.Terrain.fromWorldTerrain(),
             // terrain: new Cesium.Terrain(
             //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
             //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
@@ -57,14 +57,14 @@ function App() {
         viewerRef.current = viewer;
         viewer.scene.globe.enableLighting = true;
         viewer.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
-        // viewer.scene.camera.flyTo({
-        //     destination: Cesium.Cartesian3.fromDegrees(
-        //         107.99837011905086,
-        //         32.49850968162874,
-        //         10000.0
-        //     ),
-        //     duration: 2.0,
-        // });
+        viewer.scene.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+                107.99837011905086,
+                32.49850968162874,
+                10000.0
+            ),
+            duration: 2.0,
+        });
         // viewer.scene.camera.flyTo({
         //     destination: Cesium.Cartesian3.fromDegrees(
         //         111.33969224427842,
@@ -328,7 +328,7 @@ function App() {
                 entity绘制
             </button>
             {/* <Voxel viewer={viewerRef.current as Cesium.Viewer} /> */}
-            <CloseTo3dtitles viewer={viewerRef.current as Cesium.Viewer} />
+            <CloseToTheGround viewer={viewerRef.current as Cesium.Viewer} />
             {/* <EarthProjection viewer={viewerRef.current} /> */}
             {/* <BuildProject viewer={viewerRef.current} /> */}
         </div>

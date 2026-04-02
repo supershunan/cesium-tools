@@ -70,7 +70,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
 
     const loadGridResult = async (url: string) => {
         try {
-            const res = await fetch('/public/resources/639021950828737727.zip', {
+            const res = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/zip',
@@ -234,6 +234,9 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             });
         }
         frameIndex.current++;
+        if (frameIndex.current >= dataURL.length) {
+            frameIndex.current = 0;
+        }
     };
 
     /**
@@ -347,6 +350,16 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                 清除遮罩
             </button>
             <button onClick={() => (drawStatus.current = true)}>创建多边形</button>
+            <button
+                onClick={() => {
+                    const interval = setInterval(() => {
+                        renderMultiStaticLayerFrame();
+                    }, 1000);
+                    return () => clearInterval(interval);
+                }}
+            >
+                自动播放
+            </button>
         </div>
     );
 }

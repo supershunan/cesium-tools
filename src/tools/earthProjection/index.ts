@@ -1,4 +1,5 @@
 import * as Cesium from 'cesium';
+import { shouldFlipLatitudeRowsForCesium } from '../radarLayer/index';
 
 // 数据接口定义
 export interface GridDataHeader {
@@ -96,9 +97,7 @@ export class EarthProjection {
 
         const { header } = data;
 
-        // 支持两种读取结构：
-        // 1) 传统 data[time][level][y][x]
-        // 2) Worker 模式下的 getLevelSlice 访问器
+        // getLevelSlice 返回供 Cesium 使用的 [y][x]（必要时已按纬度轴翻转）；裸 data 为 [x][y]
         const gridData = data.getLevelSlice ? data.getLevelSlice(0, 0) : data.data?.[0]?.[0];
         if (!gridData) {
             // eslint-disable-next-line no-console
@@ -110,11 +109,14 @@ export class EarthProjection {
         const xSize = header.xSize;
         const ySize = header.ySize;
         const dataArray = new Float32Array(xSize * ySize);
+        const gridIsYx = Boolean(data.getLevelSlice);
+        const flipLatRows = shouldFlipLatitudeRowsForCesium(header);
 
         // 处理null值和数据转换
         for (let y = 0; y < ySize; y++) {
             for (let x = 0; x < xSize; x++) {
-                const value = gridData[y]?.[x];
+                const srcY = flipLatRows ? ySize - 1 - y : y;
+                const value = gridIsYx ? gridData[y]?.[x] : gridData[x]?.[srcY];
                 const dataValue = value === null || value === undefined ? header.undef : value;
                 dataArray[y * xSize + x] = dataValue;
             }

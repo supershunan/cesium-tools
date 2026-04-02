@@ -10,6 +10,8 @@ export type GridHeader = {
     xSize?: number;
     ySize?: number;
     levelList?: Array<string | number>;
+    /** 为 true/false 时强制纬度行翻转（与 shouldFlipLatitudeRowsForCesium 一致） */
+    flipLatitudeRowsForCesium?: boolean;
 };
 
 export type GridFrame = {

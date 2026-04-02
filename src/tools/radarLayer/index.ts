@@ -2,6 +2,38 @@ import * as zip from '@zip.js/zip.js';
 export { DynamicRasterLayer } from './DynamicRasterLayer';
 export type { GridFrame, GridHeader } from './DynamicRasterLayer';
 
+/**
+ * Cesium 贴地/纹理第 0 行对应北侧；文件 y 从南向北递增（纬度增大）时，
+ * 若不翻转行序，贴图会与地理南北镜像。
+ */
+export function shouldFlipLatitudeRowsForCesium(header: {
+    yDelta?: number;
+    yStart?: number;
+    yEnd?: number;
+    /** 为 true/false 时强制是否翻转纬度行，覆盖 yDelta/yStart/yEnd 推断 */
+    flipLatitudeRowsForCesium?: boolean;
+}): boolean {
+    if (!header) {
+        return false;
+    }
+    if (typeof header.flipLatitudeRowsForCesium === 'boolean') {
+        return header.flipLatitudeRowsForCesium;
+    }
+    const { yDelta, yStart, yEnd } = header;
+    if (typeof yDelta === 'number' && Number.isFinite(yDelta) && yDelta !== 0) {
+        return yDelta > 0;
+    }
+    if (
+        typeof yStart === 'number' &&
+        typeof yEnd === 'number' &&
+        Number.isFinite(yStart) &&
+        Number.isFinite(yEnd)
+    ) {
+        return yStart < yEnd;
+    }
+    return false;
+}
+
 type WorkerMode = 'header' | 'data';
 
 type WorkerPending = {
@@ -30,6 +62,7 @@ export class GridDataReader {
         const timeStride = levels * levelStride;
         const levelSliceCache = new Map<number, number[][]>();
         const timeSliceCache = new Map<number, number[][][]>();
+        const flipLatRows = shouldFlipLatitudeRowsForCesium(header);
 
         const getValue = (
             timeIndex: number,
@@ -52,7 +85,8 @@ export class GridDataReader {
             const grid = new Array(ySize);
             for (let y = 0; y < ySize; y++) {
                 const row = new Array(xSize);
-                const rowBase = base + y * xSize;
+                const srcY = flipLatRows ? ySize - 1 - y : y;
+                const rowBase = base + srcY * xSize;
                 for (let x = 0; x < xSize; x++) {
                     row[x] = flatData[rowBase + x];
                 }
@@ -359,16 +393,33 @@ export class GridDataReader {
             data: this.data,
             // 提供便捷方法
             getValue: (timeIndex, levelIndex, latIndex, lonIndex) => {
-                return this.data[timeIndex][levelIndex][latIndex][lonIndex];
+                return this.data[timeIndex][levelIndex][lonIndex][latIndex];
             },
             getTimeSlice: (timeIndex) => {
                 return this.data[timeIndex];
             },
             getLevelSlice: (timeIndex, levelIndex) => {
-                return this.data[timeIndex][levelIndex];
+                const { ySize, xSize } = this.header;
+                const slice = this.data[timeIndex][levelIndex];
+                const flipLatRows = shouldFlipLatitudeRowsForCesium(this.header);
+                const grid = new Array(ySize);
+                for (let y = 0; y < ySize; y++) {
+                    const row = new Array(xSize);
+                    const srcY = flipLatRows ? ySize - 1 - y : y;
+                    for (let x = 0; x < xSize; x++) {
+                        row[x] = slice[x][srcY];
+                    }
+                    grid[y] = row;
+                }
+                return grid;
             },
             getLatLonSlice: (timeIndex, levelIndex, latIndex) => {
-                return this.data[timeIndex][levelIndex][latIndex];
+                const { xSize } = this.header;
+                const row = new Array(xSize);
+                for (let x = 0; x < xSize; x++) {
+                    row[x] = this.data[timeIndex][levelIndex][x][latIndex];
+                }
+                return row;
             },
         };
     }
@@ -444,11 +495,12 @@ export class GridDataReader {
             data[t] = new Array(levels);
 
             for (let l = 0; l < levels; l++) {
-                data[t][l] = new Array(ySize);
+                data[t][l] = new Array(xSize);
+                for (let x = 0; x < xSize; x++) {
+                    data[t][l][x] = new Array(ySize);
+                }
 
                 for (let y = 0; y < ySize; y++) {
-                    data[t][l][y] = new Array(xSize);
-
                     for (let x = 0; x < xSize; x++) {
                         // 检查是否超出数组边界
                         if (offset >= uint8Array.length) {
@@ -468,7 +520,8 @@ export class GridDataReader {
                             finalValue = NaN;
                         }
 
-                        data[t][l][y][x] = finalValue;
+                        // 文件顺序仍为 t,l,y,x；内存为 data[t][l][x][y]，等价于对末两维做转置
+                        data[t][l][x][y] = finalValue;
                     }
                 }
             }
@@ -583,7 +636,7 @@ export class GridDataReader {
             return null;
         }
 
-        return this.data[timeIndex][levelIndex][latIndex][lonIndex];
+        return this.data[timeIndex][levelIndex][lonIndex][latIndex];
     }
 
     // 获取数据子集（减少内存使用）
@@ -614,7 +667,7 @@ export class GridDataReader {
 
                     for (let x = xStart; x < xEnd; x++) {
                         subset[t - tStart][l - lStart][y - yStart][x - xStart] =
-                            this.data[t][l][y][x];
+                            this.data[t][l][x][y];
                     }
                 }
             }

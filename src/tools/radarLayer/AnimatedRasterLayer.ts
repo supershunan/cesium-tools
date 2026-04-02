@@ -111,6 +111,12 @@ export class AnimatedRasterLayer {
     private maskCanvasPool: [HTMLCanvasElement, HTMLCanvasElement];
     private maskBufferIndex = 0;
 
+    // updateHardEdge 专用状态（与 update() 完全独立）
+    private hardEdgeImageryLayer: Cesium.ImageryLayer | null = null;
+    private hardEdgeCanvas: HTMLCanvasElement | null = null;
+    private hardEdgeImageData: ImageData | null = null;
+    private hardEdgeHoverEntity: Cesium.Entity | null = null;
+
     /**
      *
      * @param viewer - Cesium.Viewer 实例
@@ -203,7 +209,6 @@ export class AnimatedRasterLayer {
         this.packGridToTexture(grid, width, height);
         ctx.putImageData(this.reusedImageData, 0, 0);
 
-        // 重建原始
         if (!this.primitive || !this.material || this.boundsKey !== nextBoundsKey) {
             this.rebuildPrimitive(rectangle, targetCanvas, nextBoundsKey);
         }
@@ -259,6 +264,16 @@ export class AnimatedRasterLayer {
     public setMaskPolygon(coords: PolygonMaskCoord[] | null): void {
         this.maskPolygon = coords && coords.length >= 3 ? coords : null;
         this.updateMaskTexture();
+        // 硬边界模式：遮罩在 CPU 打包时应用，需立刻重绘 ImageryLayer
+        if (this.hardEdgeImageryLayer && this.currentHeader && this.currentGrid) {
+            this.updateHardEdge({
+                header: this.currentHeader,
+                grid: this.currentGrid,
+                heightMeters: this.currentHeightMeters,
+                opacity: this.currentOpacity,
+            });
+            return;
+        }
         this.viewer.scene.requestRender();
     }
 
@@ -375,6 +390,7 @@ export class AnimatedRasterLayer {
         this.currentHeader = null;
         this.currentGrid = null;
         this.reusedImageData = null;
+        this.destroyHardEdge();
     }
 
     /**
@@ -457,6 +473,10 @@ export class AnimatedRasterLayer {
             this.hoveredCell = null;
             this.updateHoverUniform();
         }
+        if (this.hardEdgeHoverEntity) {
+            this.viewer.entities.remove(this.hardEdgeHoverEntity);
+            this.hardEdgeHoverEntity = null;
+        }
         this.interactionOptions.onCellHover?.(null);
         this.viewer.scene.requestRender();
     }
@@ -488,19 +508,68 @@ export class AnimatedRasterLayer {
         const uniforms = this.material?.uniforms as {
             u_hoverCell: Cesium.Cartesian2;
         } | null;
-        if (!uniforms) return;
-        if (this.hoveredCell && this.interactionOptions.hoverEnabled) {
-            // Cesium RectangleGeometry UV 始终是标准地理约定：st.t=0 在南边，st.t=1 在北边。
-            // GLSL 中 cellIdx.y = floor(st.t * H)，故 cellIdx.y=0 在南边。
-            // 而 resolveGridIndexFromLonLat 对 clampToGround 做了 Y 翻转（数据北行优先），
-            // yIndex=0 在北边。需要将 yIndex 转换为 GLSL 坐标系：glslY = (H-1) - yIndex。
-            const glslY = this.clampToGround
-                ? this.gridHeight - 1 - this.hoveredCell.yIndex
-                : this.hoveredCell.yIndex;
-            uniforms.u_hoverCell = new Cesium.Cartesian2(this.hoveredCell.xIndex, glslY);
-        } else {
-            uniforms.u_hoverCell = new Cesium.Cartesian2(-1, -1);
+        if (uniforms) {
+            if (this.hoveredCell && this.interactionOptions.hoverEnabled) {
+                // Cesium RectangleGeometry UV 始终是标准地理约定：st.t=0 在南边，st.t=1 在北边。
+                // GLSL 中 cellIdx.y = floor(st.t * H)，故 cellIdx.y=0 在南边。
+                // 而 resolveGridIndexFromLonLat 对 clampToGround 做了 Y 翻转（数据北行优先），
+                // yIndex=0 在北边。需要将 yIndex 转换为 GLSL 坐标系：glslY = (H-1) - yIndex。
+                const glslY = this.clampToGround
+                    ? this.gridHeight - 1 - this.hoveredCell.yIndex
+                    : this.hoveredCell.yIndex;
+                uniforms.u_hoverCell = new Cesium.Cartesian2(this.hoveredCell.xIndex, glslY);
+            } else {
+                uniforms.u_hoverCell = new Cesium.Cartesian2(-1, -1);
+            }
         }
+        // hardEdge 模式无 shader，用 Entity 矩形叠加高亮
+        this.syncHardEdgeHoverEntity();
+    }
+
+    private syncHardEdgeHoverEntity(): void {
+        if (!this.hardEdgeImageryLayer) return;
+        if (!this.interactionOptions.hoverEnabled || !this.hoveredCell) {
+            if (this.hardEdgeHoverEntity) {
+                this.viewer.entities.remove(this.hardEdgeHoverEntity);
+                this.hardEdgeHoverEntity = null;
+            }
+            return;
+        }
+        const rect = this.buildCellRectangle(this.hoveredCell.xIndex, this.hoveredCell.yIndex);
+        if (!rect) return;
+        const hc = this.interactionOptions.hoverColor ?? Cesium.Color.BLACK;
+        const color = hc.withAlpha(this.interactionOptions.hoverAlpha);
+        if (!this.hardEdgeHoverEntity) {
+            this.hardEdgeHoverEntity = this.viewer.entities.add({
+                rectangle: {
+                    coordinates: rect,
+                    material: color,
+                    classificationType: Cesium.ClassificationType.TERRAIN,
+                },
+            });
+        } else if (this.hardEdgeHoverEntity.rectangle) {
+            this.hardEdgeHoverEntity.rectangle.coordinates = new Cesium.ConstantProperty(rect);
+            this.hardEdgeHoverEntity.rectangle.material = new Cesium.ColorMaterialProperty(color);
+        }
+    }
+
+    private buildCellRectangle(xIndex: number, yIndex: number): Cesium.Rectangle | null {
+        const rect = this.currentRectangle;
+        if (!rect || this.gridWidth <= 0 || this.gridHeight <= 0) return null;
+        if (xIndex < 0 || xIndex >= this.gridWidth || yIndex < 0 || yIndex >= this.gridHeight)
+            return null;
+        const west = Cesium.Math.toDegrees(rect.west);
+        const east = Cesium.Math.toDegrees(rect.east);
+        const south = Cesium.Math.toDegrees(rect.south);
+        const north = Cesium.Math.toDegrees(rect.north);
+        const lonStep = (east - west) / this.gridWidth;
+        const latStep = (north - south) / this.gridHeight;
+        // yIndex=0 在北边（数据北行优先），Entity 矩形用地理坐标（南→北）
+        const cellLatMax = north - latStep * yIndex;
+        const cellLatMin = north - latStep * (yIndex + 1);
+        const cellLonMin = west + lonStep * xIndex;
+        const cellLonMax = west + lonStep * (xIndex + 1);
+        return Cesium.Rectangle.fromDegrees(cellLonMin, cellLatMin, cellLonMax, cellLatMax);
     }
 
     private updateHoverStyleUniforms(): void {
@@ -1055,5 +1124,205 @@ export class AnimatedRasterLayer {
             Math.max(xStart, xEnd),
             Math.max(yStart, yEnd)
         );
+    }
+
+    /**
+     * 以硬边界（NEAREST 过滤）方式渲染一帧数据，颜色完全分明、无插值混色。
+     * 与 update() 相互独立，可随时来回切换调用：
+     * - 调用 updateHardEdge() 时会叠加显示 ImageryLayer 硬边界图层
+     * - 调用 destroyHardEdge() 可随时清除，恢复纯 Primitive（update）渲染
+     */
+    public updateHardEdge(frame: AnimatedGridFrame): void {
+        const { header, grid } = frame;
+        if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0]) || !grid[0].length)
+            return;
+        const width = grid[0].length;
+        const height = grid.length;
+        if (width <= 0 || height <= 0) return;
+
+        const opacity = frame.opacity ?? 1;
+        const rectangle = this.buildRectangle(header, width, height);
+
+        // 与 update() 同步拾取/遮罩依赖的状态，否则 packGridToHardEdge 里 currentRectangle 为空导致 setMaskPolygon 无效
+        const sizeChanged = this.gridWidth !== width || this.gridHeight !== height;
+        if (sizeChanged) {
+            this.gridWidth = width;
+            this.gridHeight = height;
+            this.reusedImageData = null;
+            this.canvasPool[0].width = width;
+            this.canvasPool[0].height = height;
+            this.canvasPool[1].width = width;
+            this.canvasPool[1].height = height;
+        }
+        this.currentHeightMeters = frame.heightMeters ?? 0;
+        this.currentOpacity = opacity;
+        this.currentHeader = header;
+        this.currentGrid = grid;
+        this.currentRectangle = rectangle;
+
+        // 按需初始化 / 扩容 canvas
+        if (
+            !this.hardEdgeCanvas ||
+            this.hardEdgeCanvas.width !== width ||
+            this.hardEdgeCanvas.height !== height
+        ) {
+            this.hardEdgeCanvas = document.createElement('canvas');
+            this.hardEdgeCanvas.width = width;
+            this.hardEdgeCanvas.height = height;
+            this.hardEdgeImageData = null;
+        }
+        const ctx = this.hardEdgeCanvas.getContext('2d');
+        if (!ctx) return;
+        if (
+            !this.hardEdgeImageData ||
+            this.hardEdgeImageData.width !== width ||
+            this.hardEdgeImageData.height !== height
+        ) {
+            this.hardEdgeImageData = ctx.createImageData(width, height);
+        }
+
+        // CPU 端直接写 RGBA 颜色，绕开 shader 无法控制纹理过滤的限制
+        this.packGridToHardEdge(grid, width, height);
+        ctx.putImageData(this.hardEdgeImageData, 0, 0);
+
+        // 同步创建 ImageryLayer（toDataURL 避免 toBlob 异步竞态），NEAREST 保证硬边界
+        const dataUrl = this.hardEdgeCanvas.toDataURL('image/png');
+        const provider = new Cesium.SingleTileImageryProvider({
+            url: dataUrl,
+            rectangle,
+            tileWidth: width,
+            tileHeight: height,
+        });
+        const nextLayer = new Cesium.ImageryLayer(provider, {
+            minificationFilter: Cesium.TextureMinificationFilter.NEAREST,
+            magnificationFilter: Cesium.TextureMagnificationFilter.NEAREST,
+        });
+        nextLayer.alpha = opacity;
+
+        // 先加新图层再删旧图层，保证画面无空白帧
+        this.viewer.imageryLayers.add(nextLayer);
+        if (this.hardEdgeImageryLayer) {
+            this.viewer.imageryLayers.remove(this.hardEdgeImageryLayer, true);
+        }
+        this.hardEdgeImageryLayer = nextLayer;
+
+        if (!frame.skipRequestRender) this.viewer.scene.requestRender();
+    }
+
+    /**
+     * 销毁 updateHardEdge() 创建的 ImageryLayer。
+     * 切换回 update() 模式时调用此方法清除硬边界图层。
+     */
+    public destroyHardEdge(): void {
+        if (this.hardEdgeImageryLayer) {
+            this.viewer.imageryLayers.remove(this.hardEdgeImageryLayer, true);
+            this.hardEdgeImageryLayer = null;
+        }
+        if (this.hardEdgeHoverEntity) {
+            this.viewer.entities.remove(this.hardEdgeHoverEntity);
+            this.hardEdgeHoverEntity = null;
+        }
+        this.hardEdgeCanvas = null;
+        this.hardEdgeImageData = null;
+    }
+
+    private packGridToHardEdge(grid: number[][], width: number, height: number): void {
+        const packed = this.hardEdgeImageData!.data;
+        const stops = this.colorStops.length ? this.colorStops : DEFAULT_COLOR_STOPS;
+
+        // 预先将 maskPolygon 转为 UV 坐标（[0,1] 范围），供逐像素射线法使用
+        let maskUV: Array<[number, number]> | null = null;
+        if (this.maskPolygon && this.maskPolygon.length >= 3 && this.currentRectangle) {
+            const west = Cesium.Math.toDegrees(this.currentRectangle.west);
+            const east = Cesium.Math.toDegrees(this.currentRectangle.east);
+            const south = Cesium.Math.toDegrees(this.currentRectangle.south);
+            const north = Cesium.Math.toDegrees(this.currentRectangle.north);
+            const lonRange = east - west;
+            const latRange = north - south;
+            if (lonRange > 0 && latRange > 0) {
+                maskUV = this.maskPolygon.map(([lon, lat]) => [
+                    Math.max(0, Math.min(1, (lon - west) / lonRange)),
+                    Math.max(0, Math.min(1, (lat - south) / latRange)),
+                ]);
+            }
+        }
+
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                const idx = (y * width + x) * 4;
+                const value = grid[y]?.[x] ?? NaN;
+
+                if (!Number.isFinite(value)) {
+                    packed[idx] = 0;
+                    packed[idx + 1] = 0;
+                    packed[idx + 2] = 0;
+                    packed[idx + 3] = 0;
+                    continue;
+                }
+
+                // CPU 射线法遮罩：格子中心点 UV
+                if (maskUV) {
+                    // clampToGround 时 y=0 在北边，UV t 轴 0 在南边，需翻转
+                    const u = (x + 0.5) / width;
+                    const t = this.clampToGround ? 1 - (y + 0.5) / height : (y + 0.5) / height;
+                    if (!this.pointInPolygonUV(u, t, maskUV)) {
+                        packed[idx] = 0;
+                        packed[idx + 1] = 0;
+                        packed[idx + 2] = 0;
+                        packed[idx + 3] = 0;
+                        continue;
+                    }
+                }
+
+                const color = this.gradientEnabled
+                    ? this.sampleGradientColor(value, stops)
+                    : this.sampleStepColor(value, stops);
+                packed[idx] = color[0];
+                packed[idx + 1] = color[1];
+                packed[idx + 2] = color[2];
+                packed[idx + 3] = 255;
+            }
+        }
+    }
+
+    /** 射线法判断点 (u, t) 是否在 UV 多边形内 */
+    private pointInPolygonUV(u: number, t: number, poly: Array<[number, number]>): boolean {
+        let inside = false;
+        const n = poly.length;
+        for (let i = 0, j = n - 1; i < n; j = i++) {
+            const [xi, yi] = poly[i];
+            const [xj, yj] = poly[j];
+            if (yi > t !== yj > t && u < xi + ((t - yi) / (yj - yi)) * (xj - xi)) {
+                inside = !inside;
+            }
+        }
+        return inside;
+    }
+
+    private sampleStepColor(value: number, stops: RasterColorStop[]): [number, number, number] {
+        for (const stop of stops) {
+            if (value <= stop.maxValue) return stop.color;
+        }
+        return stops[stops.length - 1]?.color ?? [0, 0, 0];
+    }
+
+    private sampleGradientColor(value: number, stops: RasterColorStop[]): [number, number, number] {
+        if (stops.length === 0) return [0, 0, 0];
+        if (value <= stops[0].maxValue) return stops[0].color;
+        for (let i = 1; i < stops.length; i++) {
+            const prev = stops[i - 1];
+            const curr = stops[i];
+            if (value <= curr.maxValue) {
+                const range = curr.maxValue - prev.maxValue;
+                if (range <= 0) return curr.color;
+                const t = (value - prev.maxValue) / range;
+                return [
+                    Math.round(prev.color[0] + (curr.color[0] - prev.color[0]) * t),
+                    Math.round(prev.color[1] + (curr.color[1] - prev.color[1]) * t),
+                    Math.round(prev.color[2] + (curr.color[2] - prev.color[2]) * t),
+                ];
+            }
+        }
+        return stops[stops.length - 1].color;
     }
 }

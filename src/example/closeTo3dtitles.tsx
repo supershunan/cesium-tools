@@ -70,7 +70,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
 
     const loadGridResult = async (url: string) => {
         try {
-            const res = await fetch('/public/resources/639021950828737727.zip', {
+            const res = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/zip',
@@ -82,6 +82,13 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             const reader = new GridDataReader();
             const parsed = (await reader.readCompressedGridData(await res.blob())) as GridResult;
             console.log(parsed);
+            parsed.header = {
+                ...parsed.header,
+                xStart: 109.29996327928595,
+                xEnd: 109.30409596417464,
+                yStart: 29.277402044978786,
+                yEnd: 29.27725033011981,
+            };
             return parsed;
         } catch (error) {
             return null;
@@ -178,7 +185,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                 () =>
                     new AnimatedRasterLayer(viewer as Cesium.Viewer, {
                         clampToGround: true,
-                        gradientEnabled: false,
+                        gradientEnabled: true,
                         colorRamp: [
                             { maxValue: 10, color: [62, 160, 239] },
                             { maxValue: 15, color: [62, 160, 239] },
@@ -326,6 +333,19 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
 
         return () => handler.destroy();
+    }, [viewer]);
+
+    useEffect(() => {
+        if (!viewer) return;
+        (async () => {
+            const tileset = await Cesium.Cesium3DTileset.fromUrl('/public/3dtitles/tileset.json', {
+                skipLevelOfDetail: false,
+                dynamicScreenSpaceError: false,
+                maximumScreenSpaceError: 4,
+            });
+            viewer.scene.primitives.add(tileset);
+            viewer.zoomTo(tileset);
+        })();
     }, [viewer]);
 
     return (

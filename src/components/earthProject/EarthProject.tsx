@@ -1,8 +1,7 @@
-import React from 'react';
 import { useEffect, useRef, useMemo } from 'react';
-import { GridDataReader } from '../tools/radarLayer';
+import { GridDataReader } from '../../tools/radarLayer';
 import * as Cesium from 'cesium';
-import { EarthProjection, GridData, ColorRule, ColorMode } from '../tools/earthProjection';
+import { EarthProjection, GridData, ColorRule, ColorMode } from '../../tools/earthProjection';
 
 export default function EarthProject({ viewer }: { viewer: Cesium.Viewer }) {
     // 使用 EarthProjection 类

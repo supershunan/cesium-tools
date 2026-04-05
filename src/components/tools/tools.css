@@ -1,0 +1,97 @@
+.btn {
+    position: fixed;
+    top: 0;
+    left: 0;
+    background-color: red;
+}
+
+.btn2 {
+    position: fixed;
+    top: 100px;
+    left: 0;
+    background-color: red;
+}
+
+.btn3 {
+    position: fixed;
+    top: 200px;
+    left: 0;
+    background-color: red;
+}
+
+.btn12 {
+    position: fixed;
+    top: 250px;
+    left: 0;
+    background-color: red;
+}
+
+.btn4 {
+    position: fixed;
+    top: 100px;
+    right: 0;
+    background-color: red;
+}
+
+.btn5 {
+    position: fixed;
+    top: 150px;
+    right: 0;
+    background-color: red;
+}
+
+.btn6 {
+    position: fixed;
+    top: 200px;
+    right: 0;
+    background-color: red;
+}
+
+.btn7 {
+    position: fixed;
+    top: 250px;
+    right: 0;
+    background-color: red;
+}
+
+.btn8 {
+    position: fixed;
+    top: 300px;
+    right: 0;
+    background-color: red;
+}
+
+.btn9 {
+    position: fixed;
+    top: 350px;
+    right: 0;
+    background-color: red;
+}
+
+.btn10 {
+    position: fixed;
+    top: 400px;
+    right: 0;
+    background-color: red;
+}
+
+.btn11 {
+    position: fixed;
+    top: 450px;
+    right: 0;
+    background-color: red;
+}
+
+.btn13 {
+    position: fixed;
+    top: 500px;
+    right: 0;
+    background-color: red;
+}
+
+.btn14 {
+    position: fixed;
+    top: 550px;
+    right: 0;
+    background-color: red;
+}

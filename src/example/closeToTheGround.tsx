@@ -161,7 +161,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
     };
 
     /** 多层静态数据渲染 */
-    const renderMultiStaticLayerFrame = async () => {
+    const renderMultiStaticLayerFrame = async (isNext: boolean = true) => {
         const result = await loadGridResult(baseUrl + dataURL[frameIndex.current]);
         if (!result) {
             return;
@@ -195,18 +195,18 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                             { maxValue: 70, color: [132, 39, 179] },
                             { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
                         ],
-                        // interactionOptions: {
-                        //     enabled: true,
-                        //     onCellClick: (cell) => {
-                        //         console.log(cell);
-                        //     },
-                        //     hoverEnabled: true,
-                        //     hoverColor: Cesium.Color.RED,
-                        //     hoverAlpha: 0.35,
-                        //     onCellHover: (cell) => {
-                        //         console.log(cell);
-                        //     },
-                        // },
+                        interactionOptions: {
+                            enabled: true,
+                            onCellClick: (cell) => {
+                                console.log(cell);
+                            },
+                            hoverEnabled: true,
+                            hoverColor: Cesium.Color.RED,
+                            hoverAlpha: 0.35,
+                            onCellHover: (cell) => {
+                                console.log(cell);
+                            },
+                        },
                     })
             );
         }
@@ -226,16 +226,23 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             ) {
                 continue;
             }
-            staticLayer.current?.[levelIndex]?.update({
+            staticLayer.current?.[levelIndex]?.updateHardEdge({
                 header: result.header,
                 grid,
                 heightMeters: 0,
                 opacity: 1,
             });
         }
-        frameIndex.current++;
-        if (frameIndex.current >= dataURL.length) {
-            frameIndex.current = 0;
+        if (isNext) {
+            frameIndex.current++;
+            if (frameIndex.current >= dataURL.length) {
+                frameIndex.current = 0;
+            }
+        } else {
+            frameIndex.current--;
+            if (frameIndex.current < 0) {
+                frameIndex.current = dataURL.length - 1;
+            }
         }
     };
 
@@ -333,7 +340,8 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
 
     return (
         <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 1000 }}>
-            <button onClick={renderMultiStaticLayerFrame}>下一帧</button>
+            <button onClick={() => renderMultiStaticLayerFrame(false)}>上一帧</button>
+            <button onClick={() => renderMultiStaticLayerFrame(true)}>下一帧</button>
             <button
                 onClick={() => {
                     console.log(maskPoints.current);

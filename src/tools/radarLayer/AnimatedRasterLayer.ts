@@ -80,6 +80,149 @@ const DEFAULT_COLOR_STOPS: RasterColorStop[] = [
     { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
 ];
 
+/**
+ * 直接将 canvas 最新像素上传到 ImageryLayer 缓存中已有的 GPU 纹理。
+ *
+ * 原理：maximumLevel=0 意味着只有一张 Imagery(0,0,0)，所有地形瓦片共享同一个 WebGL Texture。
+ * 用 gl.texImage2D 就地替换像素后，所有瓦片（不论 LOD）在下一帧渲染时都读取到新数据——
+ * 彻底绕开 _reload() 的异步管线（requestImage → RECEIVED → _createTexture → callback），
+ * 无跳过、无延迟、无缩放不一致。
+ *
+ * @returns true 已成功上传；false Imagery 尚未 READY（首帧），调用者应回退到 _reload() 等待初始加载。
+ */
+function directUpdateHardEdgeTexture(
+    layer: Cesium.ImageryLayer,
+    canvas: HTMLCanvasElement,
+    viewer: Cesium.Viewer
+): boolean {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const cache = (layer as any)._imageryCache as Record<string, any> | undefined;
+    if (!cache) return false;
+
+    const gl: WebGLRenderingContext | WebGL2RenderingContext | undefined = (viewer.scene as any)
+        .context?._gl;
+    if (!gl) return false;
+
+    let updated = false;
+    for (const key in cache) {
+        const imagery = cache[key];
+        // ImageryState.READY === 4
+        if (imagery?.state === 4 && imagery.texture?._texture) {
+            gl.bindTexture(gl.TEXTURE_2D, imagery.texture._texture);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+            updated = true;
+        }
+    }
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    return updated;
+}
+
+/**
+ * 回退方案：强制 reload（清除 _loadedCallbacks + _reload）。
+ * 仅在首帧 Imagery 尚未 READY 时使用；后续帧全部走 directUpdateHardEdgeTexture。
+ */
+function forceReloadHardEdgeImageryLayer(layer: Cesium.ImageryLayer, viewer: Cesium.Viewer): void {
+    /* eslint-disable @typescript-eslint/no-explicit-any */
+    const globe = viewer.scene.globe as any;
+    const quadtree = globe?._surface?._quadtree;
+    const layerIndex = (layer as any)?._layerIndex;
+    if (quadtree && layerIndex !== undefined) {
+        quadtree.forEachLoadedTile((tile: any) => {
+            if (tile._loadedCallbacks?.[layerIndex]) {
+                delete tile._loadedCallbacks[layerIndex];
+            }
+        });
+    }
+    /* eslint-enable @typescript-eslint/no-explicit-any */
+    const provider = layer.imageryProvider as { _reload?: () => void };
+    if (typeof provider._reload === 'function') {
+        provider._reload();
+    }
+}
+
+/**
+ * 单瓦片 Canvas 影像提供者。
+ *
+ * requestImage 直接返回 canvas 引用（而非拷贝）。Cesium 在 _createTexture 中调用
+ * gl.texImage2D(canvas) 时始终读取 canvas **当前最新像素**。
+ *
+ * 时序保证：putImageData 在用户代码（宏任务前半段）执行，texImage2D 在渲染循环（宏任务后半段
+ * 或下一宏任务）执行，canvas 的像素在整个渲染循环期间是稳定的。因此即使多波 reload 的
+ * Imagery 在不同帧创建纹理，最终结果始终一致——所有 texImage2D 都读取同一份最新像素。
+ */
+class CanvasHardEdgeImageryProvider {
+    private readonly _tilingScheme: Cesium.GeographicTilingScheme;
+    private readonly _errorEvent = new Cesium.Event();
+    private readonly _canvas: HTMLCanvasElement;
+
+    constructor(rectangle: Cesium.Rectangle, canvas: HTMLCanvasElement) {
+        this._canvas = canvas;
+        this._tilingScheme = new Cesium.GeographicTilingScheme({
+            rectangle,
+            numberOfLevelZeroTilesX: 1,
+            numberOfLevelZeroTilesY: 1,
+        });
+    }
+
+    get rectangle(): Cesium.Rectangle {
+        return this._tilingScheme.rectangle;
+    }
+    get tileWidth(): number {
+        return this._canvas.width;
+    }
+    get tileHeight(): number {
+        return this._canvas.height;
+    }
+    get maximumLevel(): number {
+        return 0;
+    }
+    get minimumLevel(): number {
+        return 0;
+    }
+    get tilingScheme(): Cesium.GeographicTilingScheme {
+        return this._tilingScheme;
+    }
+    get tileDiscardPolicy(): undefined {
+        return undefined;
+    }
+    get errorEvent(): Cesium.Event {
+        return this._errorEvent;
+    }
+    get credit(): undefined {
+        return undefined;
+    }
+    get proxy(): undefined {
+        return undefined;
+    }
+    get hasAlphaChannel(): boolean {
+        return true;
+    }
+
+    requestImage(
+        _x: number,
+        _y: number,
+        _level: number,
+        _request?: Cesium.Request
+    ): Promise<HTMLCanvasElement> | undefined {
+        return Promise.resolve(this._canvas);
+    }
+
+    getTileCredits(_x: number, _y: number, _level: number): Cesium.Credit[] | undefined {
+        return undefined;
+    }
+
+    pickFeatures(
+        _x: number,
+        _y: number,
+        _level: number,
+        _longitude: number,
+        _latitude: number
+    ): undefined {
+        return undefined;
+    }
+}
+
 export class AnimatedRasterLayer {
     private viewer: Cesium.Viewer;
     private primitive: Cesium.Primitive | Cesium.GroundPrimitive | null;
@@ -113,6 +256,8 @@ export class AnimatedRasterLayer {
 
     // updateHardEdge 专用状态（与 update() 完全独立）
     private hardEdgeImageryLayer: Cesium.ImageryLayer | null = null;
+    /** 与当前硬边界图层一致的范围+栅格尺寸；变化时需重建 ImageryProvider / ImageryLayer */
+    private hardEdgeBoundsKey: string | null = null;
     private hardEdgeCanvas: HTMLCanvasElement | null = null;
     private hardEdgeImageData: ImageData | null = null;
     private hardEdgeHoverEntity: Cesium.Entity | null = null;
@@ -1131,6 +1276,11 @@ export class AnimatedRasterLayer {
      * 与 update() 相互独立，可随时来回切换调用：
      * - 调用 updateHardEdge() 时会叠加显示 ImageryLayer 硬边界图层
      * - 调用 destroyHardEdge() 可随时清除，恢复纯 Primitive（update）渲染
+     *
+     * 同一范围与栅格尺寸下复用单个 ImageryLayer：通过 gl.texImage2D 直接上传 canvas 最新像素到已有 GPU 纹理，
+     * 所有 LOD 的地形瓦片共享同一纹理对象，一次上传即全局更新，无 _reload 异步延迟/跳过/缩放不一致问题。
+     * Imagery 尚未 READY（首帧）时回退到 forceReload 等待初始加载。
+     * 范围或宽高变化时重建 ImageryProvider 并替换图层（此类情况较少）。
      */
     public updateHardEdge(frame: AnimatedGridFrame): void {
         const { header, grid } = frame;
@@ -1143,7 +1293,7 @@ export class AnimatedRasterLayer {
         const opacity = frame.opacity ?? 1;
         const rectangle = this.buildRectangle(header, width, height);
 
-        // 与 update() 同步拾取/遮罩依赖的状态，否则 packGridToHardEdge 里 currentRectangle 为空导致 setMaskPolygon 无效
+        // 同步拾取/遮罩依赖的状态
         const sizeChanged = this.gridWidth !== width || this.gridHeight !== height;
         if (sizeChanged) {
             this.gridWidth = width;
@@ -1160,17 +1310,29 @@ export class AnimatedRasterLayer {
         this.currentGrid = grid;
         this.currentRectangle = rectangle;
 
-        // 按需初始化 / 扩容 canvas
-        if (
-            !this.hardEdgeCanvas ||
-            this.hardEdgeCanvas.width !== width ||
-            this.hardEdgeCanvas.height !== height
-        ) {
+        const boundsKey = `${rectangle.west}_${rectangle.south}_${rectangle.east}_${rectangle.north}_${width}_${height}`;
+        const needNewLayer = !this.hardEdgeImageryLayer || this.hardEdgeBoundsKey !== boundsKey;
+
+        if (needNewLayer) {
+            // ✅ Fix Bug3: 每次新建 Provider 时同步新建 canvas，保证 Provider 持有的引用与后续 putImageData 的目标一致
             this.hardEdgeCanvas = document.createElement('canvas');
             this.hardEdgeCanvas.width = width;
             this.hardEdgeCanvas.height = height;
             this.hardEdgeImageData = null;
+        } else {
+            // 复用路径：canvas 尺寸保证与当前帧一致（boundsKey 包含 width/height，相同则尺寸不变）
+            if (
+                !this.hardEdgeCanvas ||
+                this.hardEdgeCanvas.width !== width ||
+                this.hardEdgeCanvas.height !== height
+            ) {
+                this.hardEdgeCanvas = document.createElement('canvas');
+                this.hardEdgeCanvas.width = width;
+                this.hardEdgeCanvas.height = height;
+                this.hardEdgeImageData = null;
+            }
         }
+
         const ctx = this.hardEdgeCanvas.getContext('2d');
         if (!ctx) return;
         if (
@@ -1181,32 +1343,47 @@ export class AnimatedRasterLayer {
             this.hardEdgeImageData = ctx.createImageData(width, height);
         }
 
-        // CPU 端直接写 RGBA 颜色，绕开 shader 无法控制纹理过滤的限制
+        // ✅ 先写像素到 canvas，再操作图层，避免图层 add 之后 canvas 还是空的
         this.packGridToHardEdge(grid, width, height);
         ctx.putImageData(this.hardEdgeImageData, 0, 0);
 
-        // 同步创建 ImageryLayer（toDataURL 避免 toBlob 异步竞态），NEAREST 保证硬边界
-        const dataUrl = this.hardEdgeCanvas.toDataURL('image/png');
-        const provider = new Cesium.SingleTileImageryProvider({
-            url: dataUrl,
-            rectangle,
-            tileWidth: width,
-            tileHeight: height,
-        });
-        const nextLayer = new Cesium.ImageryLayer(provider, {
-            minificationFilter: Cesium.TextureMinificationFilter.NEAREST,
-            magnificationFilter: Cesium.TextureMagnificationFilter.NEAREST,
-        });
-        nextLayer.alpha = opacity;
+        if (needNewLayer) {
+            // ✅ Fix Bug1: 先移除旧层，再加新层，消灭"双层叠加"的间隙帧
+            const prevLayer = this.hardEdgeImageryLayer;
+            if (prevLayer) {
+                this.viewer.imageryLayers.remove(prevLayer, true);
+                this.hardEdgeImageryLayer = null;
+            }
 
-        // 先加新图层再删旧图层，保证画面无空白帧
-        this.viewer.imageryLayers.add(nextLayer);
-        if (this.hardEdgeImageryLayer) {
-            this.viewer.imageryLayers.remove(this.hardEdgeImageryLayer, true);
+            // canvas 已写入最新像素，此时再创建 Provider 绑定
+            const provider = new CanvasHardEdgeImageryProvider(rectangle, this.hardEdgeCanvas);
+            const nextLayer = new Cesium.ImageryLayer(
+                provider as unknown as Cesium.ImageryProvider,
+                {
+                    minificationFilter: Cesium.TextureMinificationFilter.NEAREST,
+                    magnificationFilter: Cesium.TextureMagnificationFilter.NEAREST,
+                }
+            );
+            nextLayer.alpha = opacity;
+            this.viewer.imageryLayers.add(nextLayer);
+            this.hardEdgeImageryLayer = nextLayer;
+            this.hardEdgeBoundsKey = boundsKey;
+        } else if (this.hardEdgeImageryLayer) {
+            this.hardEdgeImageryLayer.alpha = opacity;
+            if (
+                !directUpdateHardEdgeTexture(
+                    this.hardEdgeImageryLayer,
+                    this.hardEdgeCanvas,
+                    this.viewer
+                )
+            ) {
+                forceReloadHardEdgeImageryLayer(this.hardEdgeImageryLayer, this.viewer);
+            }
         }
-        this.hardEdgeImageryLayer = nextLayer;
 
-        if (!frame.skipRequestRender) this.viewer.scene.requestRender();
+        if (!frame.skipRequestRender) {
+            this.viewer.scene.requestRender();
+        }
     }
 
     /**
@@ -1218,6 +1395,7 @@ export class AnimatedRasterLayer {
             this.viewer.imageryLayers.remove(this.hardEdgeImageryLayer, true);
             this.hardEdgeImageryLayer = null;
         }
+        this.hardEdgeBoundsKey = null;
         if (this.hardEdgeHoverEntity) {
             this.viewer.entities.remove(this.hardEdgeHoverEntity);
             this.hardEdgeHoverEntity = null;

@@ -233,7 +233,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             ) {
                 continue;
             }
-            staticLayer.current?.[levelIndex]?.update({
+            staticLayer.current?.[levelIndex]?.updateHardEdge({
                 header: result.header,
                 grid,
                 heightMeters: 0,

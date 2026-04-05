@@ -43,39 +43,6 @@ export default function Tools({ viewer }: { viewer: Cesium.Viewer }) {
         drawingEntity.clear();
     };
 
-    const handleInstanceClear = () => {
-        drawing.create(
-            [
-                {
-                    x: -1808471.294914932,
-                    y: 4956398.633856876,
-                    z: 3571861.1332775145,
-                },
-                {
-                    x: -1807675.7356215278,
-                    y: 4955219.547662385,
-                    z: 3573885.5568243423,
-                },
-                {
-                    x: -1809780.442174821,
-                    y: 4954515.317274883,
-                    z: 3573797.3188971495,
-                },
-                {
-                    x: -1811127.8268339485,
-                    y: 4955226.979883455,
-                    z: 3572138.854929411,
-                },
-                {
-                    x: -1809655.8181427545,
-                    y: 4956131.233805658,
-                    z: 3571633.7658116035,
-                },
-            ],
-            { type: 'polygon', lineColor: Cesium.Color.RED, width: 1 }
-        );
-    };
-
     const handleDistance = () => {
         measureDistance.active({
             clampToGround: true,
@@ -234,9 +201,6 @@ export default function Tools({ viewer }: { viewer: Cesium.Viewer }) {
         <div>
             <button className="btn2" onClick={handleClear}>
                 测试图层清除
-            </button>
-            <button className="btn3" onClick={handleInstanceClear}>
-                测试实例清除
             </button>
             <button className="btn12" onClick={getPrimvite}>
                 测试获取某个实体

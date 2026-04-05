@@ -1,44 +1,56 @@
 {
     "name": "cesium-tools-fxt",
-    "version": "1.1.2",
+    "version": "1.1.3",
     "description": "cesium工具包",
     "type": "module",
-    "main": "./src/index.ts",
-    "module": "./src/index.ts",
-    "files": [
-        "package.json",
-        "README.md",
-        "dist"
-    ],
+    "main": "./dist/cesium-tools.umd.js",
+    "module": "./dist/cesium-tools.es.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "import": "./dist/cesium-tools.es.js",
+            "require": "./dist/cesium-tools.umd.js",
+            "default": "./dist/cesium-tools.es.js"
+        }
+    },
+    "files": ["package.json", "README.md", "dist"],
+    "sideEffects": false,
     "scripts": {
         "dev": "vite",
-        "build": "vite build && tsc",
-        "tsc": "tsc",
+        "build": "vite build",
+        "typecheck": "tsc --noEmit",
         "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
         "preview": "vite preview"
     },
-    "dependencies": {
+    "peerDependencies": {
         "@turf/turf": "^7.0.0",
-        "@types/geojson": "^7946.0.14",
         "@zip.js/zip.js": "^2.8.11",
-        "cesium": "^1.136.0",
+        "cesium": "^1.119.0",
         "d3-delaunay": "^6.0.4",
-        "eslint-config-ts-fxt": "^1.0.1",
-        "lodash": "^4.17.21",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1"
+        "react": "^18.0.0",
+        "react-dom": "^18.0.0"
     },
     "devDependencies": {
+        "@types/d3-delaunay": "^6.0.4",
+        "@types/geojson": "^7946.0.14",
         "@types/react": "^18.3.3",
         "@types/react-dom": "^18.3.0",
         "@typescript-eslint/eslint-plugin": "^7.15.0",
         "@typescript-eslint/parser": "^7.15.0",
         "@vitejs/plugin-react": "^4.3.1",
+        "@turf/turf": "^7.0.0",
+        "@zip.js/zip.js": "^2.8.11",
+        "cesium": "^1.136.0",
+        "d3-delaunay": "^6.0.4",
         "eslint": "^8.57.0",
         "eslint-config-prettier": "^9.1.0",
+        "eslint-config-ts-fxt": "^1.0.1",
         "eslint-plugin-react-hooks": "^4.6.2",
         "eslint-plugin-react-refresh": "^0.4.7",
         "prettier": "3.3.3",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
         "typescript": "^5.2.2",
         "vite": "^5.3.4",
         "vite-plugin-dts": "^4.0.3"

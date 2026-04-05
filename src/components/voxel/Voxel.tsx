@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
-import { GridDataReader } from '../tools/radarLayer';
+import { GridDataReader } from '../../tools/radarLayer';
 import {
     AnimatedRasterLayer,
     type AnimatedGridFrame,
-} from '../tools/radarLayer/AnimatedRasterLayer';
+} from '../../tools/radarLayer/AnimatedRasterLayer';
 import {
     DynamicRasterLayer,
     type GridCellInfo,
     type GridHeader,
-} from '../tools/radarLayer/DynamicRasterLayer';
+} from '../../tools/radarLayer/DynamicRasterLayer';
 
 type GridResult = {
     header: GridHeader & { times?: number; levels?: number };

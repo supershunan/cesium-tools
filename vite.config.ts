@@ -4,7 +4,13 @@ import path from 'path';
 import dts from 'vite-plugin-dts';
 
 export default defineConfig({
-    plugins: [react(), dts()],
+    plugins: [
+        react(),
+        dts({
+            tsconfigPath: path.resolve(__dirname, 'tsconfig.lib.json'),
+            rollupTypes: true,
+        }),
+    ],
     resolve: {
         alias: {
             '@src': path.resolve(__dirname, './src'),
@@ -31,12 +37,25 @@ export default defineConfig({
             },
         },
         rollupOptions: {
-            external: ['react', 'cesium', '@turf/turf'],
+            // 与 peerDependencies 对齐：不打进 dist，由宿主项目安装并提供
+            external: [
+                'react',
+                'react-dom',
+                'cesium',
+                '@turf/turf',
+                '@zip.js/zip.js',
+                'd3-delaunay',
+            ],
             output: {
                 globals: {
                     cesium: 'Cesium',
                     react: 'React',
+                    'react-dom': 'ReactDOM',
                     '@turf/turf': 'turf',
+                    // UMD：需在页面按各库文档挂全局；ESM 宿主从 node_modules 解析即可
+                    '@zip.js/zip.js': 'zip',
+                    // d3-delaunay 官方 UMD 挂在 global.d3 上，含 Delaunay / Voronoi
+                    'd3-delaunay': 'd3',
                 },
             },
         },

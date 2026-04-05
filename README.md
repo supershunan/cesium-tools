@@ -11,17 +11,27 @@
 npm install cesium-tools-fxt
 ```
 
+以下依赖由 **peerDependencies** 声明，需由业务项目自行安装（npm 7+ 通常会在安装本包时自动装上；若缺失请手动安装）：
+
+`react`、`react-dom`、`cesium`、`@turf/turf`、`@zip.js/zip.js`、`d3-delaunay`
+
+示例：
+
+```bash
+npm install cesium-tools-fxt react react-dom cesium @turf/turf @zip.js/zip.js d3-delaunay
+```
+
 ## 工具测试
 
-项目启动测试需要将 package.pro.json 文件改为 package.json 进行测试，因为测试的时候是使用react环境进行的测试。
+在本仓库根目录直接 `npm install` 后执行 `npm run dev` 即可（依赖 peer 的包已写在 devDependencies 中供本地解析）。
 
-如需在其他项目中测试包内工具，使用 npm link 发布到本地，测试项目使用 npm link cesium-tools-fxt 引入包
+如需在其他项目中测试包内工具，使用 `npm link`：在本仓库执行 `npm link`，在测试项目执行 `npm link cesium-tools-fxt`。
 
 如无特殊说明，工具所有结束操作均为鼠标右键结束操作。
 
 ## 发包注意
 
-在发包前一定要检查 package.json 文件的依赖是否是工具包需要的，如果不对，一定是 package.json 和 package.prod.json 搞混了，重新命名即可。版本号需要修改
+发包前确认 `peerDependencies` 与宿主环境一致；版本号按需修改。不要打进 `dist` 的依赖由 `vite.config.ts` 的 `build.rollupOptions.external` 控制，与 `package.json` 的 peer 声明保持一致。
 
 建议安装 npm install -g npm-version-bump 插件，实现一键更新版本号，[major.minor.patch]
 

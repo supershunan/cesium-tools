@@ -2,12 +2,6 @@
     "compilerOptions": {
         "outDir": "./dist",
         "rootDir": "./src",
-        "emitDeclarationOnly": true,
-        // 开启自动生成声明文件
-        "declaration": true,
-        "declarationDir": "dist",
-        "composite": true,
-        "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
         "target": "ES2020",
         "useDefineForClassFields": true,
         "lib": [
@@ -19,11 +13,13 @@
         "skipLibCheck": true,
         /* Bundler mode */
         "moduleResolution": "node",
+        "allowSyntheticDefaultImports": true,
+        "esModuleInterop": true,
         // "allowImportingTsExtensions": true,
         "resolveJsonModule": true,
         "isolatedModules": true,
         "moduleDetection": "force",
-        "noEmit": false,
+        "noEmit": true,
         "jsx": "react-jsx",
         /* Linting */
         "strict": true,

@@ -103,17 +103,22 @@ function directUpdateHardEdgeTexture(
         .context?._gl;
     if (!gl) return false;
 
+    // 与 Cesium.Texture 默认 flipY=true 一致；否则首帧走 ImageryLayer._createTextureWebGL
+    // 与后续 texImage2D 的 Y 方向不一致，栅格地理 UV 与屏上像素错位（遮罩/多边形与数据对不齐）。
+    const prevFlipY = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);
     let updated = false;
     for (const key in cache) {
         const imagery = cache[key];
         // ImageryState.READY === 4
         if (imagery?.state === 4 && imagery.texture?._texture) {
             gl.bindTexture(gl.TEXTURE_2D, imagery.texture._texture);
+            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
             gl.bindTexture(gl.TEXTURE_2D, null);
             updated = true;
         }
     }
+    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, prevFlipY);
     /* eslint-enable @typescript-eslint/no-explicit-any */
     return updated;
 }
@@ -408,17 +413,20 @@ export class AnimatedRasterLayer {
      */
     public setMaskPolygon(coords: PolygonMaskCoord[] | null): void {
         this.maskPolygon = coords && coords.length >= 3 ? coords : null;
-        this.updateMaskTexture();
-        // 硬边界模式：遮罩在 CPU 打包时应用，需立刻重绘 ImageryLayer
-        if (this.hardEdgeImageryLayer && this.currentHeader && this.currentGrid) {
+        const header = this.currentHeader;
+        const grid = this.currentGrid;
+        // 先重绘硬边界（同步 currentRectangle），再更新 u_maskTex，避免遮罩 UV 与范围不同步
+        if (this.hardEdgeImageryLayer && header && grid) {
             this.updateHardEdge({
-                header: this.currentHeader,
-                grid: this.currentGrid,
+                header,
+                grid,
                 heightMeters: this.currentHeightMeters,
                 opacity: this.currentOpacity,
             });
+            this.updateMaskTexture();
             return;
         }
+        this.updateMaskTexture();
         this.viewer.scene.requestRender();
     }
 
@@ -1438,12 +1446,10 @@ export class AnimatedRasterLayer {
                     continue;
                 }
 
-                // CPU 射线法遮罩：格子中心点 UV
+                // CPU 射线法遮罩：有限分辨率下无法与矢量多边形逐像素重合，仅用「中心点」会在边沿
+                // 出现整块多显/少显；对格子四角+中心共 5 点做多数表决，贴近真实边界。
                 if (maskUV) {
-                    // clampToGround 时 y=0 在北边，UV t 轴 0 在南边，需翻转
-                    const u = (x + 0.5) / width;
-                    const t = this.clampToGround ? 1 - (y + 0.5) / height : (y + 0.5) / height;
-                    if (!this.pointInPolygonUV(u, t, maskUV)) {
+                    if (!this.cellMajorityInsidePolygonUV(x, y, width, height, maskUV)) {
                         packed[idx] = 0;
                         packed[idx + 1] = 0;
                         packed[idx + 2] = 0;
@@ -1461,6 +1467,38 @@ export class AnimatedRasterLayer {
                 packed[idx + 3] = 255;
             }
         }
+    }
+
+    /**
+     * 单格内 5 个采样点（四角 + 中心）在地理 UV 下做点在多边形内，≥3 点在内则该格可见。
+     * 与仅用中心点相比，边沿与矢量多边形的贴合度更好（仍受栅格分辨率上限约束）。
+     */
+    private cellMajorityInsidePolygonUV(
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        poly: Array<[number, number]>
+    ): boolean {
+        const uLeft = x / width;
+        const uMid = (x + 0.5) / width;
+        const uRight = (x + 1) / width;
+        const tSouth = this.clampToGround ? 1 - (y + 1) / height : y / height;
+        const tNorth = this.clampToGround ? 1 - y / height : (y + 1) / height;
+        const tMid = (tSouth + tNorth) * 0.5;
+
+        const samples: Array<[number, number]> = [
+            [uLeft, tSouth],
+            [uRight, tSouth],
+            [uLeft, tNorth],
+            [uRight, tNorth],
+            [uMid, tMid],
+        ];
+        let inside = 0;
+        for (const [u, t] of samples) {
+            if (this.pointInPolygonUV(u, t, poly)) inside++;
+        }
+        return inside >= 3;
     }
 
     /** 射线法判断点 (u, t) 是否在 UV 多边形内 */

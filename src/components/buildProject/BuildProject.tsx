@@ -1,6 +1,6 @@
 import * as Cesium from 'cesium';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import testGrid from 'public/resources/grid.json';
+import testGrid from '../../../public/resources/grid.json';
 
 // grid[row][col] 单位 mm；row 0 = 底层，row N-1 = 顶层
 // 负值 = 向雷达方向位移；正值 = 远离雷达方向位移
@@ -176,11 +176,12 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
     const [pickResult, setPickResult] = useState<PickResult | null>(null);
 
     // monitorRegion 和 deformData 完全由 monitorInput 推导，无需独立 state
-    const monitorRegion = useMemo(() => buildRegionFromInput(monitorInput), [monitorInput]);
-    const deformData = useMemo(
-        () => buildDeformDataFromInput(monitorInput, monitorRegion),
-        [monitorInput, monitorRegion]
-    );
+    const monitorRegion = useMemo(() => {
+        return buildRegionFromInput(monitorInput);
+    }, [monitorInput]);
+    const deformData = useMemo(() => {
+        return buildDeformDataFromInput(monitorInput, monitorRegion);
+    }, [monitorInput, monitorRegion]);
 
     const shaderRef = useRef<Cesium.CustomShader | null>(null);
     const tilesetRef = useRef<Cesium.Cesium3DTileset | null>(null);
@@ -208,12 +209,14 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
     function createColormapTexture(stops: ColorStop[]): Uint8Array {
         const { minDeform, maxDeform } = monitorInput;
         const range = maxDeform - minDeform || 1;
-        const parsed = stops.map(({ value, color }) => ({
-            position: (value - minDeform) / range, // mm → [0,1]
-            r: parseInt(color.slice(1, 3), 16),
-            g: parseInt(color.slice(3, 5), 16),
-            b: parseInt(color.slice(5, 7), 16),
-        }));
+        const parsed = stops.map(({ value, color }) => {
+            return {
+                position: (value - minDeform) / range, // mm → [0,1]
+                r: parseInt(color.slice(1, 3), 16),
+                g: parseInt(color.slice(3, 5), 16),
+                b: parseInt(color.slice(5, 7), 16),
+            };
+        });
         const data = new Uint8Array(256 * 4);
         for (let i = 0; i < 256; i++) {
             const t = i / 255;
@@ -423,7 +426,9 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
             shaderRef.current.setUniform('u_wallHalfH', halfHeight);
             shaderRef.current.setUniform('u_wallHalfD', halfDepth);
         });
-        return () => remove();
+        return () => {
+            return remove();
+        };
     }, [viewer]);
 
     // deformData 变化时更新纹理
@@ -546,7 +551,9 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
             // setPickResult({ row: dataRow, col: dataCol, value, color: colorStops[colorIdx].color });
         }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
-        return () => handler.destroy();
+        return () => {
+            return handler.destroy();
+        };
     }, [viewer]);
 
     function handleOpacityChange(value: number) {
@@ -559,32 +566,41 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
         const { minDeform, maxDeform } = monitorInput;
         let grid: number[][];
         if (mode === 'top-heavy') {
-            grid = Array.from({ length: rows }, (_, r) =>
-                Array.from({ length: cols }, (_, c) => {
+            grid = Array.from({ length: rows }, (_, r) => {
+                return Array.from({ length: cols }, (_, c) => {
                     const h = r / (rows - 1);
                     const cx = Math.abs(c - (cols - 1) / 2) / cols;
                     return +((maxDeform * h - 2) * (1 - cx * 1.5)).toFixed(1);
-                })
-            );
+                });
+            });
         } else if (mode === 'uniform') {
-            grid = Array.from({ length: rows }, () => Array.from({ length: cols }, () => 1.5));
+            grid = Array.from({ length: rows }, () => {
+                return Array.from({ length: cols }, () => {
+                    return 1.5;
+                });
+            });
         } else if (mode === 'random') {
-            grid = Array.from({ length: rows }, () =>
-                Array.from(
-                    { length: cols },
-                    () => +(minDeform + Math.random() * (maxDeform - minDeform)).toFixed(1)
-                )
-            );
+            grid = Array.from({ length: rows }, () => {
+                return Array.from({ length: cols }, () => {
+                    return +(minDeform + Math.random() * (maxDeform - minDeform)).toFixed(1);
+                });
+            });
         } else {
             // initial：从原始测试数据中截取 rows×cols
-            grid = Array.from({ length: rows }, (_, r) =>
-                Array.from({ length: cols }, (_, c) => (testGrid as number[][])[r]?.[c] ?? 0)
-            );
+            grid = Array.from({ length: rows }, (_, r) => {
+                return Array.from({ length: cols }, (_, c) => {
+                    return (testGrid as number[][])[r]?.[c] ?? 0;
+                });
+            });
         }
-        const clampedGrid = grid.map((row) =>
-            row.map((v) => Math.max(minDeform, Math.min(maxDeform, v)))
-        );
-        setMonitorInput((prev) => ({ ...prev, grids: clampedGrid }));
+        const clampedGrid = grid.map((row) => {
+            return row.map((v) => {
+                return Math.max(minDeform, Math.min(maxDeform, v));
+            });
+        });
+        setMonitorInput((prev) => {
+            return { ...prev, grids: clampedGrid };
+        });
     }
 
     const { minDeform, maxDeform } = monitorInput;
@@ -595,7 +611,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
             <div style={{ fontWeight: 'bold', marginBottom: 10, fontSize: 14 }}>结构形变监测</div>
 
             {/* 格子拾取结果 */}
-            {/* {pickResult ? (
+            {pickResult ? (
                 <div
                     style={{
                         display: 'flex',
@@ -626,7 +642,9 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                         {pickResult.value} mm
                     </span>
                     <button
-                        onClick={() => setPickResult(null)}
+                        onClick={() => {
+                            return setPickResult(null);
+                        }}
                         style={{ ...btnStyle, padding: '0 5px', fontSize: 11, lineHeight: '16px' }}
                     >
                         ✕
@@ -636,7 +654,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                 <div style={{ fontSize: 11, opacity: 0.4, marginBottom: 8 }}>
                     点击格子可查看对应 grids 值
                 </div>
-            )} */}
+            )}
 
             {/* 透明度 */}
             <div style={{ marginBottom: 8 }}>
@@ -647,17 +665,21 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                     max={1}
                     step={0.01}
                     value={overlayOpacity}
-                    onChange={(e) => handleOpacityChange(parseFloat(e.target.value))}
+                    onChange={(e) => {
+                        return handleOpacityChange(parseFloat(e.target.value));
+                    }}
                     style={{ marginLeft: 8, width: 100, verticalAlign: 'middle' }}
                 />
                 <span style={{ marginLeft: 4 }}>{(overlayOpacity * 100).toFixed(0)}%</span>
             </div>
 
             {/* 栅格 / 渐变切换 */}
-            {/* <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 12 }}>显示模式</span>
                 <button
-                    onClick={() => setSmoothing(false)}
+                    onClick={() => {
+                        return setSmoothing(false);
+                    }}
                     style={{
                         ...btnStyle,
                         flex: 1,
@@ -670,7 +692,9 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                     栅格
                 </button>
                 <button
-                    onClick={() => setSmoothing(true)}
+                    onClick={() => {
+                        return setSmoothing(true);
+                    }}
                     style={{
                         ...btnStyle,
                         flex: 1,
@@ -680,45 +704,49 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                 >
                     渐变
                 </button>
-            </div> */}
+            </div>
 
             {/* 分级色带图例：等宽色块 + 底部标注每段起始值 */}
             <div style={{ marginBottom: 10 }}>
                 <div style={{ display: 'flex', borderRadius: 4, overflow: 'hidden', height: 12 }}>
-                    {monitorInput.colorStops.map((stop, i) => (
-                        <div
-                            key={i}
-                            style={{
-                                background: stop.color,
-                                flex: 1,
-                            }}
-                        />
-                    ))}
+                    {monitorInput.colorStops.map((stop, i) => {
+                        return (
+                            <div
+                                key={i}
+                                style={{
+                                    background: stop.color,
+                                    flex: 1,
+                                }}
+                            />
+                        );
+                    })}
                 </div>
                 {/* 每个色块下方标注对应的 value（mm） */}
                 <div style={{ display: 'flex', marginTop: 3 }}>
-                    {monitorInput.colorStops.map((stop, i) => (
-                        <div
-                            key={i}
-                            style={{
-                                flex: 1,
-                                textAlign: 'center',
-                                fontSize: 10,
-                                opacity: 0.75,
-                                lineHeight: 1.2,
-                            }}
-                        >
+                    {monitorInput.colorStops.map((stop, i) => {
+                        return (
                             <div
+                                key={i}
                                 style={{
-                                    width: 1,
-                                    height: 4,
-                                    background: 'rgba(255,255,255,0.4)',
-                                    margin: '0 auto 1px',
+                                    flex: 1,
+                                    textAlign: 'center',
+                                    fontSize: 10,
+                                    opacity: 0.75,
+                                    lineHeight: 1.2,
                                 }}
-                            />
-                            {stop.value}
-                        </div>
-                    ))}
+                            >
+                                <div
+                                    style={{
+                                        width: 1,
+                                        height: 4,
+                                        background: 'rgba(255,255,255,0.4)',
+                                        margin: '0 auto 1px',
+                                    }}
+                                />
+                                {stop.value}
+                            </div>
+                        );
+                    })}
                 </div>
                 {/* <div
                     style={{
@@ -735,7 +763,7 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
             </div>
 
             {/* 监测区域信息（只读，完全由输入数据决定） */}
-            {/* <div
+            <div
                 style={{
                     fontSize: 11,
                     opacity: 0.7,
@@ -770,10 +798,10 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                         (间距 {monitorInput.uDelta.toFixed(2)} × {monitorInput.vDelta.toFixed(2)} m)
                     </span>
                 </div>
-            </div> */}
+            </div>
 
             {/* 栅格间距输入（仅栅格模式生效） */}
-            {/* {!smoothing && (
+            {!smoothing && (
                 <div style={{ marginBottom: 6, fontSize: 12 }}>
                     <div style={{ marginBottom: 4, opacity: 0.85 }}>栅格间距（米/格）</div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -786,7 +814,9 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                             onChange={(e) => {
                                 const v = parseFloat(e.target.value);
                                 if (!isNaN(v) && v > 0)
-                                    setMonitorInput((prev) => ({ ...prev, uDelta: v }));
+                                    setMonitorInput((prev) => {
+                                        return { ...prev, uDelta: v };
+                                    });
                             }}
                             style={{
                                 width: 64,
@@ -807,7 +837,9 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                             onChange={(e) => {
                                 const v = parseFloat(e.target.value);
                                 if (!isNaN(v) && v > 0)
-                                    setMonitorInput((prev) => ({ ...prev, vDelta: v }));
+                                    setMonitorInput((prev) => {
+                                        return { ...prev, vDelta: v };
+                                    });
                             }}
                             style={{
                                 width: 64,
@@ -824,11 +856,13 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                             onClick={() => {
                                 const ud = monitorInput.uDelta;
                                 const squareVD = (ud * wallHeight) / monitorRegion.wallWidth;
-                                setMonitorInput((prev) => ({
-                                    ...prev,
-                                    uDelta: parseFloat(ud.toFixed(4)),
-                                    vDelta: parseFloat(squareVD.toFixed(4)),
-                                }));
+                                setMonitorInput((prev) => {
+                                    return {
+                                        ...prev,
+                                        uDelta: parseFloat(ud.toFixed(4)),
+                                        vDelta: parseFloat(squareVD.toFixed(4)),
+                                    };
+                                });
                             }}
                             style={{ ...btnStyle, padding: '2px 6px', fontSize: 11 }}
                         >
@@ -836,29 +870,49 @@ export default function BuildProject({ viewer }: { viewer: Cesium.Viewer }) {
                         </button>
                     </div>
                 </div>
-            )} */}
-            {/*
+            )}
+
             <div style={{ fontSize: 10, opacity: 0.45, marginBottom: 8, lineHeight: 1.5 }}>
                 UV 映射：U = 纵向（沿结构轴），V = 竖向（高程方向）
                 <br />
                 grids 超出 {deformData.cols}×{deformData.rows} 的部分不参与渲染
-            </div> */}
+            </div>
 
             {/* 测试预设数据 */}
-            {/* <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                <button onClick={() => applyPreset('initial')} style={btnStyle}>
+            <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
+                <button
+                    onClick={() => {
+                        return applyPreset('initial');
+                    }}
+                    style={btnStyle}
+                >
                     集中形变
                 </button>
-                <button onClick={() => applyPreset('top-heavy')} style={btnStyle}>
+                <button
+                    onClick={() => {
+                        return applyPreset('top-heavy');
+                    }}
+                    style={btnStyle}
+                >
                     顶部偏移
                 </button>
-                <button onClick={() => applyPreset('uniform')} style={btnStyle}>
+                <button
+                    onClick={() => {
+                        return applyPreset('uniform');
+                    }}
+                    style={btnStyle}
+                >
                     均匀沉降
                 </button>
-                <button onClick={() => applyPreset('random')} style={btnStyle}>
+                <button
+                    onClick={() => {
+                        return applyPreset('random');
+                    }}
+                    style={btnStyle}
+                >
                     随机模拟
                 </button>
-            </div> */}
+            </div>
         </div>
     );
 }

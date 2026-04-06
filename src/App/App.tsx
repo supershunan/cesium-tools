@@ -3,7 +3,7 @@ import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
 import { useEffect, useState } from 'react';
 import './App.css';
-import Voxel from '../components/voxel/Voxel';
+import MultsCloseToTheGround from '../example/multsCloseToTheGround';
 import EarthProjection from '../components/earthProject/EarthProject';
 import BuildProject from '../components/buildProject/BuildProject';
 import CloseToTheGround from '../example/closeToTheGround';
@@ -66,11 +66,18 @@ function App() {
     return (
         <div>
             <div id="cesiumContainer" style={{ width: '100%', height: '100vh' }}></div>
+            {/* 工具类 用于调试和测试 */}
             {/* {viewer ? <Tools viewer={viewer} /> : null} */}
-            {/* <Voxel viewer={viewer} /> */}
-            <CloseTo3dtitles viewer={viewer as Cesium.Viewer} />
-            {/* <EarthProjection viewer={viewer} /> */}
-            {/* <BuildProject viewer={viewer} /> */}
+            {/* 单个雷达数据图层渲染 3dtitles 使用 fxt 测雨雷达数据 */}
+            {/* <CloseTo3dtitles viewer={viewer as Cesium.Viewer} /> */}
+            {/* 单个雷达数据图层渲染 使用 fxt 测雨雷达数据 */}
+            {/* <CloseToTheGround viewer={viewer as Cesium.Viewer} /> */}
+            {/* 多个雷达数据图层渲染 使用 fxt 测雨雷达数据 */}
+            <MultsCloseToTheGround viewer={viewer as Cesium.Viewer} />
+            {/* 地球投影图层 使用的 fxt 数据 */}
+            {/* <EarthProjection viewer={viewer as Cesium.Viewer} /> */}
+            {/* 3dtiles 模拟墙体变形 */}
+            {/* <BuildProject viewer={viewer as Cesium.Viewer} /> */}
         </div>
     );
 }

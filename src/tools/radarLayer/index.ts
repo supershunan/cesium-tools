@@ -1,6 +1,25 @@
 import * as zip from '@zip.js/zip.js';
-export { DynamicRasterLayer } from './DynamicRasterLayer';
-export type { GridFrame, GridHeader } from './DynamicRasterLayer';
+
+export type GridHeader = {
+    xStart: number;
+    xEnd: number;
+    yStart: number;
+    yEnd: number;
+    xDelta?: number;
+    yDelta?: number;
+    xSize?: number;
+    ySize?: number;
+    levelList?: Array<string | number>;
+    /** 为 true/false 时强制纬度行翻转（与 shouldFlipLatitudeRowsForCesium 一致） */
+    flipLatitudeRowsForCesium?: boolean;
+};
+
+export type GridFrame = {
+    header: GridHeader;
+    grid: number[][];
+    heightMeters?: number;
+    opacity?: number;
+};
 
 /**
  * Cesium 贴地/纹理第 0 行对应北侧；文件 y 从南向北递增（纬度增大）时，

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import * as Cesium from 'cesium';
 import { AnimatedRasterLayer } from '@src/tools/radarLayer/AnimatedRasterLayer';
 import { GridDataReader, GridHeader } from '@src/tools/radarLayer';
@@ -81,7 +81,6 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             }
             const reader = new GridDataReader();
             const parsed = (await reader.readCompressedGridData(await res.blob())) as GridResult;
-            console.log(parsed);
             return parsed;
         } catch (error) {
             return null;
@@ -106,29 +105,27 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
         }
 
         if (!closeToTheGroundLayer.current.length) {
-            closeToTheGroundLayer.current = Array.from(
-                { length: levels },
-                () =>
-                    new AnimatedRasterLayer(viewer as Cesium.Viewer, {
-                        clampToGround: false,
-                        colorRamp: [
-                            { maxValue: 10, color: [62, 160, 239] },
-                            { maxValue: 15, color: [62, 160, 239] },
-                            { maxValue: 20, color: [108, 225, 238] },
-                            { maxValue: 25, color: [96, 214, 63] },
-                            { maxValue: 30, color: [70, 137, 37] },
-                            { maxValue: 35, color: [252, 251, 74] },
-                            { maxValue: 40, color: [223, 195, 73] },
-                            { maxValue: 45, color: [239, 147, 47] },
-                            { maxValue: 50, color: [231, 53, 31] },
-                            { maxValue: 55, color: [184, 43, 41] },
-                            { maxValue: 60, color: [183, 36, 28] },
-                            { maxValue: 65, color: [236, 62, 237] },
-                            { maxValue: 70, color: [132, 39, 179] },
-                            { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
-                        ],
-                    })
-            );
+            closeToTheGroundLayer.current = Array.from({ length: levels }, () => {
+                return new AnimatedRasterLayer(viewer as Cesium.Viewer, {
+                    clampToGround: false,
+                    colorRamp: [
+                        { maxValue: 10, color: [62, 160, 239] },
+                        { maxValue: 15, color: [62, 160, 239] },
+                        { maxValue: 20, color: [108, 225, 238] },
+                        { maxValue: 25, color: [96, 214, 63] },
+                        { maxValue: 30, color: [70, 137, 37] },
+                        { maxValue: 35, color: [252, 251, 74] },
+                        { maxValue: 40, color: [223, 195, 73] },
+                        { maxValue: 45, color: [239, 147, 47] },
+                        { maxValue: 50, color: [231, 53, 31] },
+                        { maxValue: 55, color: [184, 43, 41] },
+                        { maxValue: 60, color: [183, 36, 28] },
+                        { maxValue: 65, color: [236, 62, 237] },
+                        { maxValue: 70, color: [132, 39, 179] },
+                        { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
+                    ],
+                });
+            });
         }
         const timeIndex = frameIndex.current;
         const levelList = resultRef.current?.header.levelList ?? [];
@@ -173,42 +170,40 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
         }
 
         if (!staticLayer.current.length) {
-            staticLayer.current = Array.from(
-                { length: levels },
-                () =>
-                    new AnimatedRasterLayer(viewer as Cesium.Viewer, {
-                        clampToGround: true,
-                        gradientEnabled: false,
-                        colorRamp: [
-                            { maxValue: 10, color: [62, 160, 239] },
-                            { maxValue: 15, color: [62, 160, 239] },
-                            { maxValue: 20, color: [108, 225, 238] },
-                            { maxValue: 25, color: [96, 214, 63] },
-                            { maxValue: 30, color: [70, 137, 37] },
-                            { maxValue: 35, color: [252, 251, 74] },
-                            { maxValue: 40, color: [223, 195, 73] },
-                            { maxValue: 45, color: [239, 147, 47] },
-                            { maxValue: 50, color: [231, 53, 31] },
-                            { maxValue: 55, color: [184, 43, 41] },
-                            { maxValue: 60, color: [183, 36, 28] },
-                            { maxValue: 65, color: [236, 62, 237] },
-                            { maxValue: 70, color: [132, 39, 179] },
-                            { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
-                        ],
-                        interactionOptions: {
-                            enabled: true,
-                            onCellClick: (cell) => {
-                                console.log(cell);
-                            },
-                            hoverEnabled: true,
-                            hoverColor: Cesium.Color.RED,
-                            hoverAlpha: 0.35,
-                            onCellHover: (cell) => {
-                                console.log(cell);
-                            },
-                        },
-                    })
-            );
+            staticLayer.current = Array.from({ length: levels }, () => {
+                return new AnimatedRasterLayer(viewer as Cesium.Viewer, {
+                    clampToGround: true,
+                    gradientEnabled: false,
+                    colorRamp: [
+                        { maxValue: 10, color: [62, 160, 239] },
+                        { maxValue: 15, color: [62, 160, 239] },
+                        { maxValue: 20, color: [108, 225, 238] },
+                        { maxValue: 25, color: [96, 214, 63] },
+                        { maxValue: 30, color: [70, 137, 37] },
+                        { maxValue: 35, color: [252, 251, 74] },
+                        { maxValue: 40, color: [223, 195, 73] },
+                        { maxValue: 45, color: [239, 147, 47] },
+                        { maxValue: 50, color: [231, 53, 31] },
+                        { maxValue: 55, color: [184, 43, 41] },
+                        { maxValue: 60, color: [183, 36, 28] },
+                        { maxValue: 65, color: [236, 62, 237] },
+                        { maxValue: 70, color: [132, 39, 179] },
+                        { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
+                    ],
+                    // interactionOptions: {
+                    //     enabled: true,
+                    //     onCellClick: (cell) => {
+                    //         console.log(cell);
+                    //     },
+                    //     hoverEnabled: true,
+                    //     hoverColor: Cesium.Color.RED,
+                    //     hoverAlpha: 0.35,
+                    //     onCellHover: (cell) => {
+                    //         console.log(cell);
+                    //     },
+                    // },
+                });
+            });
         }
 
         /**
@@ -226,7 +221,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             ) {
                 continue;
             }
-            staticLayer.current?.[levelIndex]?.updateHardEdge({
+            staticLayer.current?.[levelIndex]?.update({
                 header: result.header,
                 grid,
                 heightMeters: 0,
@@ -335,13 +330,27 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             drawStatus.current = false;
         }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
 
-        return () => handler.destroy();
+        return () => {
+            return handler.destroy();
+        };
     }, [viewer]);
 
     return (
         <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 1000 }}>
-            <button onClick={() => renderMultiStaticLayerFrame(false)}>上一帧</button>
-            <button onClick={() => renderMultiStaticLayerFrame(true)}>下一帧</button>
+            <button
+                onClick={() => {
+                    return renderMultiStaticLayerFrame(false);
+                }}
+            >
+                上一帧
+            </button>
+            <button
+                onClick={() => {
+                    return renderMultiStaticLayerFrame(true);
+                }}
+            >
+                下一帧
+            </button>
             <button
                 onClick={() => {
                     console.log(maskPoints.current);
@@ -357,13 +366,21 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             >
                 清除遮罩
             </button>
-            <button onClick={() => (drawStatus.current = true)}>创建多边形</button>
+            <button
+                onClick={() => {
+                    return (drawStatus.current = true);
+                }}
+            >
+                创建多边形
+            </button>
             <button
                 onClick={() => {
                     const interval = setInterval(() => {
                         renderMultiStaticLayerFrame();
                     }, 1000);
-                    return () => clearInterval(interval);
+                    return () => {
+                        return clearInterval(interval);
+                    };
                 }}
             >
                 自动播放

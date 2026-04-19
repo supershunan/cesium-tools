@@ -3,6 +3,7 @@ import MouseEvent from '../mouseBase/mouseBase';
 import { compute_2DPolygonArea, compute_3DPolygonArea } from './compute';
 import { MouseStatusEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
+import type { AreaActiveOptions } from '.';
 
 export default class AreaMeasurement extends MouseEvent {
     // 1、核心属性
@@ -11,7 +12,7 @@ export default class AreaMeasurement extends MouseEvent {
     protected readonly cesium: typeof Cesium;
 
     // 2、集合管理
-    private options?: T;
+    private options?: AreaActiveOptions;
 
     // 3、状态管理
     private state = {
@@ -45,8 +46,8 @@ export default class AreaMeasurement extends MouseEvent {
         this.tipEntities = [];
     }
 
-    active(options?: T): void {
-        this.options = options;
+    active(options?: AreaActiveOptions): void {
+        this.options = { clampToGround: true, ...options };
         this.registerEvents();
     }
 
@@ -138,6 +139,10 @@ export default class AreaMeasurement extends MouseEvent {
             }
             this.tempMovePosition.set(index, JSON.stringify(currentPosition));
 
+            if (this.options?.liveUpdateOnMove === false) {
+                return;
+            }
+
             const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
                 return JSON.parse(item);
             });
@@ -194,19 +199,35 @@ export default class AreaMeasurement extends MouseEvent {
         this.tipAreaEntity && this.viewer.entities.remove(this.tipAreaEntity);
         const area2d = compute_2DPolygonArea(descartesPoints);
         const area3d = compute_3DPolygonArea(this.cesium, descartesPoints);
+        const area = this.options?.area;
+        const s2 = area2d.toFixed(2);
+        const s3 = area3d.toFixed(2);
+
+        let text: string;
+        if (area?.customRender) {
+            text = area.customRender(area2d, area3d);
+        } else if (area?.template) {
+            text = area.template.replace('{}', s2).replace('{}', s3);
+        } else {
+            text = `平面面积：${s2}m² \n 测地面积：${s3}m²`;
+        }
+
         const tipEntity = this.viewer.entities.add({
-            position: descartesPoints[0],
+            position: this.getPolygonLabelPosition(descartesPoints),
             label: {
-                text: `平面面积：${area2d.toFixed(2)}m² \n 测地面积：${area3d.toFixed(2)}m²`,
-                font: '12px sans-serif',
-                fillColor: this.cesium.Color.WHITE,
-                outlineColor: this.cesium.Color.BLACK,
-                outlineWidth: 2,
-                style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
-                showBackground: false,
-                pixelOffset: new this.cesium.Cartesian2(0, 20), // 标签稍微下移
-                verticalOrigin: this.cesium.VerticalOrigin.TOP,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                text,
+                show: area?.show !== false,
+                font: area?.font ?? '12px sans-serif',
+                scale: area?.scale,
+                fillColor: area?.fillColor ?? this.cesium.Color.WHITE,
+                outlineColor: area?.outlineColor ?? this.cesium.Color.BLACK,
+                outlineWidth: area?.outlineWidth ?? 2,
+                style: area?.style ?? this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                showBackground: area?.showBackground ?? false,
+                pixelOffset: area?.pixelOffset ?? new this.cesium.Cartesian2(0, 20),
+                verticalOrigin: area?.verticalOrigin ?? this.cesium.VerticalOrigin.TOP,
+                disableDepthTestDistance:
+                    area?.disableDepthTestDistance ?? Number.POSITIVE_INFINITY,
                 heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
             },
         });
@@ -216,5 +237,23 @@ export default class AreaMeasurement extends MouseEvent {
         } else {
             this.tipAreaEntity = tipEntity;
         }
+    }
+
+    /** 取顶点在 ECEF 下的平均并投影到椭球面，作为面积标签锚点（近似多边形中心） */
+    private getPolygonLabelPosition(points: Cesium.Cartesian3[]): Cesium.Cartesian3 {
+        if (points.length === 0) {
+            return new this.cesium.Cartesian3();
+        }
+        if (points.length === 1) {
+            return points[0];
+        }
+        const sum = new this.cesium.Cartesian3(0, 0, 0);
+        for (const p of points) {
+            this.cesium.Cartesian3.add(sum, p, sum);
+        }
+        this.cesium.Cartesian3.multiplyByScalar(sum, 1 / points.length, sum);
+        const ellipsoid = this.viewer.scene.globe.ellipsoid;
+        const onSurface = ellipsoid.scaleToGeodeticSurface(sum, new this.cesium.Cartesian3());
+        return onSurface ?? sum;
     }
 }

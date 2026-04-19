@@ -1,7 +1,37 @@
 import * as Cesium from 'cesium';
+
+/** Cesium 1.102+ 使用 worldToWindowCoordinates；旧版为 wgs84ToWindowCoordinates */
+function cartesian3ToCanvas(
+    scene: Cesium.Scene,
+    position: Cesium.Cartesian3,
+    result: Cesium.Cartesian2
+): Cesium.Cartesian2 | undefined {
+    const ST = Cesium.SceneTransforms as {
+        worldToWindowCoordinates?: (
+            s: Cesium.Scene,
+            p: Cesium.Cartesian3,
+            r?: Cesium.Cartesian2
+        ) => Cesium.Cartesian2 | undefined;
+        wgs84ToWindowCoordinates?: (
+            s: Cesium.Scene,
+            p: Cesium.Cartesian3,
+            r?: Cesium.Cartesian2
+        ) => Cesium.Cartesian2 | undefined;
+    };
+    if (typeof ST.worldToWindowCoordinates === 'function') {
+        return ST.worldToWindowCoordinates(scene, position, result);
+    }
+    if (typeof ST.wgs84ToWindowCoordinates === 'function') {
+        return ST.wgs84ToWindowCoordinates(scene, position, result);
+    }
+    return undefined;
+}
+
 export default class PlotDrawTip {
     viewer: Cesium.Viewer;
     tooltip: HTMLDivElement;
+    private readonly _canvasScratch = new Cesium.Cartesian2();
+
     constructor(viewer: Cesium.Viewer) {
         this.viewer = viewer;
         this.tooltip = document.createElement('div');
@@ -20,9 +50,10 @@ export default class PlotDrawTip {
     }
 
     updatePosition(position: Cesium.Cartesian3) {
-        const canvasPosition = Cesium.SceneTransforms.wgs84ToWindowCoordinates(
+        const canvasPosition = cartesian3ToCanvas(
             this.viewer.scene,
-            position
+            position,
+            this._canvasScratch
         );
         if (canvasPosition) {
             this.tooltip.style.left = `${canvasPosition.x}px`;

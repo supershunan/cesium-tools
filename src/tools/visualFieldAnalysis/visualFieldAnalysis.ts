@@ -37,6 +37,18 @@ class ViewShed {
     private postStage?: Cesium.PostProcessStage | Cesium.PostProcessStageComposite;
     private lightCamera?: Cesium.Camera;
     private shadowMap?: Cesium.ShadowMap;
+    /** 恢复场景：通视依赖地形向 ShadowMap 投射，默认 Globe 为 RECEIVE_ONLY 时立方体阴影为空 */
+    private sceneShadowMapBackup?: Cesium.ShadowMap | null;
+    private globeShadowsBackup?: Cesium.ShadowMode;
+    private viewerShadowsBackup?: boolean;
+    private globeDepthTestBackup?: boolean;
+    private readonly _scratchVisibleColor = new Cesium.Cartesian4();
+    private readonly _scratchInvisibleColor = new Cesium.Cartesian4();
+    private readonly _scratchShadowBias = new Cesium.Cartesian4();
+    private readonly _scratchTexelBias = new Cesium.Cartesian4();
+    private readonly _scratchTexelStep = new Cesium.Cartesian2();
+    /** 与 frameState.frameNumber 对齐，每帧只 update 一次 ShadowMap，避免多 uniform 回调重复更新导致同帧采样不一致 */
+    private _shadowUpdateFrame = -1;
 
     constructor(viewer: Cesium.Viewer, options: ViewShedOptions) {
         this.viewer = viewer;
@@ -62,6 +74,7 @@ class ViewShed {
     }
 
     add() {
+        this.ensureShadowCastContext();
         this.createLightCamera();
         this.createShadowMap();
         this.drawSketch();
@@ -93,13 +106,78 @@ class ViewShed {
             this.sketch = undefined;
         }
         if (this.frustumOutline) {
-            this.viewer.scene.primitives.destroy();
+            this.viewer.scene.primitives.remove(this.frustumOutline);
             this.frustumOutline = undefined;
         }
         if (this.postStage) {
             this.viewer.scene.postProcessStages.remove(this.postStage);
             this.postStage = undefined;
         }
+        if (this.shadowMap) {
+            const sm = this.shadowMap;
+            this.shadowMap = undefined;
+            this._shadowUpdateFrame = -1;
+            if (typeof sm.destroy === 'function') {
+                sm.destroy();
+            }
+        }
+        if (this.sceneShadowMapBackup !== undefined) {
+            this.viewer.scene.shadowMap = this.sceneShadowMapBackup ?? undefined;
+        }
+        this.sceneShadowMapBackup = undefined;
+
+        const globe = this.viewer.scene.globe;
+        if (globe && this.globeShadowsBackup !== undefined) {
+            globe.shadows = this.globeShadowsBackup;
+            this.globeShadowsBackup = undefined;
+        }
+        if (this.viewerShadowsBackup !== undefined) {
+            this.viewer.shadows = this.viewerShadowsBackup;
+            this.viewerShadowsBackup = undefined;
+        }
+        if (globe && this.globeDepthTestBackup !== undefined) {
+            globe.depthTestAgainstTerrain = this.globeDepthTestBackup;
+            this.globeDepthTestBackup = undefined;
+        }
+    }
+
+    private getFrameState() {
+        return this.viewer.scene.frameState;
+    }
+
+    private syncShadowMapForFrame(): void {
+        if (!this.shadowMap) {
+            return;
+        }
+        const fs = this.getFrameState();
+        if (!fs) {
+            return;
+        }
+        const n = fs.frameNumber;
+        if (this._shadowUpdateFrame !== n) {
+            this.shadowMap.update(fs);
+            this._shadowUpdateFrame = n;
+        }
+    }
+
+    private ensureShadowCastContext() {
+        const globe = this.viewer.scene.globe;
+        if (globe) {
+            if (this.globeShadowsBackup === undefined) {
+                this.globeShadowsBackup = globe.shadows;
+            }
+            globe.shadows = Cesium.ShadowMode.ENABLED;
+
+            if (this.globeDepthTestBackup === undefined) {
+                this.globeDepthTestBackup = globe.depthTestAgainstTerrain;
+            }
+            globe.depthTestAgainstTerrain = true;
+        }
+
+        if (this.viewerShadowsBackup === undefined) {
+            this.viewerShadowsBackup = this.viewer.shadows;
+        }
+        this.viewer.shadows = true;
     }
 
     private clearSketch() {
@@ -166,6 +244,9 @@ class ViewShed {
             normalOffset: false,
             fromLightSource: false,
         };
+        if (this.sceneShadowMapBackup === undefined) {
+            this.sceneShadowMapBackup = this.viewer.scene.shadowMap ?? null;
+        }
         this.shadowMap = new Cesium.ShadowMap(shadowOption);
         this.viewer.scene.shadowMap = this.shadowMap;
     }
@@ -180,33 +261,32 @@ class ViewShed {
             fragmentShader: fs, // 要使用的片段着色器
             uniforms: {
                 shadowMap_textureCube: () => {
-                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
-                    return Reflect.get(this.shadowMap, '_shadowMapTexture');
+                    this.syncShadowMapForFrame();
+                    return this.shadowMap._shadowMapTexture;
                 },
                 shadowMap_matrix: () => {
-                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
-                    return Reflect.get(this.shadowMap, '_shadowMapMatrix');
+                    this.syncShadowMapForFrame();
+                    return this.shadowMap._shadowMapMatrix;
                 },
                 shadowMap_lightPositionEC: () => {
-                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
-                    return Reflect.get(this.shadowMap, '_lightPositionEC');
+                    this.syncShadowMapForFrame();
+                    return this.shadowMap._lightPositionEC;
                 },
                 shadowMap_normalOffsetScaleDistanceMaxDistanceAndDarkness: () => {
-                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
+                    this.syncShadowMapForFrame();
                     const bias = this.shadowMap._pointBias;
                     return Cesium.Cartesian4.fromElements(
                         bias.normalOffsetScale,
                         this.shadowMap._distance,
                         this.shadowMap.maximumDistance,
                         0.0,
-                        new Cesium.Cartesian4()
+                        this._scratchShadowBias
                     );
                 },
                 shadowMap_texelSizeDepthBiasAndNormalShadingSmooth: () => {
-                    this.shadowMap.update(Reflect.get(this.viewer.scene, '_frameState'));
+                    this.syncShadowMapForFrame();
                     const bias = this.shadowMap._pointBias;
-                    const scratchTexelStepSize = new Cesium.Cartesian2();
-                    const texelStepSize = scratchTexelStepSize;
+                    const texelStepSize = this._scratchTexelStep;
                     texelStepSize.x = 1.0 / this.shadowMap._textureSize.x;
                     texelStepSize.y = 1.0 / this.shadowMap._textureSize.y;
 
@@ -215,7 +295,7 @@ class ViewShed {
                         texelStepSize.y,
                         bias.depthBias,
                         bias.normalShadingSmooth,
-                        new Cesium.Cartesian4()
+                        this._scratchTexelBias
                     );
                 },
                 camera_projection_matrix: (this.lightCamera as Cesium.Camera).frustum
@@ -224,8 +304,26 @@ class ViewShed {
                 helsing_viewDistance: () => {
                     return this.viewDistance;
                 },
-                helsing_visibleAreaColor: this.visibleAreaColor,
-                helsing_invisibleAreaColor: this.invisibleAreaColor,
+                helsing_visibleAreaColor: () => {
+                    const c = this.visibleAreaColor;
+                    return Cesium.Cartesian4.fromElements(
+                        c.red,
+                        c.green,
+                        c.blue,
+                        c.alpha,
+                        this._scratchVisibleColor
+                    );
+                },
+                helsing_invisibleAreaColor: () => {
+                    const c = this.invisibleAreaColor;
+                    return Cesium.Cartesian4.fromElements(
+                        c.red,
+                        c.green,
+                        c.blue,
+                        c.alpha,
+                        this._scratchInvisibleColor
+                    );
+                },
             }, // 一个对象，其属性将用于设置着色器统一值。属性可以是常量值或函数。常量值也可以是 URI、数据 URI 或用作纹理的 HTML 元素。
         });
         this.postStage = this.viewer.scene.postProcessStages.add(postStage);

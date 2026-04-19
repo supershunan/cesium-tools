@@ -223,11 +223,7 @@ self.onmessage = async (event: MessageEvent<WorkerRequest>) => {
             },
         };
         const transferList: Transferable[] = [];
-        if (
-            mode === 'data' &&
-            'flatData' in result &&
-            result.flatData instanceof Float32Array
-        ) {
+        if (mode === 'data' && 'flatData' in result && result.flatData instanceof Float32Array) {
             transferList.push(result.flatData.buffer);
         }
         const workerScope = self as unknown as {

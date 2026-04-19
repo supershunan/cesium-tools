@@ -1,5 +1,4 @@
 export default `
-#version 300 es
 #define USE_CUBE_MAP_SHADOW true
 precision highp float;
 
@@ -18,36 +17,6 @@ uniform vec4 helsing_visibleAreaColor;
 uniform vec4 helsing_invisibleAreaColor;
 
 out vec4 fragColor;
-
-struct zx_shadowParameters {
-    vec3 texCoords;
-    float depthBias;
-    float depth;
-    float nDotL;
-    vec2 texelStepSize;
-    float normalShadingSmooth;
-    float darkness;
-};
-
-float czm_shadowVisibility(samplerCube shadowMap, zx_shadowParameters shadowParameters) {
-    float depthBias = shadowParameters.depthBias;
-    float depth = shadowParameters.depth;
-    float nDotL = shadowParameters.nDotL;
-    float normalShadingSmooth = shadowParameters.normalShadingSmooth;
-    float darkness = shadowParameters.darkness;
-    vec3 uvw = shadowParameters.texCoords;
-    depth -= depthBias;
-    float visibility = czm_shadowDepthCompare(shadowMap, uvw, depth);
-    return czm_private_shadowVisibility(visibility, nDotL, normalShadingSmooth, darkness);
-}
-
-vec4 getPositionEC() {
-    return czm_windowToEyeCoordinates(gl_FragCoord);
-}
-
-vec3 getNormalEC() {
-    return vec3(1.);
-}
 
 vec4 toEye(in vec2 uv, in float depth) {
     vec2 xy = vec2((uv.x * 2. - 1.), (uv.y * 2. - 1.));
@@ -71,13 +40,8 @@ float getDepth(in vec4 depth) {
     return (2. * z_window - n_range - f_range) / (f_range - n_range);
 }
 
+// 仅用深度比较，不用 czm_private_shadowVisibility（会对比较结果做随参数变化的柔化，视角微动时易抖）
 float shadow(in vec4 positionEC) {
-    vec3 normalEC = getNormalEC();
-    zx_shadowParameters shadowParameters;
-    shadowParameters.texelStepSize = shadowMap_texelSizeDepthBiasAndNormalShadingSmooth.xy;
-    shadowParameters.depthBias = shadowMap_texelSizeDepthBiasAndNormalShadingSmooth.z;
-    shadowParameters.normalShadingSmooth = shadowMap_texelSizeDepthBiasAndNormalShadingSmooth.w;
-    shadowParameters.darkness = shadowMap_normalOffsetScaleDistanceMaxDistanceAndDarkness.w;
     vec3 directionEC = positionEC.xyz - shadowMap_lightPositionEC.xyz;
     float distance = length(directionEC);
     directionEC = normalize(directionEC);
@@ -86,11 +50,9 @@ float shadow(in vec4 positionEC) {
         return 2.0;
     }
     vec3 directionWC = czm_inverseViewRotation * directionEC;
-    shadowParameters.depth = distance / radius - 0.0003;
-    shadowParameters.nDotL = clamp(dot(normalEC, -directionEC), 0., 1.);
-    shadowParameters.texCoords = directionWC;
-    float visibility = czm_shadowVisibility(shadowMap_textureCube, shadowParameters);
-    return visibility;
+    float depthBias = shadowMap_texelSizeDepthBiasAndNormalShadingSmooth.z;
+    float depthToCompare = distance / radius - 0.0003 - depthBias;
+    return czm_shadowDepthCompare(shadowMap_textureCube, directionWC, depthToCompare);
 }
 
 bool visible(in vec4 result) {
@@ -115,11 +77,14 @@ void main() {
     if(dis > near && dis < helsing_viewDistance) {
         vec4 posInEye = camera_projection_matrix * vcPos; // 确定该片段是否在视锥体内
         if(visible(posInEye)) {
-            float vis = shadow(viewPos); // 当前片段在阴影中的可见性
-            if(vis > 0.3) { // 根据阴影可见性值 vis 来决定如何处理片段的颜色
-                fragColor = mix(fragColor, helsing_visibleAreaColor, .5);
-            } else {
-                fragColor = mix(fragColor, helsing_invisibleAreaColor, .5);
+            float vis = shadow(viewPos);
+            // vis==2：超出点光源半径，不染色；否则按硬比较 0/1（略放宽避免浮点贴边）
+            if (vis <= 1.0) {
+                if (vis >= 0.5) {
+                    fragColor = mix(fragColor, helsing_visibleAreaColor, .5);
+                } else {
+                    fragColor = mix(fragColor, helsing_invisibleAreaColor, .5);
+                }
             }
         }
     }

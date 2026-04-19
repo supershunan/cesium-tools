@@ -1,11 +1,11 @@
 import * as Cesium from 'cesium';
 import Draw from './draw';
 import ViewShed from './visualFieldAnalysis';
-import { ViewShedOptionalOptions } from './type';
+import { DrawOptionsImpl, ViewShedOptionalOptions } from './type';
 import { EventCallback } from '../../type/type';
 
 export interface VisualFieldAnalysis {
-    active: () => void;
+    active: (options?: DrawOptionsImpl) => void;
     deactivate: () => void;
     clear: () => void;
     setInstance: (viewer: Cesium.Viewer) => void;
@@ -21,7 +21,6 @@ export interface VisualFieldAnalysis {
 
 let instance: Draw | null = null;
 let currentViewer: Cesium.Viewer | null = null;
-
 function ensureInstance(): Draw {
     if (!instance && currentViewer) {
         const handler = new Cesium.ScreenSpaceEventHandler(currentViewer.scene.canvas);
@@ -36,8 +35,8 @@ function ensureInstance(): Draw {
 }
 
 const screenSpaceEventHandler: VisualFieldAnalysis = {
-    active: () => {
-        ensureInstance().active();
+    active: (options?: DrawOptionsImpl) => {
+        ensureInstance().active(options);
     },
     deactivate: () => {
         instance?.deactivate();
@@ -60,6 +59,7 @@ const screenSpaceEventHandler: VisualFieldAnalysis = {
     },
     cleanInstance: () => {
         if (instance) {
+            instance.drawViewshedEntity?.clear();
             instance.handler.destroy();
             instance = null;
         }

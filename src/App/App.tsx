@@ -67,13 +67,13 @@ function App() {
         <div>
             <div id="cesiumContainer" style={{ width: '100%', height: '100vh' }}></div>
             {/* 工具类 用于调试和测试 */}
-            {/* {viewer ? <Tools viewer={viewer} /> : null} */}
+            {viewer ? <Tools viewer={viewer as Cesium.Viewer} /> : null}
             {/* 单个雷达数据图层渲染 3dtitles 使用 fxt 测雨雷达数据 */}
             {/* <CloseTo3dtitles viewer={viewer as Cesium.Viewer} /> */}
             {/* 单个雷达数据图层渲染 使用 fxt 测雨雷达数据 */}
             {/* <CloseToTheGround viewer={viewer as Cesium.Viewer} /> */}
             {/* 多个雷达数据图层渲染 使用 fxt 测雨雷达数据 */}
-            <MultsCloseToTheGround viewer={viewer as Cesium.Viewer} />
+            {/* <MultsCloseToTheGround viewer={viewer as Cesium.Viewer} /> */}
             {/* 地球投影图层 使用的 fxt 数据 */}
             {/* <EarthProjection viewer={viewer as Cesium.Viewer} /> */}
             {/* 3dtiles 模拟墙体变形 */}

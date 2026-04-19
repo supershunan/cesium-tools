@@ -18,6 +18,15 @@ import { useDrawing, DrawingActions } from '@tools/draw/index';
 import useCesiumToolsManage from '@tools/eventTarget/index';
 
 export {
+    GridDataReader,
+    readGridHeaderFromFile,
+    readGridDataFromFile,
+    handleFileUpload,
+    shouldFlipLatitudeRowsForCesium,
+} from '@tools/radarLayer/index';
+export { AnimatedRasterLayer } from '@tools/radarLayer/AnimatedRasterLayer';
+
+export {
     useDrawing,
     useMeasure,
     useTurntableSwing,
@@ -26,6 +35,17 @@ export {
     useSlopeDirectionAnalysis,
     useCesiumToolsManage,
 };
+
+export type { GridHeader, GridFrame } from '@tools/radarLayer/index';
+export type {
+    GridHeader as AnimatedRasterLayerHeader,
+    AnimatedGridCellInfo,
+    DynamicRasterInteractionOptions,
+    RasterColorStop,
+    PolygonMaskCoord,
+    AnimatedRasterLayerOptions,
+    AnimatedGridFrame,
+} from '@tools/radarLayer/AnimatedRasterLayer';
 
 export type {
     DrawingActions,

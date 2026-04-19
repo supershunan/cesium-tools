@@ -2,7 +2,7 @@ import * as Cesium from 'cesium';
 import ViewShed from './visualFieldAnalysis';
 import PlotDrawTip from '../mouseRemove/PlotDrawTip';
 import MouseDrawBase from '../mouseBase/mouseBase';
-import { ViewShedOptionalOptions } from './type';
+import { DrawOptionsImpl, ViewShedOptionalOptions } from './type';
 import { CurrentCountEnum, ToolsEventTypeEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
 
@@ -12,19 +12,23 @@ export default class Draw extends MouseDrawBase {
     private currentClickCount: CurrentCountEnum;
     drawViewshedEntity?: ViewShed;
     private plotDrawTip?: PlotDrawTip;
+    private options: DrawOptionsImpl;
 
     constructor(viewer: Cesium.Viewer, handler: Cesium.ScreenSpaceEventHandler) {
         super(viewer, handler);
         this.viewer = viewer;
         this.handler = handler;
         this.currentClickCount = CurrentCountEnum.padding;
+        this.options = { startText: '左键点击开始绘制', endText: '左键点击结束点，完成绘制' };
     }
 
-    active(): void {
+    active(options?: DrawOptionsImpl): void {
+        if (options) this.options = { ...this.options, ...options };
+        this.drawViewshedEntity?.clear();
         this.deactivate();
         this.registerEvents();
         this.plotDrawTip = new PlotDrawTip(this.viewer);
-        this.plotDrawTip.setContent(['左键点击开始绘制']);
+        this.plotDrawTip.setContent([this.options.startText]);
     }
 
     clear(): void {
@@ -54,7 +58,7 @@ export default class Draw extends MouseDrawBase {
             if (!currentPosition || !Cesium.defined(currentPosition)) return;
 
             if (this.currentClickCount === CurrentCountEnum.start) {
-                this.plotDrawTip?.setContent(['左键点击结束点，完成绘制']);
+                this.plotDrawTip?.setContent([this.options.endText]);
                 if (!this.drawViewshedEntity) {
                     this.drawViewshedEntity = new ViewShed(this.viewer, {
                         viewPosition: currentPosition,

@@ -12,7 +12,7 @@ import './tools.css';
 
 export default function Tools({ viewer }: { viewer: Cesium.Viewer }) {
     const [measure, setMeasure] = useState<Cesium.Viewer>();
-    const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
+    const { measureDistance, measureArea, measureAngle } = useMeasure(
         measure as Cesium.Viewer,
         Cesium
     );
@@ -47,9 +47,9 @@ export default function Tools({ viewer }: { viewer: Cesium.Viewer }) {
         measureDistance.active({
             clampToGround: true,
             line: {
-                customRender: (vlaue) => {
-                    return `距离自定义${vlaue}`;
-                },
+                // customRender: (meters) => {
+                //     return `距离自定义${(meters / 1000).toFixed(3)}km`;
+                // },
             },
         });
     };
@@ -57,20 +57,20 @@ export default function Tools({ viewer }: { viewer: Cesium.Viewer }) {
     const handleArea = () => {
         measureArea.active({
             area: {
-                customRender: (vlaue1, value2) => {
-                    return `2d面积自定义${vlaue1}, 2d面积自定义${value2}`;
-                },
+                // customRender: (area2d, area3d) => {
+                //     return `平面 ${area2d.toFixed(2)} m²，贴地 ${area3d?.toFixed(2) ?? '—'} m²`;
+                // },
             },
         });
     };
 
     const handleAngle = () => {
         measureAngle.active({
-            clampToGround: true,
+            clampToGround: false,
             angle: {
                 show: true,
-                font: 'bold 18px MicroSoft YaHei',
-                scale: 1.5,
+                font: 'bold 12px MicroSoft YaHei',
+                // scale: 1.5,
                 outlineWidth: 2,
             },
         });

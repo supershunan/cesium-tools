@@ -34,6 +34,11 @@ export interface ViewShedOptions {
     size?: number;
 }
 
+export interface DrawOptionsImpl {
+    startText: string;
+    endText: string;
+}
+
 export type ViewShedOptionalOptions = Omit<
     ViewShedOptions,
     'viewPosition' | 'viewPositionEnd' | 'viewDistance' | 'viewHeading' | 'viewPitch'

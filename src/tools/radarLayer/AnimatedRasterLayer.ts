@@ -45,7 +45,9 @@ export type AnimatedRasterLayerOptions = {
     clampToGround?: boolean;
     /** 是否渐变颜色 */
     gradientEnabled?: boolean;
+    /** 图例规则数组，默认 DEFAULT_COLOR_STOPS */
     colorRamp?: RasterColorStop[];
+    /** 交互配置 */
     interactionOptions?: DynamicRasterInteractionOptions;
     /**
      * 多边形遮罩顶点列表（[经度, 纬度] 度数）。
@@ -61,6 +63,11 @@ export type AnimatedGridFrame = {
     heightMeters?: number;
     opacity?: number;
     skipRequestRender?: boolean;
+    /**
+     * true 且已有 Primitive/Material 时：只刷新透明度 uniform，不重绘纹理、不重算矩形。
+     * 用于格点不变仅调透明度；header/grid 仍可带上一次相同的数据以满足类型。
+     */
+    opacityOnly?: boolean;
 };
 
 const DEFAULT_COLOR_STOPS: RasterColorStop[] = [
@@ -243,6 +250,7 @@ export class AnimatedRasterLayer {
     private currentRectangle: Cesium.Rectangle | null = null;
     private currentHeader: GridHeader | null = null;
     private currentGrid: number[][] | null = null;
+    private _show = true;
 
     private hoveredCell: { xIndex: number; yIndex: number } | null = null;
     private eventHandler: Cesium.ScreenSpaceEventHandler | null = null;
@@ -317,6 +325,16 @@ export class AnimatedRasterLayer {
     }
 
     public update(frame: AnimatedGridFrame): void {
+        if (frame.opacityOnly && this.primitive && this.material) {
+            if (frame.opacity !== undefined) {
+                const o = Number(frame.opacity);
+                if (Number.isFinite(o)) this.currentOpacity = Math.max(0, Math.min(1, o));
+            }
+            this.syncOpacityToPrimitiveOrImageryOnly();
+            if (!frame.skipRequestRender) this.viewer.scene.requestRender();
+            return;
+        }
+
         const { header, grid } = frame;
         if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0]) || !grid[0].length)
             return;
@@ -341,7 +359,8 @@ export class AnimatedRasterLayer {
 
         const rectangle = this.buildRectangle(header, width, height);
         this.currentRectangle = rectangle;
-        const nextBoundsKey = `${header.xStart}_${header.yStart}_${header.xEnd}_${header.yEnd}_${this.currentHeightMeters}_${this.currentOpacity}`;
+        // 透明度不应参与 boundsKey，否则仅改透明度也会重建 Primitive；透明度由 shader u_layerAlpha 控制
+        const nextBoundsKey = `${header.xStart}_${header.yStart}_${header.xEnd}_${header.yEnd}_${this.currentHeightMeters}`;
 
         this.bufferIndex = (this.bufferIndex + 1) % 2;
         const targetCanvas = this.canvasPool[this.bufferIndex];
@@ -381,6 +400,63 @@ export class AnimatedRasterLayer {
     }
 
     /**
+     * @param options - { opacity?: number; colorRamp?: RasterColorStop[] } 样式配置
+     * @description 设置样式配置，根据样式配置设置样式配置
+     * @example
+     * const options = {
+     *     opacity: 1, // 透明度
+     *     colorRamp: [ { maxValue: 10, color: [62, 160, 239] }, { maxValue: 20, color: [108, 225, 238] }, { maxValue: 30, color: [96, 214, 63] } ] // 颜色渐变
+     * };
+     */
+    public setStyleOptions(options: {
+        opacity?: number;
+        colorRamp?: RasterColorStop[];
+        skipRequestRender?: boolean;
+    }): void {
+        const skipReq = options.skipRequestRender ?? false;
+        const rampProvided = options.colorRamp !== undefined;
+
+        if (options.opacity !== undefined) {
+            const o = Number(options.opacity);
+            if (Number.isFinite(o)) this.currentOpacity = Math.max(0, Math.min(1, o));
+        }
+
+        if (rampProvided) {
+            this.colorStops = this.normalizeColorStops(options.colorRamp!);
+            if (this.currentHeader && this.currentGrid) {
+                this.boundsKey = '';
+                this.update({
+                    header: this.currentHeader,
+                    grid: this.currentGrid,
+                    heightMeters: this.currentHeightMeters,
+                    opacity: this.currentOpacity,
+                    skipRequestRender: skipReq,
+                });
+            } else {
+                this.syncOpacityToPrimitiveOrImageryOnly();
+                if (!skipReq) this.viewer.scene.requestRender();
+            }
+            return;
+        }
+
+        this.syncOpacityToPrimitiveOrImageryOnly();
+        if (!skipReq) this.viewer.scene.requestRender();
+    }
+
+    /** 仅同步透明度（Material u_layerAlpha / 硬边 ImageryLayer.alpha），不重建、不重绘格点纹理 */
+    private syncOpacityToPrimitiveOrImageryOnly(): void {
+        const uniforms = this.material?.uniforms as {
+            u_layerAlpha?: number;
+        } | null;
+        if (uniforms?.u_layerAlpha !== undefined) {
+            uniforms.u_layerAlpha = this.currentOpacity;
+        }
+        if (this.hardEdgeImageryLayer) {
+            this.hardEdgeImageryLayer.alpha = this.currentOpacity;
+        }
+    }
+
+    /**
      *
      * @param stops - RasterColorStop[] | undefined 原始颜色渐变
      * @description 设置颜色渐变，根据原始颜色渐变设置颜色渐变
@@ -396,7 +472,7 @@ export class AnimatedRasterLayer {
     public setColorRamp(stops?: RasterColorStop[]): void {
         this.colorStops = this.normalizeColorStops(stops ?? DEFAULT_COLOR_STOPS);
         if (this.currentHeader && this.currentGrid) {
-            if (!this.clampToGround) this.boundsKey = '';
+            this.boundsKey = '';
             this.update({
                 header: this.currentHeader,
                 grid: this.currentGrid,
@@ -526,6 +602,17 @@ export class AnimatedRasterLayer {
     public pickValue(longitude: number, latitude: number): number | null {
         const cell = this.resolveCellFromLonLat(longitude, latitude);
         return cell?.value ?? null;
+    }
+
+    public get show(): boolean {
+        return this._show;
+    }
+
+    public set show(val: boolean) {
+        this._show = val;
+        if (this.primitive) this.primitive.show = val;
+        if (this.hardEdgeImageryLayer) this.hardEdgeImageryLayer.show = val;
+        this.viewer.scene.requestRender();
     }
 
     public destroy(): void {
@@ -860,21 +947,37 @@ export class AnimatedRasterLayer {
      * packGridToTexture(grid, width, height);
      * console.log(packed);
      */
+    private getColorRampMaxValue(): number {
+        for (let i = this.colorStops.length - 1; i >= 0; i--) {
+            if (Number.isFinite(this.colorStops[i].maxValue)) {
+                return this.colorStops[i].maxValue;
+            }
+        }
+        return 80;
+    }
+
     private packGridToTexture(grid: number[][], width: number, height: number): void {
         const packed = this.reusedImageData!.data;
+        const maxVal = this.getColorRampMaxValue();
         for (let y = 0; y < height; y++) {
             for (let x = 0; x < width; x++) {
                 const value = grid[y]?.[x] ?? NaN;
                 const idx = (y * width + x) * 4;
-                if (!Number.isFinite(value)) {
+                if (
+                    !Number.isFinite(value) ||
+                    Number(value) <= 0 ||
+                    Number(value) < this.colorStops[0].maxValue
+                ) {
                     packed[idx] = 255;
                     packed[idx + 1] = 255;
                     packed[idx + 2] = 0;
                     packed[idx + 3] = 255;
                     continue;
                 }
-                const normalized = Math.max(0, Math.min(1, value / 80));
-                const encoded = Math.round(normalized * 65534);
+                const normalized = Math.max(0, Math.min(1, value / maxVal));
+                // 用 floor 与 shader 解码一致，避免 round 边界进位导致 30.x 归入下一档颜色（如误判为 35）
+                const t = normalized * 65534;
+                const encoded = Math.max(0, Math.min(65534, Math.floor(t + 1e-12)));
                 packed[idx] = (encoded >> 8) & 255;
                 packed[idx + 1] = encoded & 255;
                 packed[idx + 2] = 0;
@@ -955,6 +1058,7 @@ export class AnimatedRasterLayer {
             });
         }
         this.viewer.scene.primitives.add(this.primitive);
+        this.primitive.show = this._show;
     }
 
     /**
@@ -1007,6 +1111,7 @@ export class AnimatedRasterLayer {
                     }
                 }`;
 
+        const maxValGlsl = this.toGlslNumber(this.getColorRampMaxValue());
         if (!this.gradientEnabled) {
             const colorRampCode = this.buildColorRampGlsl();
             return `
@@ -1023,7 +1128,7 @@ export class AnimatedRasterLayer {
                         material.alpha = 0.0;
                         return material;
                     }
-                    float value = (encoded / 65534.0) * 80.0;
+                    float value = clamp(floor(encoded) / 65534.0, 0.0, 1.0) * ${maxValGlsl};
                     ${colorRampCode}
                     ${hoverGlsl}
                     material.diffuse = color;
@@ -1064,10 +1169,10 @@ export class AnimatedRasterLayer {
                 if (e10 >= 65535.0) e10 = e00;
                 if (e01 >= 65535.0) e01 = e00;
                 if (e11 >= 65535.0) e11 = e00;
-                vec3 c00 = _rampColorFn((e00 / 65534.0) * 80.0);
-                vec3 c10 = _rampColorFn((e10 / 65534.0) * 80.0);
-                vec3 c01 = _rampColorFn((e01 / 65534.0) * 80.0);
-                vec3 c11 = _rampColorFn((e11 / 65534.0) * 80.0);
+                vec3 c00 = _rampColorFn(clamp(floor(e00) / 65534.0, 0.0, 1.0) * ${maxValGlsl});
+                vec3 c10 = _rampColorFn(clamp(floor(e10) / 65534.0, 0.0, 1.0) * ${maxValGlsl});
+                vec3 c01 = _rampColorFn(clamp(floor(e01) / 65534.0, 0.0, 1.0) * ${maxValGlsl});
+                vec3 c11 = _rampColorFn(clamp(floor(e11) / 65534.0, 0.0, 1.0) * ${maxValGlsl});
                 vec3 color = mix(mix(c00, c10, f.x), mix(c01, c11, f.x), f.y);
                 ${hoverGlsl}
                 material.diffuse = color;
@@ -1085,7 +1190,9 @@ export class AnimatedRasterLayer {
         const body = this.buildColorRampGlsl();
         const indented = body
             .split('\n')
-            .map((line) => `    ${line}`)
+            .map((line) => {
+                return `    ${line}`;
+            })
             .join('\n');
         return `vec3 _rampColorFn(float value) {\n${indented}\n    return color;\n}`;
     }
@@ -1128,7 +1235,9 @@ export class AnimatedRasterLayer {
         stops: RasterColorStop[],
         fallback: [number, number, number]
     ): string {
-        const finiteStops = stops.filter((s) => Number.isFinite(s.maxValue));
+        const finiteStops = stops.filter((s) => {
+            return Number.isFinite(s.maxValue);
+        });
         const lines: string[] = [`vec3 color = ${this.toGlslColor(fallback)};`];
 
         finiteStops.forEach((stop, index) => {
@@ -1373,6 +1482,7 @@ export class AnimatedRasterLayer {
                 }
             );
             nextLayer.alpha = opacity;
+            nextLayer.show = this._show;
             this.viewer.imageryLayers.add(nextLayer);
             this.hardEdgeImageryLayer = nextLayer;
             this.hardEdgeBoundsKey = boundsKey;
@@ -1426,10 +1536,12 @@ export class AnimatedRasterLayer {
             const lonRange = east - west;
             const latRange = north - south;
             if (lonRange > 0 && latRange > 0) {
-                maskUV = this.maskPolygon.map(([lon, lat]) => [
-                    Math.max(0, Math.min(1, (lon - west) / lonRange)),
-                    Math.max(0, Math.min(1, (lat - south) / latRange)),
-                ]);
+                maskUV = this.maskPolygon.map(([lon, lat]) => {
+                    return [
+                        Math.max(0, Math.min(1, (lon - west) / lonRange)),
+                        Math.max(0, Math.min(1, (lat - south) / latRange)),
+                    ];
+                });
             }
         }
 

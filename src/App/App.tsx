@@ -12,7 +12,7 @@ import Tools from '../components/tools/Tools';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 const accessToken =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiI1MWQzMDI1Ni1kMjljLTQzZWEtYWIyZS0wYzRiMTA3ZTRlZjEiLCJpZCI6MzY3NDEyLCJpYXQiOjE3NjUyMDE5MjF9.CzIQ4rTSniTTEW4tt2CQkqmTRPGhEvCJqtu6SlTrJKM';
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzMTg0NGMyMy1hOTI5LTRkZjYtYjBmMC04MDRjZDIxM2Q4MTMiLCJpZCI6MzY3NDEyLCJpYXQiOjE3NjUxMjIwMzd9.WaqRblAV6OnS3xQLvshZh6yg8T87AjN4oU_bb2rqRQQ';
 
 function App() {
     const [viewer, setViewer] = useState<Cesium.Viewer | null>(null);
@@ -22,7 +22,7 @@ function App() {
 
         const v = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            terrain: Cesium.Terrain.fromWorldTerrain(),
+            // terrain: Cesium.Terrain.fromWorldTerrain(),
             // terrain: new Cesium.Terrain(
             //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
             //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
@@ -71,7 +71,7 @@ function App() {
             {/* 单个雷达数据图层渲染 3dtitles 使用 fxt 测雨雷达数据 */}
             {/* <CloseTo3dtitles viewer={viewer as Cesium.Viewer} /> */}
             {/* 单个雷达数据图层渲染 使用 fxt 测雨雷达数据 */}
-            {/* <CloseToTheGround viewer={viewer as Cesium.Viewer} /> */}
+            <CloseToTheGround viewer={viewer as Cesium.Viewer} />
             {/* 多个雷达数据图层渲染 使用 fxt 测雨雷达数据 */}
             {/* <MultsCloseToTheGround viewer={viewer as Cesium.Viewer} /> */}
             {/* 地球投影图层 使用的 fxt 数据 */}

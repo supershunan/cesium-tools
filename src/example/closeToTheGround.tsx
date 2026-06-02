@@ -1,17 +1,23 @@
 import { useEffect, useRef } from 'react';
 import * as Cesium from 'cesium';
 import { AnimatedRasterLayer } from '@src/tools/radarLayer/AnimatedRasterLayer';
-import { GridDataReader, GridHeader } from '@src/tools/radarLayer';
+import {
+    GridDataReader,
+    GridHeader,
+    applyPolygonMaskToGridResult as applyPolygonMaskToGridResultFromRadar,
+    normalizeGeoJsonMaskPolygons as normalizeGeoJsonMaskPolygonsFromRadar,
+    type LonLat,
+    type MaskableGridResult,
+    type PolygonMask as RadarPolygonMask,
+} from '@src/tools/radarLayer';
+import shanxi from '../example/陕西省.json';
 
-type GridResult = {
-    header: GridHeader & { times?: number; levels?: number };
-    data: number[][][][] | null;
+type GridResult = MaskableGridResult & {
     flatData?: Float32Array;
-    getLevelSlice?: (timeIndex: number, levelIndex: number) => number[][];
 };
+const PERF_TAG = '[mask-perf]';
 
 export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) {
-    const baseUrl = 'http://222.74.18.86:7085/fxtraincold/';
     const dataURL = [
         'pythonfile/SX002/2025-08-09/SX002_20250809120000_CR.zip',
         'pythonfile/SX002/2025-08-09/SX002_20250809120500_CR.zip',
@@ -67,10 +73,82 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
     const staticLayer = useRef<AnimatedRasterLayer[]>([]);
     const frameIndex = useRef(0);
     const resultRef = useRef<GridResult | null>(null);
+    const shanxiMaskPolygons = useRef<RadarPolygonMask[]>(
+        normalizeGeoJsonMaskPolygonsFromRadar(shanxi)
+    );
+    const gridResultCache = useRef<Map<string, GridResult>>(new Map());
+    const shanxiBoundaryEntities = useRef<Cesium.Entity[]>([]);
 
-    const loadGridResult = async (url: string) => {
+    useEffect(() => {
+        if (!viewer) return;
+        shanxiBoundaryEntities.current.forEach((entity) => {
+            viewer.entities.remove(entity);
+        });
+        shanxiBoundaryEntities.current = [];
+
+        const buildBoundaryPositions = (ring: LonLat[]) => {
+            if (!Array.isArray(ring) || ring.length < 2) {
+                return null;
+            }
+            const points = ring.slice();
+            const first = points[0];
+            const last = points[points.length - 1];
+            if (first && last && (first[0] !== last[0] || first[1] !== last[1])) {
+                points.push(first);
+            }
+            return Cesium.Cartesian3.fromDegreesArray(points.flat());
+        };
+
+        shanxiMaskPolygons.current.forEach((polygon) => {
+            const outerPositions = buildBoundaryPositions(polygon.outer);
+            if (outerPositions) {
+                const entity = viewer.entities.add({
+                    polyline: {
+                        positions: outerPositions,
+                        clampToGround: true,
+                        width: 2,
+                        material: Cesium.Color.YELLOW,
+                    },
+                });
+                shanxiBoundaryEntities.current.push(entity);
+            }
+
+            polygon.holes.forEach((hole) => {
+                const holePositions = buildBoundaryPositions(hole);
+                if (!holePositions) return;
+                const holeEntity = viewer.entities.add({
+                    polyline: {
+                        positions: holePositions,
+                        clampToGround: true,
+                        width: 1,
+                        material: Cesium.Color.ORANGE.withAlpha(0.9),
+                    },
+                });
+                shanxiBoundaryEntities.current.push(holeEntity);
+            });
+        });
+
+        return () => {
+            shanxiBoundaryEntities.current.forEach((entity) => {
+                viewer.entities.remove(entity);
+            });
+            shanxiBoundaryEntities.current = [];
+        };
+    }, [viewer]);
+
+    const loadGridResult = async () => {
+        const totalStartAt = performance.now();
+        const requestUrl = '/public/resources/RADAR_PRE_2.0_20260601000000_result.zip';
+        const cacheKey = requestUrl;
+        const cached = gridResultCache.current.get(cacheKey);
+        if (cached) {
+            const elapsed = performance.now() - totalStartAt;
+            console.info(`${PERF_TAG} loadGridResult cache-hit ${elapsed.toFixed(1)}ms`);
+            return cached;
+        }
         try {
-            const res = await fetch(url, {
+            const fetchStartAt = performance.now();
+            const res = await fetch(requestUrl, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/zip',
@@ -79,9 +157,27 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             if (!res.ok) {
                 return null;
             }
+            const afterFetchAt = performance.now();
             const reader = new GridDataReader();
-            const parsed = (await reader.readCompressedGridData(await res.blob())) as GridResult;
-            return parsed;
+            const blob = await res.blob();
+            const afterBlobAt = performance.now();
+            const parsed = (await reader.readCompressedGridData(blob)) as GridResult;
+            const afterParseAt = performance.now();
+            const masked = await applyPolygonMaskToGridResultFromRadar(
+                parsed,
+                shanxiMaskPolygons.current,
+                { logTag: PERF_TAG }
+            );
+            const afterMaskAt = performance.now();
+            gridResultCache.current.set(cacheKey, masked);
+            console.info(
+                `${PERF_TAG} loadGridResult total=${(afterMaskAt - totalStartAt).toFixed(1)}ms ` +
+                    `(fetch=${(afterFetchAt - fetchStartAt).toFixed(1)}ms, ` +
+                    `blob=${(afterBlobAt - afterFetchAt).toFixed(1)}ms, ` +
+                    `parse=${(afterParseAt - afterBlobAt).toFixed(1)}ms, ` +
+                    `mask=${(afterMaskAt - afterParseAt).toFixed(1)}ms)`
+            );
+            return masked;
         } catch (error) {
             return null;
         }
@@ -90,8 +186,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
     /** 多层动画数据渲染 */
     const renderMultiAnimatedLayerFrame = async () => {
         if (!resultRef.current) {
-            const url = dataURL[frameIndex.current];
-            const result = await loadGridResult(baseUrl + url);
+            const result = await loadGridResult();
             resultRef.current = result;
         }
         const times = Number(
@@ -159,7 +254,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
 
     /** 多层静态数据渲染 */
     const renderMultiStaticLayerFrame = async (isNext: boolean = true) => {
-        const result = await loadGridResult(baseUrl + dataURL[frameIndex.current]);
+        const result = await loadGridResult();
         if (!result) {
             return;
         }

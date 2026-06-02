@@ -87,6 +87,9 @@ const DEFAULT_COLOR_STOPS: RasterColorStop[] = [
     { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
 ];
 
+/** 遮罩顶点上限：过大时会导致片元着色器逐像素射线法开销过高 */
+const MAX_MASK_VERTEX_COUNT = 256;
+
 /**
  * 直接将 canvas 最新像素上传到 ImageryLayer 缓存中已有的 GPU 纹理。
  *
@@ -320,7 +323,7 @@ export class AnimatedRasterLayer {
             this.setInteractionOptions(options.interactionOptions);
         }
         if (options?.maskPolygon) {
-            this.maskPolygon = options.maskPolygon.length >= 3 ? options.maskPolygon : null;
+            this.maskPolygon = this.normalizeMaskPolygon(options.maskPolygon);
         }
     }
 
@@ -488,7 +491,7 @@ export class AnimatedRasterLayer {
      * @description 设置多边形遮罩，多边形内部可见，外部隐藏。
      */
     public setMaskPolygon(coords: PolygonMaskCoord[] | null): void {
-        this.maskPolygon = coords && coords.length >= 3 ? coords : null;
+        this.maskPolygon = this.normalizeMaskPolygon(coords);
         const header = this.currentHeader;
         const grid = this.currentGrid;
         // 先重绘硬边界（同步 currentRectangle），再更新 u_maskTex，避免遮罩 UV 与范围不同步
@@ -504,6 +507,54 @@ export class AnimatedRasterLayer {
         }
         this.updateMaskTexture();
         this.viewer.scene.requestRender();
+    }
+
+    /**
+     * 规范化遮罩顶点：去除闭环重复点并在超大顶点数时降采样，避免 shader 逐像素循环过重。
+     */
+    private normalizeMaskPolygon(
+        coords: PolygonMaskCoord[] | null | undefined
+    ): PolygonMaskCoord[] | null {
+        if (!coords || coords.length < 3) return null;
+
+        const normalized = coords.slice();
+        const first = normalized[0];
+        const last = normalized[normalized.length - 1];
+        // GeoJSON 常见首尾闭环重复点，射线法里不需要重复存一份。
+        if (first && last && first[0] === last[0] && first[1] === last[1]) {
+            normalized.pop();
+        }
+
+        if (normalized.length < 3) return null;
+        if (normalized.length <= MAX_MASK_VERTEX_COUNT) return normalized;
+
+        const simplified = this.downsamplePolygon(normalized, MAX_MASK_VERTEX_COUNT);
+        return simplified.length >= 3 ? simplified : null;
+    }
+
+    /** 等距降采样，多用于行政区复杂边界的性能保护。 */
+    private downsamplePolygon(
+        polygon: PolygonMaskCoord[],
+        targetCount: number
+    ): PolygonMaskCoord[] {
+        if (polygon.length <= targetCount) return polygon.slice();
+        if (targetCount < 3) return polygon.slice(0, 3);
+
+        const result: PolygonMaskCoord[] = [];
+        const lastIndex = polygon.length - 1;
+        for (let i = 0; i < targetCount; i++) {
+            const idx = Math.round((i * lastIndex) / (targetCount - 1));
+            const point = polygon[idx];
+            if (!point) continue;
+            if (
+                result.length === 0 ||
+                result[result.length - 1][0] !== point[0] ||
+                result[result.length - 1][1] !== point[1]
+            ) {
+                result.push(point);
+            }
+        }
+        return result;
     }
 
     /**
@@ -668,10 +719,18 @@ export class AnimatedRasterLayer {
 
         const imageData = ctx.createImageData(2 * vertexCount, 1);
         const data = imageData.data;
+        let minS = 1;
+        let minT = 1;
+        let maxS = 0;
+        let maxT = 0;
 
         this.maskPolygon.forEach(([lon, lat], i) => {
             const s = Math.max(0, Math.min(1, (lon - west) / lonRange));
             const t = Math.max(0, Math.min(1, (lat - south) / latRange));
+            minS = Math.min(minS, s);
+            minT = Math.min(minT, t);
+            maxS = Math.max(maxS, s);
+            maxT = Math.max(maxT, t);
             const encS = Math.round(s * 65535);
             const encT = Math.round(t * 65535);
             // 像素 2i：s 坐标，alpha=255 防止预乘 alpha 损坏 r/g 通道
@@ -689,17 +748,31 @@ export class AnimatedRasterLayer {
         });
 
         ctx.putImageData(imageData, 0, 0);
-        this.syncPolyUniforms(canvas, vertexCount);
+        this.syncPolyUniforms(
+            canvas,
+            vertexCount,
+            new Cesium.Cartesian2(minS, minT),
+            new Cesium.Cartesian2(maxS, maxT)
+        );
     }
 
-    private syncPolyUniforms(canvas: HTMLCanvasElement, vertexCount: number): void {
+    private syncPolyUniforms(
+        canvas: HTMLCanvasElement,
+        vertexCount: number,
+        maskMin: Cesium.Cartesian2 = new Cesium.Cartesian2(0, 0),
+        maskMax: Cesium.Cartesian2 = new Cesium.Cartesian2(1, 1)
+    ): void {
         const uniforms = this.material?.uniforms as {
             u_maskTex?: HTMLCanvasElement;
             u_polyCount?: number;
+            u_maskMin?: Cesium.Cartesian2;
+            u_maskMax?: Cesium.Cartesian2;
         } | null;
         if (!uniforms) return;
         uniforms.u_maskTex = canvas;
         uniforms.u_polyCount = vertexCount;
+        uniforms.u_maskMin = maskMin;
+        uniforms.u_maskMax = maskMax;
     }
 
     private destroyInteractionHandler(): void {
@@ -1023,6 +1096,8 @@ export class AnimatedRasterLayer {
                     u_hoverAlpha: this.interactionOptions.hoverAlpha,
                     u_maskTex: this.maskCanvasPool[this.maskBufferIndex],
                     u_polyCount: 0.0,
+                    u_maskMin: new Cesium.Cartesian2(0, 0),
+                    u_maskMax: new Cesium.Cartesian2(1, 1),
                 },
                 source: this.buildShaderSource(),
             },
@@ -1077,10 +1152,14 @@ export class AnimatedRasterLayer {
                 int _pn = int(u_polyCount);
                 if (_pn >= 3) {
                     vec2 _p = materialInput.st;
+                    if (_p.x < u_maskMin.x || _p.x > u_maskMax.x || _p.y < u_maskMin.y || _p.y > u_maskMax.y) {
+                        material.alpha = 0.0;
+                        return material;
+                    }
                     bool _inside = false;
                     float _tw = float(2 * _pn);
                     int _j = _pn - 1;
-                    for (int _i = 0; _i < 1024; _i++) {
+                    for (int _i = 0; _i < ${MAX_MASK_VERTEX_COUNT}; _i++) {
                         if (_i >= _pn) break;
                         vec4 _si = texture(u_maskTex, vec2((float(2 * _i)     + 0.5) / _tw, 0.5));
                         vec4 _ti = texture(u_maskTex, vec2((float(2 * _i + 1) + 0.5) / _tw, 0.5));

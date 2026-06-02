@@ -21,6 +21,20 @@ export type GridFrame = {
     opacity?: number;
 };
 
+export type LonLat = [number, number];
+
+export type PolygonMask = {
+    outer: LonLat[];
+    holes: LonLat[][];
+    bbox: [number, number, number, number];
+};
+
+export type MaskableGridResult = {
+    header: GridHeader & { times?: number; levels?: number };
+    data: number[][][][] | null;
+    getLevelSlice?: (timeIndex: number, levelIndex: number) => number[][];
+};
+
 /**
  * Cesium 贴地/纹理第 0 行对应北侧；文件 y 从南向北递增（纬度增大）时，
  * 若不翻转行序，贴图会与地理南北镜像。
@@ -51,6 +65,360 @@ export function shouldFlipLatitudeRowsForCesium(header: {
         return yStart < yEnd;
     }
     return false;
+}
+
+function polygonAreaAbs(coords: LonLat[]): number {
+    if (!Array.isArray(coords) || coords.length < 3) {
+        return 0;
+    }
+    let sum = 0;
+    for (let i = 0; i < coords.length; i++) {
+        const [x1, y1] = coords[i];
+        const [x2, y2] = coords[(i + 1) % coords.length];
+        sum += x1 * y2 - x2 * y1;
+    }
+    return Math.abs(sum) * 0.5;
+}
+
+function ringBbox(coords: LonLat[]): [number, number, number, number] {
+    let minLon = Number.POSITIVE_INFINITY;
+    let minLat = Number.POSITIVE_INFINITY;
+    let maxLon = Number.NEGATIVE_INFINITY;
+    let maxLat = Number.NEGATIVE_INFINITY;
+    coords.forEach(([lon, lat]) => {
+        minLon = Math.min(minLon, lon);
+        minLat = Math.min(minLat, lat);
+        maxLon = Math.max(maxLon, lon);
+        maxLat = Math.max(maxLat, lat);
+    });
+    return [minLon, minLat, maxLon, maxLat];
+}
+
+export function normalizeGeoJsonMaskPolygons(input: unknown): PolygonMask[] {
+    if (!input || typeof input !== 'object') {
+        return [];
+    }
+
+    type PolygonGeometryLike = { type: 'Polygon'; coordinates?: unknown[] };
+    type MultiPolygonGeometryLike = { type: 'MultiPolygon'; coordinates?: unknown[] };
+    type GeoGeometryLike = PolygonGeometryLike | MultiPolygonGeometryLike;
+    type GeoFeatureLike = { type: 'Feature'; geometry?: unknown };
+    type GeoFeatureCollectionLike = { type: 'FeatureCollection'; features?: unknown[] };
+
+    const candidates: PolygonMask[] = [];
+    const normalizeRing = (ring: unknown): LonLat[] | null => {
+        if (!Array.isArray(ring)) return null;
+        const normalized = ring
+            .map((pt) => {
+                if (Array.isArray(pt) && Number.isFinite(pt[0]) && Number.isFinite(pt[1])) {
+                    return [Number(pt[0]), Number(pt[1])] as LonLat;
+                }
+                return null;
+            })
+            .filter((pt): pt is LonLat => {
+                return !!pt;
+            });
+        if (normalized.length < 3) return null;
+        const first = normalized[0];
+        const last = normalized[normalized.length - 1];
+        if (first && last && first[0] === last[0] && first[1] === last[1]) {
+            normalized.pop();
+        }
+        return normalized.length >= 3 ? normalized : null;
+    };
+
+    const walkGeometry = (geometry: unknown) => {
+        if (!geometry || typeof geometry !== 'object') {
+            return;
+        }
+        const typedGeometry = geometry as GeoGeometryLike;
+        if (typedGeometry.type === 'Polygon') {
+            const rings = typedGeometry.coordinates;
+            if (!Array.isArray(rings) || !rings.length) return;
+            const outer = normalizeRing(rings[0]);
+            if (!outer) return;
+            const holes = rings
+                .slice(1)
+                .map((ring) => {
+                    return normalizeRing(ring);
+                })
+                .filter((ring): ring is LonLat[] => {
+                    return !!ring;
+                });
+            candidates.push({
+                outer,
+                holes,
+                bbox: ringBbox(outer),
+            });
+            return;
+        }
+        if (typedGeometry.type === 'MultiPolygon') {
+            const polygons = typedGeometry.coordinates;
+            if (!Array.isArray(polygons)) {
+                return;
+            }
+            polygons.forEach((poly: unknown) => {
+                if (!Array.isArray(poly) || !poly.length) return;
+                const outer = normalizeRing(poly[0]);
+                if (!outer) return;
+                const holes = poly
+                    .slice(1)
+                    .map((ring: unknown) => {
+                        return normalizeRing(ring);
+                    })
+                    .filter((ring): ring is LonLat[] => {
+                        return !!ring;
+                    });
+                candidates.push({
+                    outer,
+                    holes,
+                    bbox: ringBbox(outer),
+                });
+            });
+        }
+    };
+
+    const maybeGeo = input as GeoFeatureCollectionLike | GeoFeatureLike | GeoGeometryLike;
+    if (maybeGeo.type === 'FeatureCollection' && Array.isArray(maybeGeo.features)) {
+        maybeGeo.features.forEach((feature) => {
+            const typedFeature = feature as GeoFeatureLike;
+            walkGeometry(typedFeature?.geometry);
+        });
+    } else if (maybeGeo.type === 'Feature') {
+        walkGeometry(maybeGeo.geometry);
+    } else {
+        walkGeometry(maybeGeo);
+    }
+
+    return candidates.filter((poly) => {
+        return polygonAreaAbs(poly.outer) > 0;
+    });
+}
+
+function pointInPolygon(lon: number, lat: number, polygon: LonLat[]): boolean {
+    let inside = false;
+    for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+        const [xi, yi] = polygon[i];
+        const [xj, yj] = polygon[j];
+        if (yi > lat !== yj > lat && lon < xi + ((lat - yi) / (yj - yi)) * (xj - xi)) {
+            inside = !inside;
+        }
+    }
+    return inside;
+}
+
+function isInsideMaskPolygons(lon: number, lat: number, polygons: PolygonMask[]): boolean {
+    for (const polygon of polygons) {
+        const [minLon, minLat, maxLon, maxLat] = polygon.bbox;
+        if (lon < minLon || lon > maxLon || lat < minLat || lat > maxLat) {
+            continue;
+        }
+        if (!pointInPolygon(lon, lat, polygon.outer)) {
+            continue;
+        }
+        let inHole = false;
+        for (const hole of polygon.holes) {
+            if (pointInPolygon(lon, lat, hole)) {
+                inHole = true;
+                break;
+            }
+        }
+        if (!inHole) {
+            return true;
+        }
+    }
+    return false;
+}
+
+async function buildGridMask(
+    header: GridHeader,
+    width: number,
+    height: number,
+    polygons: PolygonMask[],
+    logTag?: string
+): Promise<Uint8Array> {
+    const startAt = performance.now();
+    const mask = new Uint8Array(width * height);
+    if (!polygons.length || width <= 0 || height <= 0) {
+        return mask;
+    }
+    const west = Math.min(header.xStart, header.xEnd);
+    const east = Math.max(header.xStart, header.xEnd);
+    const south = Math.min(header.yStart, header.yEnd);
+    const north = Math.max(header.yStart, header.yEnd);
+    const lonRange = east - west;
+    const latRange = north - south;
+    if (lonRange <= 0 || latRange <= 0) {
+        return mask;
+    }
+    const row0IsNorth = shouldFlipLatitudeRowsForCesium(header);
+
+    if (typeof document !== 'undefined') {
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        if (ctx) {
+            const projectX = (lon: number) => {
+                return ((lon - west) / lonRange) * width;
+            };
+            const projectY = (lat: number) => {
+                return row0IsNorth
+                    ? ((north - lat) / latRange) * height
+                    : ((lat - south) / latRange) * height;
+            };
+
+            ctx.clearRect(0, 0, width, height);
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            const traceRing = (ring: LonLat[]) => {
+                if (ring.length < 3) return;
+                const [startLon, startLat] = ring[0];
+                ctx.moveTo(projectX(startLon), projectY(startLat));
+                for (let i = 1; i < ring.length; i++) {
+                    const [lon, lat] = ring[i];
+                    ctx.lineTo(projectX(lon), projectY(lat));
+                }
+                ctx.closePath();
+            };
+            polygons.forEach((polygon) => {
+                traceRing(polygon.outer);
+                polygon.holes.forEach((hole) => {
+                    traceRing(hole);
+                });
+            });
+            ctx.fill('evenodd');
+
+            const alpha = ctx.getImageData(0, 0, width, height).data;
+            for (let i = 0; i < width * height; i++) {
+                mask[i] = alpha[i * 4 + 3] > 0 ? 1 : 0;
+            }
+            if (logTag) {
+                const elapsed = performance.now() - startAt;
+                console.info(
+                    `${logTag} buildGridMask ${elapsed.toFixed(1)}ms (grid=${width}x${height}, polygons=${polygons.length}, mode=canvas)`
+                );
+            }
+            return mask;
+        }
+    }
+
+    const lonStep = lonRange / width;
+    const latStep = latRange / height;
+    for (let y = 0; y < height; y++) {
+        const lat = row0IsNorth ? north - (y + 0.5) * latStep : south + (y + 0.5) * latStep;
+        for (let x = 0; x < width; x++) {
+            const lon = west + (x + 0.5) * lonStep;
+            mask[y * width + x] = isInsideMaskPolygons(lon, lat, polygons) ? 1 : 0;
+        }
+    }
+    if (logTag) {
+        const elapsed = performance.now() - startAt;
+        console.info(
+            `${logTag} buildGridMask ${elapsed.toFixed(1)}ms (grid=${width}x${height}, polygons=${polygons.length}, mode=fallback)`
+        );
+    }
+    return mask;
+}
+
+function applyMaskToGridInPlace(grid: number[][], mask: Uint8Array): void {
+    const height = grid.length;
+    const width = grid[0]?.length ?? 0;
+    if (height <= 0 || width <= 0 || mask.length !== width * height) {
+        return;
+    }
+    for (let y = 0; y < height; y++) {
+        const row = grid[y];
+        if (!Array.isArray(row) || row.length !== width) {
+            continue;
+        }
+        for (let x = 0; x < width; x++) {
+            if (mask[y * width + x] === 0) {
+                row[x] = Number.NaN;
+            }
+        }
+    }
+}
+
+function applyMaskToGridCopy(grid: number[][], mask: Uint8Array): number[][] {
+    const height = grid.length;
+    const width = grid[0]?.length ?? 0;
+    if (height <= 0 || width <= 0 || mask.length !== width * height) {
+        return grid;
+    }
+    return grid.map((row, y) => {
+        if (!Array.isArray(row) || row.length !== width) {
+            return row;
+        }
+        return row.map((value, x) => {
+            return mask[y * width + x] === 0 ? Number.NaN : value;
+        });
+    });
+}
+
+export async function applyPolygonMaskToGridResult(
+    result: MaskableGridResult,
+    polygons: PolygonMask[],
+    options?: { logTag?: string }
+): Promise<MaskableGridResult> {
+    const startAt = performance.now();
+    const logTag = options?.logTag;
+    if (!polygons.length) {
+        return result;
+    }
+
+    const sampleGrid =
+        result.data?.[0]?.[0] ?? (result.getLevelSlice ? result.getLevelSlice(0, 0) : null) ?? null;
+    if (
+        !sampleGrid ||
+        !Array.isArray(sampleGrid) ||
+        !sampleGrid.length ||
+        !Array.isArray(sampleGrid[0]) ||
+        !sampleGrid[0].length
+    ) {
+        return result;
+    }
+
+    const width = sampleGrid[0].length;
+    const height = sampleGrid.length;
+    const mask = await buildGridMask(result.header, width, height, polygons, logTag);
+
+    if (result.data) {
+        for (let t = 0; t < result.data.length; t++) {
+            const levels = result.data[t];
+            if (!Array.isArray(levels)) continue;
+            for (let l = 0; l < levels.length; l++) {
+                const grid = levels[l];
+                if (!Array.isArray(grid) || !grid.length) continue;
+                applyMaskToGridInPlace(grid, mask);
+            }
+        }
+        if (logTag) {
+            const elapsed = performance.now() - startAt;
+            console.info(
+                `${logTag} applyPolygonMaskToGridResult ${elapsed.toFixed(1)}ms (mode=data, grid=${width}x${height})`
+            );
+        }
+        return result;
+    }
+
+    if (result.getLevelSlice) {
+        const originalGetLevelSlice = result.getLevelSlice.bind(result);
+        result.getLevelSlice = (timeIndex: number, levelIndex: number) => {
+            const grid = originalGetLevelSlice(timeIndex, levelIndex);
+            if (!Array.isArray(grid) || !grid.length) {
+                return grid;
+            }
+            return applyMaskToGridCopy(grid, mask);
+        };
+    }
+    if (logTag) {
+        const elapsed = performance.now() - startAt;
+        console.info(
+            `${logTag} applyPolygonMaskToGridResult ${elapsed.toFixed(1)}ms (mode=getLevelSlice, grid=${width}x${height})`
+        );
+    }
+    return result;
 }
 
 type WorkerMode = 'header' | 'data';

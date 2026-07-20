@@ -17,6 +17,8 @@ export type AnimatedGridCellInfo = {
     xIndex: number;
     yIndex: number;
     value: number;
+    rowIndex: number;
+    columnIndex: number;
     longitude: number;
     latitude: number;
 };
@@ -60,6 +62,8 @@ export type AnimatedRasterLayerOptions = {
 export type AnimatedGridFrame = {
     header: GridHeader;
     grid: number[][];
+    rowIndexGrid?: number[][];
+    columnIndexGrid?: number[][];
     heightMeters?: number;
     opacity?: number;
     skipRequestRender?: boolean;
@@ -253,6 +257,8 @@ export class AnimatedRasterLayer {
     private currentRectangle: Cesium.Rectangle | null = null;
     private currentHeader: GridHeader | null = null;
     private currentGrid: number[][] | null = null;
+    private currentRowIndexGrid: number[][] | null = null;
+    private currentColumnIndexGrid: number[][] | null = null;
     private _show = true;
 
     private hoveredCell: { xIndex: number; yIndex: number } | null = null;
@@ -338,7 +344,7 @@ export class AnimatedRasterLayer {
             return;
         }
 
-        const { header, grid } = frame;
+        const { header, grid, rowIndexGrid, columnIndexGrid } = frame;
         if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0]) || !grid[0].length)
             return;
         const width = grid[0].length;
@@ -359,6 +365,8 @@ export class AnimatedRasterLayer {
         this.currentOpacity = frame.opacity ?? 1;
         this.currentHeader = header;
         this.currentGrid = grid;
+        this.currentRowIndexGrid = rowIndexGrid ?? null;
+        this.currentColumnIndexGrid = columnIndexGrid ?? null;
 
         const rectangle = this.buildRectangle(header, width, height);
         this.currentRectangle = rectangle;
@@ -680,6 +688,8 @@ export class AnimatedRasterLayer {
         this.currentRectangle = null;
         this.currentHeader = null;
         this.currentGrid = null;
+        this.currentRowIndexGrid = null;
+        this.currentColumnIndexGrid = null;
         this.reusedImageData = null;
         this.destroyHardEdge();
     }
@@ -923,8 +933,8 @@ export class AnimatedRasterLayer {
         if (!resolve) return null;
         const resolvedCell = this.resolveValueCell(resolve.xIndex, resolve.yIndex);
         if (!resolvedCell) return null;
-        const { xIndex, yIndex, value } = resolvedCell;
-        return { xIndex, yIndex, value, longitude, latitude };
+        const { xIndex, yIndex, value, rowIndex, columnIndex } = resolvedCell;
+        return { xIndex, yIndex, value, rowIndex, columnIndex, longitude, latitude };
     }
 
     private pickCartesian(position: Cesium.Cartesian2): Cesium.Cartesian3 | null {
@@ -981,10 +991,24 @@ export class AnimatedRasterLayer {
     private resolveValueCell(
         xIndex: number,
         yIndex: number
-    ): { xIndex: number; yIndex: number; value: number } | null {
+    ): {
+        xIndex: number;
+        yIndex: number;
+        value: number;
+        rowIndex: number;
+        columnIndex: number;
+    } | null {
         if (!this.currentGrid) return null;
         const direct = this.currentGrid[yIndex]?.[xIndex];
-        if (Number.isFinite(direct)) return { xIndex, yIndex, value: direct as number };
+        if (Number.isFinite(direct)) {
+            return {
+                xIndex,
+                yIndex,
+                value: direct as number,
+                rowIndex: this.currentRowIndexGrid?.[yIndex]?.[xIndex] ?? yIndex,
+                columnIndex: this.currentColumnIndexGrid?.[yIndex]?.[xIndex] ?? xIndex,
+            };
+        }
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
                 if (dx === 0 && dy === 0) continue;
@@ -992,8 +1016,15 @@ export class AnimatedRasterLayer {
                 const ny = yIndex + dy;
                 if (nx < 0 || nx >= this.gridWidth || ny < 0 || ny >= this.gridHeight) continue;
                 const candidate = this.currentGrid[ny]?.[nx];
-                if (Number.isFinite(candidate))
-                    return { xIndex: nx, yIndex: ny, value: candidate as number };
+                if (Number.isFinite(candidate)) {
+                    return {
+                        xIndex: nx,
+                        yIndex: ny,
+                        value: candidate as number,
+                        rowIndex: this.currentRowIndexGrid?.[ny]?.[nx] ?? ny,
+                        columnIndex: this.currentColumnIndexGrid?.[ny]?.[nx] ?? nx,
+                    };
+                }
             }
         }
         return null;
@@ -1039,7 +1070,8 @@ export class AnimatedRasterLayer {
                 if (
                     !Number.isFinite(value) ||
                     Number(value) <= 0 ||
-                    Number(value) < this.colorStops[0].maxValue
+                    Number(value) < this.colorStops[0].maxValue ||
+                    value === -1000
                 ) {
                     packed[idx] = 255;
                     packed[idx + 1] = 255;
@@ -1479,7 +1511,7 @@ export class AnimatedRasterLayer {
      * 范围或宽高变化时重建 ImageryProvider 并替换图层（此类情况较少）。
      */
     public updateHardEdge(frame: AnimatedGridFrame): void {
-        const { header, grid } = frame;
+        const { header, grid, rowIndexGrid, columnIndexGrid } = frame;
         if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0]) || !grid[0].length)
             return;
         const width = grid[0].length;
@@ -1504,6 +1536,8 @@ export class AnimatedRasterLayer {
         this.currentOpacity = opacity;
         this.currentHeader = header;
         this.currentGrid = grid;
+        this.currentRowIndexGrid = rowIndexGrid ?? null;
+        this.currentColumnIndexGrid = columnIndexGrid ?? null;
         this.currentRectangle = rectangle;
 
         const boundsKey = `${rectangle.west}_${rectangle.south}_${rectangle.east}_${rectangle.north}_${width}_${height}`;
@@ -1632,7 +1666,8 @@ export class AnimatedRasterLayer {
                 if (
                     !Number.isFinite(value) ||
                     Number(value) <= 0 ||
-                    Number(value) < this.colorStops[0].maxValue
+                    Number(value) < this.colorStops[0].maxValue ||
+                    value === -1000
                 ) {
                     packed[idx] = 0;
                     packed[idx + 1] = 0;

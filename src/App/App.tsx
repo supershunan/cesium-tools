@@ -9,6 +9,7 @@ import BuildProject from '../components/buildProject/BuildProject';
 import CloseToTheGround from '../example/closeToTheGround';
 import CloseTo3dtitles from '../example/closeTo3dtitles';
 import Tools from '../components/tools/Tools';
+import SlopeProject from '../components/SlopeProject/SlopeProject';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 const accessToken =
@@ -22,7 +23,7 @@ function App() {
 
         const v = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            // terrain: Cesium.Terrain.fromWorldTerrain(),
+            terrain: Cesium.Terrain.fromWorldTerrain(),
             // terrain: new Cesium.Terrain(
             //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
             //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
@@ -35,22 +36,22 @@ function App() {
         setViewer(v);
         v.scene.globe.enableLighting = true;
         v.scene.backgroundColor = Cesium.Color.fromBytes(0, 0, 0, 255);
-        v.scene.camera.flyTo({
-            destination: Cesium.Cartesian3.fromDegrees(
-                107.99837011905086,
-                32.49850968162874,
-                10000.0
-            ),
-            duration: 2.0,
-        });
         // v.scene.camera.flyTo({
         //     destination: Cesium.Cartesian3.fromDegrees(
-        //         111.33969224427842,
-        //         39.73786768701646,
+        //         107.99837011905086,
+        //         32.49850968162874,
         //         10000.0
         //     ),
         //     duration: 2.0,
         // });
+        v.scene.camera.flyTo({
+            destination: Cesium.Cartesian3.fromDegrees(
+                114.48311673420199,
+                44.07954378279189,
+                10000.0
+            ),
+            duration: 2.0,
+        });
         v.scene.globe.shadows = Cesium.ShadowMode.ENABLED;
         v.scene.globe.enableLighting = false;
         v.scene.globe.depthTestAgainstTerrain = false;
@@ -71,13 +72,15 @@ function App() {
             {/* 单个雷达数据图层渲染 3dtitles 使用 fxt 测雨雷达数据 */}
             {/* <CloseTo3dtitles viewer={viewer as Cesium.Viewer} /> */}
             {/* 单个雷达数据图层渲染 使用 fxt 测雨雷达数据 */}
-            <CloseToTheGround viewer={viewer as Cesium.Viewer} />
+            {/* <CloseToTheGround viewer={viewer as Cesium.Viewer} /> */}
             {/* 多个雷达数据图层渲染 使用 fxt 测雨雷达数据 */}
             {/* <MultsCloseToTheGround viewer={viewer as Cesium.Viewer} /> */}
             {/* 地球投影图层 使用的 fxt 数据 */}
             {/* <EarthProjection viewer={viewer as Cesium.Viewer} /> */}
             {/* 3dtiles 模拟墙体变形 */}
             {/* <BuildProject viewer={viewer as Cesium.Viewer} /> */}
+            {/* 边坡 */}
+            <SlopeProject viewer={viewer as Cesium.Viewer} />
         </div>
     );
 }

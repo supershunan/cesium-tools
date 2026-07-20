@@ -21,7 +21,6 @@ export {
     GridDataReader,
     readGridHeaderFromFile,
     readGridDataFromFile,
-    handleFileUpload,
     shouldFlipLatitudeRowsForCesium,
 } from '@tools/radarLayer/index';
 export { AnimatedRasterLayer } from '@tools/radarLayer/AnimatedRasterLayer';

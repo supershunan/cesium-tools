@@ -1663,12 +1663,7 @@ export class AnimatedRasterLayer {
                 const idx = (y * width + x) * 4;
                 const value = grid[y]?.[x] ?? NaN;
 
-                if (
-                    !Number.isFinite(value) ||
-                    Number(value) <= 0 ||
-                    Number(value) < this.colorStops[0].maxValue ||
-                    value === -1000
-                ) {
+                if (!Number.isFinite(value) || value === -1000) {
                     packed[idx] = 0;
                     packed[idx + 1] = 0;
                     packed[idx + 2] = 0;

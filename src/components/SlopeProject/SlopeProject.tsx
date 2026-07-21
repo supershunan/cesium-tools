@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
 import { AnimatedRasterLayer } from '@src/tools/radarLayer/AnimatedRasterLayer';
 
@@ -21,6 +21,8 @@ type DatGridResult = {
 export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) {
     const staticLayer = useRef<AnimatedRasterLayer[]>([]);
     const datResultRef = useRef<DatGridResult | null>(null);
+    const wmsLayerRef = useRef<Cesium.ImageryLayer | null>(null);
+    const [opacity, setOpacity] = useState(0.5);
 
     useEffect(() => {
         readBinaryData();
@@ -48,7 +50,6 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
 
             const littleEndian = true;
             const view = new DataView(arrayBuffer);
-            console.log('view', view);
             let offset = 0;
 
             const readUint16 = () => {
@@ -70,8 +71,8 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             // 头信息
             const rowCount = readUint16();
             const columnCount = readUint16();
-            const minLongitude = readFloat64();
-            const maxLatitude = readFloat64();
+            let minLongitude = readFloat64();
+            let maxLatitude = readFloat64();
             const longitudeResolution = readFloat64();
             const latitudeResolution = readFloat64();
 
@@ -102,36 +103,36 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                 }
             }
 
+            // minLongitude = 114.381735;
+            // maxLatitude = 44.097466;
             const result: DatGridResult = {
                 header: {
                     xSize: columnCount,
                     ySize: rowCount,
                     xDelta: longitudeResolution,
-                    // 行 0 在北（maxLatitude），纬度向南递减
                     yDelta: -latitudeResolution,
                     xStart: minLongitude,
-                    xEnd: minLongitude + columnCount * longitudeResolution,
+                    xEnd: minLongitude + (columnCount - 1) * longitudeResolution,
                     yStart: maxLatitude,
-                    yEnd: maxLatitude - rowCount * latitudeResolution,
+                    yEnd: maxLatitude - (rowCount - 1) * latitudeResolution,
                 },
                 grid: deformationGrid,
                 rowIndexGrid,
                 columnIndexGrid,
             };
             datResultRef.current = result;
-            console.log('DAT解析完成', result);
+            console.log('DAT', result);
         };
         reader.readAsArrayBuffer(blob);
     };
 
     const renderFrame = () => {
+        leftClick();
         const datResult = datResultRef.current;
         if (!datResult) {
             console.warn('DAT尚未解析完成');
             return;
         }
-        const maxTextureSize = viewer?.scene?.context?.maximumTextureSize ?? 0;
-        console.log('maxTextureSize', maxTextureSize);
         if (!staticLayer.current.length) {
             staticLayer.current = [
                 new AnimatedRasterLayer(viewer as Cesium.Viewer, {
@@ -142,7 +143,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                         { maxValue: 2, color: [0, 102, 255] },
                         { maxValue: 3, color: [255, 255, 0] },
                         { maxValue: 4, color: [255, 153, 0] },
-                        { maxValue: 100, color: [255, 0, 0] },
+                        { maxValue: 1000, color: [255, 0, 0] },
                     ],
                     interactionOptions: {
                         enabled: true,
@@ -171,6 +172,40 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
         });
     };
 
+    const renderWms = () => {
+        if (wmsLayerRef.current) {
+            return;
+        }
+        const provider = new Cesium.WebMapServiceImageryProvider({
+            url: 'http://10.1.1.60:8081/geoserver/radarData_2026_07_21_15/wms',
+            layers: 'radarData_2026_07_21_15:639202431961736175',
+            tileWidth: 512,
+            tileHeight: 512,
+            parameters: {
+                service: 'WMS',
+                format: 'image/png',
+                srs: 'EPSG:4326',
+                transparent: true,
+            },
+        });
+        const layer = new Cesium.ImageryLayer(provider);
+        viewer.imageryLayers.add(layer);
+        wmsLayerRef.current = layer;
+    };
+
+    const leftClick = () => {
+        const handler = new Cesium.ScreenSpaceEventHandler(viewer.canvas);
+        handler.setInputAction((event: Cesium.ScreenSpaceEventHandler.PositionedEvent) => {
+            const picked = viewer.scene.pickPosition(event.position);
+            if (picked) {
+                const cartesian = viewer.scene.globe.ellipsoid.cartesianToCartographic(picked);
+                const longitude = Cesium.Math.toDegrees(cartesian.longitude);
+                const latitude = Cesium.Math.toDegrees(cartesian.latitude);
+                console.log('picked', longitude, latitude);
+            }
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+    };
+
     return (
         <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 1000 }}>
             <button
@@ -180,6 +215,34 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             >
                 渲染DAT
             </button>
+            <button
+                onClick={() => {
+                    renderWms();
+                }}
+            >
+                渲染WMS
+            </button>
+            <label style={{ color: '#fff', marginLeft: 8 }}>
+                透明度
+                <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={opacity}
+                    onChange={(e) => {
+                        const v = Number(e.target.value);
+                        setOpacity(v);
+                        const layer = wmsLayerRef.current;
+                        if (layer) {
+                            layer.alpha = v;
+                        }
+                    }}
+                />
+                <span style={{ display: 'inline-block', width: 40, textAlign: 'right' }}>
+                    {opacity.toFixed(2)}
+                </span>
+            </label>
         </div>
     );
 }

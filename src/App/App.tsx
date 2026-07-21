@@ -47,7 +47,7 @@ function App() {
         v.scene.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(
                 114.48311673420199,
-                44.07954378279189,
+                44.07954615526154,
                 10000.0
             ),
             duration: 2.0,

@@ -1,6 +1,6 @@
 import * as Cesium from 'cesium';
 import Draw from './draw';
-import TurntableSwing from './turntableSwing';
+import TurntableSwing from './turntableSwing2';
 import { TurntableParams, GlobalTurntableMethods } from './type';
 import { EventCallback } from '../../type/type';
 

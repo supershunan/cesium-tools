@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import * as Cesium from 'cesium';
-import { AnimatedRasterLayer } from '@src/tools/radarLayer/AnimatedRasterLayer';
-import { GridDataReader, GridHeader } from '@src/tools/radarLayer';
+import { HardEdgeRasterLayer } from '@tools/radarLayer/HardEdgeRasterLayer';
+import { AnimatedRasterLayer } from '@tools/radarLayer/AnimatedRasterLayer';
+import { GridDataReader, GridHeader } from '@tools/radarLayer';
 
 type GridResult = {
     header: GridHeader & { times?: number; levels?: number };
@@ -64,7 +65,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
     ];
 
     const closeToTheGroundLayer = useRef<AnimatedRasterLayer[]>([]);
-    const staticLayer = useRef<AnimatedRasterLayer[]>([]);
+    const staticLayer = useRef<HardEdgeRasterLayer[]>([]);
     const frameIndex = useRef(0);
     const resultRef = useRef<GridResult | null>(null);
 
@@ -183,9 +184,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             staticLayer.current = Array.from(
                 { length: levels },
                 () =>
-                    new AnimatedRasterLayer(viewer as Cesium.Viewer, {
-                        clampToGround: true,
-                        gradientEnabled: true,
+                    new HardEdgeRasterLayer(viewer as Cesium.Viewer, {
                         colorRamp: [
                             { maxValue: 10, color: [62, 160, 239] },
                             { maxValue: 15, color: [62, 160, 239] },
@@ -233,7 +232,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             ) {
                 continue;
             }
-            staticLayer.current?.[levelIndex]?.updateHardEdge({
+            staticLayer.current?.[levelIndex]?.update({
                 header: result.header,
                 grid,
                 heightMeters: 0,

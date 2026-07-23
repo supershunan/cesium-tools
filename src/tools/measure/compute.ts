@@ -198,7 +198,7 @@ export const compute_3DPolygonArea = (
     const points = positions.map((pos) => {
         return [pos.x, pos.y];
     });
-    const delaunay = Delaunay.from(points);
+    const delaunay = Delaunay.from(points as [number, number][]);
     const triangles = delaunay.triangles;
 
     let surfaceArea = 0;

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
-import { GridDataReader, GridHeader } from '@src/tools/radarLayer';
-import { AnimatedRasterLayer } from '@src/tools/radarLayer/AnimatedRasterLayer';
+import { GridDataReader, GridHeader } from '@tools/radarLayer';
+import { AnimatedRasterLayer, AnimatedGridCellInfo } from '@tools/radarLayer/AnimatedRasterLayer';
 
 type GridResult = {
     header: GridHeader & { times?: number; levels?: number };
@@ -276,7 +276,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
     );
 
     const updateHoverText = useCallback(
-        (cell: GridCellInfo | null, groupIndex: number, levelIndex: number) => {
+        (cell: AnimatedGridCellInfo | null, groupIndex: number, levelIndex: number) => {
             const nextText = cell
                 ? `悬浮值: ${cell.value.toFixed(2)} | group=${groupIndex} level=${levelIndex} | x=${cell.xIndex} y=${cell.yIndex} | lon=${cell.longitude.toFixed(4)} lat=${cell.latitude.toFixed(4)}`
                 : '';
@@ -289,7 +289,7 @@ export default function Voxel({ viewer }: { viewer: Cesium.Viewer }) {
     );
 
     const updateClickText = useCallback(
-        (cell: GridCellInfo, groupIndex: number, levelIndex: number) => {
+        (cell: AnimatedGridCellInfo, groupIndex: number, levelIndex: number) => {
             const nextText = `点击值: ${cell.value} | group=${groupIndex} level=${levelIndex} | x=${cell.xIndex} y=${cell.yIndex} | lon=${cell.longitude.toFixed(4)} lat=${cell.latitude.toFixed(4)}`;
             if (clickTextRef.current !== nextText) {
                 clickTextRef.current = nextText;

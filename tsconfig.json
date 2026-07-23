@@ -4,51 +4,29 @@
         "rootDir": "./src",
         "target": "ES2020",
         "useDefineForClassFields": true,
-        "lib": [
-            "ES2020",
-            "DOM",
-            "DOM.Iterable"
-        ],
+        "lib": ["ES2020", "DOM", "DOM.Iterable"],
         "module": "ESNext",
         "skipLibCheck": true,
-        /* Bundler mode */
         "moduleResolution": "node",
         "allowSyntheticDefaultImports": true,
         "esModuleInterop": true,
-        // "allowImportingTsExtensions": true,
         "resolveJsonModule": true,
         "isolatedModules": true,
         "moduleDetection": "force",
         "noEmit": true,
         "jsx": "react-jsx",
-        /* Linting */
         "strict": true,
         "noUnusedLocals": true,
         "noUnusedParameters": true,
         "noFallthroughCasesInSwitch": true,
-        /* resolve.alias */
         "baseUrl": "./",
         "paths": {
-            "@src/*": [
-                "src/*"
-            ],
-            "@tools/*": [
-                "src/tools/*"
-            ],
-            "@components/*": [
-                "src/components/*"
-            ]
+            "@src/*": ["src/*"],
+            "@tools/*": ["src/tools/*"],
+            "@playground/*": ["playground/*"]
         },
-        "typeRoots": [
-            "node_modules/@types"
-        ]
+        "typeRoots": ["node_modules/@types"]
     },
-    "include": [
-        "src/**/*"
-    ],
-    "exclude": [
-        "node_modules",
-        "dist",
-        "./src/App"
-    ]
+    "include": ["src/**/*", "playground/**/*"],
+    "exclude": ["node_modules", "dist"]
 }

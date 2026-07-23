@@ -3,22 +3,23 @@ import '/public/Cesium/Widgets/widgets.css';
 import * as Cesium from 'cesium';
 import { useEffect, useState } from 'react';
 import './App.css';
-import MultsCloseToTheGround from '../example/multsCloseToTheGround';
-import BuildProject from '../components/buildProject/BuildProject';
-import CloseToTheGround from '../example/closeToTheGround';
-import CloseTo3dtitles from '../example/closeTo3dtitles';
-import Tools from '../components/tools/Tools';
-import SlopeProject from '../components/SlopeProject/SlopeProject';
+import MultsCloseToTheGround from './example/multsCloseToTheGround';
+import BuildProject from './components/buildProject/BuildProject';
+import CloseToTheGround from './example/closeToTheGround';
+import CloseTo3dtitles from './example/closeTo3dtitles';
+import Tools from './components/tools/Tools';
+import SlopeProject from './components/SlopeProject/SlopeProject';
 
 window.CESIUM_BASE_URL = '/Cesium/';
-const accessToken =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzMTg0NGMyMy1hOTI5LTRkZjYtYjBmMC04MDRjZDIxM2Q4MTMiLCJpZCI6MzY3NDEyLCJpYXQiOjE3NjUxMjIwMzd9.WaqRblAV6OnS3xQLvshZh6yg8T87AjN4oU_bb2rqRQQ';
+const accessToken = import.meta.env.VITE_CESIUM_ION_TOKEN ?? '';
 
 function App() {
     const [viewer, setViewer] = useState<Cesium.Viewer | null>(null);
 
     useEffect(() => {
-        Cesium.Ion.defaultAccessToken = accessToken;
+        if (accessToken) {
+            Cesium.Ion.defaultAccessToken = accessToken;
+        }
 
         const v = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,

@@ -19,7 +19,7 @@ export default abstract class MouseDrawBase {
 
     active(): void;
     active(options: unknown): void;
-    active(options?: unknown): void {
+    active(_options?: unknown): void {
         this.deactivate();
         this.registerEvents();
     }

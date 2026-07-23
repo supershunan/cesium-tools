@@ -5,7 +5,6 @@ import {
     CreatePrimitiveOptions,
     DrawingEntityOptions,
     Points,
-    EditPrimitiveOptions,
     DrawingTypeEnum,
     DrawingTypeNameEnum,
     LatLng,
@@ -259,7 +258,7 @@ export default class DrawingEntities extends MouseEvent {
         this.polylinePolygonEntities[index] = this.viewer.entities.add({
             polyline:
                 type !== DrawingTypeEnum.POLYGON
-                    ? {
+                    ? ({
                           positions: new this.cesium.CallbackProperty(() => {
                               const tempPositions = [...(this.pointDatas.get(index) || [])].map(
                                   (item) => {
@@ -279,11 +278,10 @@ export default class DrawingEntities extends MouseEvent {
                           depthFailMaterial: new this.cesium.ColorMaterialProperty(
                               this.cesium.Color.CHARTREUSE
                           ),
-                          // 是否贴地
                           clampToGround: true,
                           ...this.state.options?.polyline,
-                      }
-                    : {},
+                      } as Cesium.PolylineGraphics.ConstructorOptions)
+                    : undefined,
             polygon:
                 type !== DrawingTypeEnum.POLYLINE
                     ? {
@@ -451,12 +449,10 @@ export default class DrawingEntities extends MouseEvent {
                     outlineColor: this.cesium.Color.BLACK,
                     outlineWidth: 1,
                     pixelSize: 8,
-                    clampToGround: true,
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                    classificationType: Cesium.ClassificationType.BOTH, // 支持类型： 地形、3DTile、或者在地面上
-                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND, //设置HeightReference高度参考类型为CLAMP_TO_GROUND贴地类型
-                    ...options.point,
-                },
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    ...(options.point as Cesium.PointGraphics.ConstructorOptions),
+                } as Cesium.PointGraphics.ConstructorOptions,
                 label: options.point?.showLabel
                     ? {
                           text: 'Point',
@@ -727,7 +723,7 @@ export default class DrawingEntities extends MouseEvent {
                         if (entity.position && cartesianPositions.length > 0) {
                             entity.position = new this.cesium.CallbackProperty(() => {
                                 return cartesianPositions[0];
-                            }, false);
+                            }, false) as unknown as Cesium.PositionProperty;
                         }
 
                         // 对于线实体

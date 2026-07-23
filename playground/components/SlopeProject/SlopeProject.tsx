@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
-import { HardEdgeRasterLayer } from '@src/tools/radarLayer/HardEdgeRasterLayer';
+import { HardEdgeRasterLayer } from '@tools/radarLayer/HardEdgeRasterLayer';
 
 type DatGridResult = {
     header: {

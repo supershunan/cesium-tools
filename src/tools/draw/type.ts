@@ -14,20 +14,14 @@ export enum DrawingTypeEnum {
     LABEL,
 }
 
-export enum DrawingTypeNameEnum {
-    /** 点 */
-    '0' = 'POINT',
-    /** 线 */
-    '1' = 'POLYLINE',
-    /** 面 */
-    '2' = 'POLYGON',
-    /** 线与面 */
-    '3' = 'POLYGON_AND_POLYLINE',
-    /** 广告牌 */
-    '4' = 'BILLBOARD',
-    /** 标签 */
-    '5' = 'LABEL',
-}
+export const DrawingTypeNameEnum: Record<DrawingTypeEnum, string> = {
+    [DrawingTypeEnum.POINT]: 'POINT',
+    [DrawingTypeEnum.POLYLINE]: 'POLYLINE',
+    [DrawingTypeEnum.POLYGON]: 'POLYGON',
+    [DrawingTypeEnum.POLYGON_AND_POLYLINE]: 'POLYGON_AND_POLYLINE',
+    [DrawingTypeEnum.BILLBOARD]: 'BILLBOARD',
+    [DrawingTypeEnum.LABEL]: 'LABEL',
+};
 
 export type LatLng = {
     latitude: number;
@@ -39,6 +33,7 @@ export type Points = Cesium.Cartesian3 | LatLng;
 
 export type DrawingEntityOptions = {
     type: DrawingTypeEnum;
+    name?: string;
     point?: any;
     polyline?: Cesium.Entity.ConstructorOptions;
     polygon?: Cesium.Entity.ConstructorOptions;
@@ -51,11 +46,10 @@ interface CommonPrimitiveProps {
 }
 export type CreatePrimitiveOptions = {
     type: DrawingTypeEnum;
+    name?: string;
     point?: Cesium.PointPrimitiveCollection & CommonPrimitiveProps;
-    polyline?:
-        | (Cesium.GroundPolylineGeometry & CommonPrimitiveProps)
-        | { width?: number; color?: Cesium.Color };
-    polygon?: (Cesium.PolygonGeometry & CommonPrimitiveProps) | { color?: Cesium.Color };
+    polyline?: { width?: number; color?: Cesium.Color; showLabel?: boolean };
+    polygon?: { color?: Cesium.Color; showLabel?: boolean };
     /** 同时绘制线与面的时候要如果要改变 polyline 和 polygon 的属性，加上他们的属性即可，但支持 width 和 color */
     polylinPolygon?: CommonPrimitiveProps;
     billboard?: Cesium.BillboardCollection & CommonPrimitiveProps;

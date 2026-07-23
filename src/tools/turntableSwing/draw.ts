@@ -29,7 +29,6 @@ export default class Draw extends MouseEvent {
     }
 
     deactivate(): void {
-        this.turntableSwing?.clear();
         this.unRegisterEvents();
     }
 
@@ -46,11 +45,9 @@ export default class Draw extends MouseEvent {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition && !Cesium.defined(currentPosition)) return;
 
-            this.turntableSwing = new TurntableSwing(
-                this.viewer,
-                currentPosition,
-                this.turntableParams
-            );
+            this.turntableSwing = new TurntableSwing(this.viewer, {
+                angleInDegrees: this.turntableParams?.maxAngle,
+            });
             // this.turntableSwing.add();
             // this.turntableSwing.radii(200);
             this.turntableSwing.initTurntable(currentPosition);

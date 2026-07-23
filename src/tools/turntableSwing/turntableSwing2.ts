@@ -88,8 +88,6 @@ export default class TurntableSwing {
         const scratchCartesian3Normal = new Cesium.Cartesian3();
         const scratchCartesian3Normal1 = new Cesium.Cartesian3();
 
-        const u_rotationOffset = Cesium.Math.toRadians(0); // 例如设置为30度
-
         const ScanPostStage = new Cesium.PostProcessStage({
             fragmentShader: ScanSegmentShader,
             uniforms: {
@@ -185,4 +183,12 @@ export default class TurntableSwing {
 
         return this.viewer.scene.postProcessStages.add(ScanPostStage);
     }
+
+    /** 与 GlobalTurntableMethods 对齐；当前 PostProcess 实现暂为占位 */
+    minimumClock(_val: number): void {}
+    maximumClock(_val: number): void {}
+    radii(_val: number): void {}
+    innerRadii(_val: number): void {}
+    fillColor(_val: string): void {}
+    outlineColor(_val: string): void {}
 }

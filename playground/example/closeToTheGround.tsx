@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as Cesium from 'cesium';
-import { AnimatedRasterLayer } from '@src/tools/radarLayer/AnimatedRasterLayer';
+import { AnimatedRasterLayer } from '@tools/radarLayer/AnimatedRasterLayer';
 import {
     GridDataReader,
     GridHeader,
@@ -9,7 +9,7 @@ import {
     type LonLat,
     type MaskableGridResult,
     type PolygonMask as RadarPolygonMask,
-} from '@src/tools/radarLayer';
+} from '@tools/radarLayer';
 import shanxi from '../example/陕西省.json';
 
 type GridResult = MaskableGridResult & {

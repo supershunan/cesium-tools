@@ -432,6 +432,21 @@ export class GridDataReader {
     public header: any;
     public data: any;
     private static perfEnabled = false;
+    private static debugEnabled = false;
+
+    public static setDebugEnabled(enabled: boolean) {
+        GridDataReader.debugEnabled = enabled;
+    }
+
+    public static isDebugEnabled(): boolean {
+        return GridDataReader.debugEnabled;
+    }
+
+    public static logDebug(...args: unknown[]) {
+        if (GridDataReader.debugEnabled) {
+            console.log(...args);
+        }
+    }
     private static perfStats = new Map<
         string,
         { count: number; totalMs: number; maxMs: number; minMs: number }
@@ -441,7 +456,6 @@ export class GridDataReader {
     private static workerPending = new Map<number, WorkerPending>();
 
     private static createFlatDataAccessors(header: any, flatData: Float32Array) {
-        const times = header?.times ?? 0;
         const levels = header?.levels ?? 0;
         const ySize = header?.ySize ?? 0;
         const xSize = header?.xSize ?? 0;
@@ -736,7 +750,7 @@ export class GridDataReader {
         const headerLength = this.readInt32(uint8Array, offset);
         offset += 4;
 
-        console.log(`头文件长度: ${headerLength} 字节`);
+        GridDataReader.logDebug(`头文件长度: ${headerLength} 字节`);
 
         // 2. 读取JSON头文件
         if (offset + headerLength > uint8Array.length) {
@@ -749,12 +763,12 @@ export class GridDataReader {
         const headerText = new TextDecoder('utf-8').decode(headerBytes);
         this.header = JSON.parse(headerText);
 
-        console.log('头文件信息:', this.header);
+        GridDataReader.logDebug('头文件信息:', this.header);
 
         // 计算数据部分大小
         const dataSize = this.calculateDataSize(this.header);
-        console.log(`数据部分大小: ${dataSize} 字节`);
-        console.log(`文件总大小: ${uint8Array.length} 字节`);
+        GridDataReader.logDebug(`数据部分大小: ${dataSize} 字节`);
+        GridDataReader.logDebug(`文件总大小: ${uint8Array.length} 字节`);
 
         return {
             header: this.header,
@@ -773,19 +787,24 @@ export class GridDataReader {
 
         // 3. 读取数据部分
         this.data = this.readGridData(uint8Array, offset, this.header);
-        console.log('数据读取完成');
+        GridDataReader.logDebug('数据读取完成');
 
         return {
             header: this.header,
             data: this.data,
             // 提供便捷方法
-            getValue: (timeIndex, levelIndex, latIndex, lonIndex) => {
+            getValue: (
+                timeIndex: number,
+                levelIndex: number,
+                latIndex: number,
+                lonIndex: number
+            ) => {
                 return this.data[timeIndex][levelIndex][lonIndex][latIndex];
             },
-            getTimeSlice: (timeIndex) => {
+            getTimeSlice: (timeIndex: number) => {
                 return this.data[timeIndex];
             },
-            getLevelSlice: (timeIndex, levelIndex) => {
+            getLevelSlice: (timeIndex: number, levelIndex: number) => {
                 const { ySize, xSize } = this.header;
                 const slice = this.data[timeIndex][levelIndex];
                 const flipLatRows = shouldFlipLatitudeRowsForCesium(this.header);
@@ -800,7 +819,7 @@ export class GridDataReader {
                 }
                 return grid;
             },
-            getLatLonSlice: (timeIndex, levelIndex, latIndex) => {
+            getLatLonSlice: (timeIndex: number, levelIndex: number, latIndex: number) => {
                 const { xSize } = this.header;
                 const row = new Array(xSize);
                 for (let x = 0; x < xSize; x++) {
@@ -864,7 +883,9 @@ export class GridDataReader {
         const actualSize = uint8Array.length - offset;
 
         if (actualSize < expectedSize) {
-            console.warn(`数据大小不匹配: 期望 ${expectedSize} 字节, 实际 ${actualSize} 字节`);
+            GridDataReader.logDebug(
+                `数据大小不匹配: 期望 ${expectedSize} 字节, 实际 ${actualSize} 字节`
+            );
         }
 
         const data = new Array(times);
@@ -914,7 +935,7 @@ export class GridDataReader {
             }
         }
 
-        console.log(`成功读取 ${times * levels * ySize * xSize} 个数据点`);
+        GridDataReader.logDebug(`成功读取 ${times * levels * ySize * xSize} 个数据点`);
         return data;
     }
 
@@ -1019,7 +1040,7 @@ export class GridDataReader {
 
         // 检查边界
         if (lonIndex < 0 || lonIndex >= xSize || latIndex < 0 || latIndex >= ySize) {
-            console.warn(`坐标超出范围: lon=${lon}, lat=${lat}`);
+            GridDataReader.logDebug(`坐标超出范围: lon=${lon}, lat=${lat}`);
             return null;
         }
 
@@ -1041,7 +1062,7 @@ export class GridDataReader {
         const xStart = lonRange?.[0] || 0;
         const xEnd = lonRange?.[1] || xSize;
 
-        const subset = [];
+        const subset: number[][][][] = [];
 
         for (let t = tStart; t < tEnd; t++) {
             subset[t - tStart] = [];
@@ -1065,74 +1086,61 @@ export class GridDataReader {
 }
 
 // 工具函数：只读取头文件
-export async function readGridHeaderFromFile(file) {
+export async function readGridHeaderFromFile(file: Blob) {
     const reader = new GridDataReader();
 
-    try {
-        const result = await reader.readHeaderOnly(file);
+    const result = await reader.readHeaderOnly(file);
 
-        console.log('头文件读取成功');
-        console.log('文件信息:', {
-            时间维度: result.header.times,
-            层次维度: result.header.levels,
-            纬度格点数: result.header.ySize,
-            经度格点数: result.header.xSize,
-            数据范围: `${result.header.xStart}°E - ${result.header.xEnd}°E, ${result.header.yStart}°N - ${result.header.yEnd}°N`,
-            数据类型: result.header.dataType,
-            数据大小: `${(result.estimatedDataSize / 1024 / 1024).toFixed(2)} MB`,
-        });
+    GridDataReader.logDebug('头文件读取成功');
+    GridDataReader.logDebug('文件信息:', {
+        时间维度: result.header.times,
+        层次维度: result.header.levels,
+        纬度格点数: result.header.ySize,
+        经度格点数: result.header.xSize,
+        数据范围: `${result.header.xStart}°E - ${result.header.xEnd}°E, ${result.header.yStart}°N - ${result.header.yEnd}°N`,
+        数据类型: result.header.dataType,
+        数据大小: `${(result.estimatedDataSize / 1024 / 1024).toFixed(2)} MB`,
+    });
 
-        return result;
-    } catch (error) {
-        console.error('读取头文件失败:', error);
-        throw error;
-    }
+    return result;
 }
 
 // 工具函数：读取完整数据
-export async function readGridDataFromFile(file) {
+export async function readGridDataFromFile(file: Blob) {
     const reader = new GridDataReader();
+    const result = await reader.readCompressedGridData(file);
 
-    try {
-        const result = await reader.readCompressedGridData(file);
+    GridDataReader.logDebug('数据加载成功');
+    GridDataReader.logDebug('数据维度:', {
+        时间: result.header.times,
+        层次: result.header.levels,
+        纬度: result.header.ySize,
+        经度: result.header.xSize,
+    });
 
-        console.log('数据加载成功');
-        console.log('数据维度:', {
-            时间: result.header.times,
-            层次: result.header.levels,
-            纬度: result.header.ySize,
-            经度: result.header.xSize,
-        });
-
-        return result;
-    } catch (error) {
-        console.error('处理文件失败:', error);
-        throw error;
-    }
+    return result;
 }
 
-// 浏览器使用示例
-export async function handleFileUpload(event, readData = false) {
-    const file = event.target.files[0];
-
+/** 从 File 读取格点 ZIP；失败时抛出 Error，由业务层提示用户 */
+export async function readGridFromFileInput(file: File | null | undefined, readData = false) {
     if (!file) {
-        alert('请选择一个文件');
-        return;
+        throw new Error('未选择文件');
     }
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+        throw new Error('请选择 .zip 格式的格点文件');
+    }
+    if (readData) {
+        return readGridDataFromFile(file);
+    }
+    return readGridHeaderFromFile(file);
+}
 
-    if (!file.name.endsWith('.zip')) {
-        alert('请选择zip文件');
-        return;
-    }
+type FileInputEvent = Event & { target: EventTarget & { files?: FileList | null } };
 
-    try {
-        if (readData) {
-            return await readGridDataFromFile(file);
-        } else {
-            return await readGridHeaderFromFile(file);
-        }
-    } catch (error) {
-        console.error('文件处理失败:', error);
-        alert('文件处理失败: ' + error.message);
-    }
+/**
+ * @deprecated 请使用 `readGridFromFileInput`；不再使用 `alert`
+ */
+export async function handleFileUpload(event: FileInputEvent, readData = false) {
+    const file = event.target.files?.[0];
+    return readGridFromFileInput(file, readData);
 }

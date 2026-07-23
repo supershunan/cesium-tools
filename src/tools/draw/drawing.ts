@@ -11,6 +11,27 @@ import {
     LatLng,
 } from './type';
 
+/** Cesium 内部字段，编辑 GroundPrimitive 时使用 */
+type GroundPrimitiveInternal = Cesium.GroundPrimitive & {
+    _boundingSpheresKeys: string[];
+    _primitiveOptions: {
+        geometryInstances: Array<{
+            geometry: { _polygonHierarchy: { positions: Cesium.Cartesian3[] } };
+            id: string;
+        }>;
+    };
+    _appearance: Cesium.Appearance & { material: { uniforms: { color: Cesium.Color } } };
+};
+
+type GroundPolylinePrimitiveInternal = Cesium.GroundPolylinePrimitive & {
+    _primitiveOptions: {
+        geometryInstances: Array<{
+            id: string;
+            geometry: { _positions: Cesium.Cartesian3[] };
+        }>;
+    };
+};
+
 /**
  * 绘图基础类，用于处理各种图形的绘制 --- 使用Primitive保存
  * @class DrawingPrimitives
@@ -156,7 +177,7 @@ export default class DrawingPrimitives extends MouseEvent {
     }
 
     protected rightClickEvent(): void {
-        this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+        this.handler.setInputAction((_e: { position: Cesium.Cartesian2 }) => {
             try {
                 const index = this.state.curSort;
                 const isPolygon =
@@ -274,7 +295,7 @@ export default class DrawingPrimitives extends MouseEvent {
         this.polylinePolygonEntities[index] = this.viewer.entities.add({
             polyline:
                 type !== DrawingTypeEnum.POLYGON
-                    ? {
+                    ? ({
                           positions: new this.cesium.CallbackProperty(() => {
                               const tempPositions = [...(this.pointDatas.get(index) || [])].map(
                                   (item) => {
@@ -294,11 +315,10 @@ export default class DrawingPrimitives extends MouseEvent {
                           depthFailMaterial: new this.cesium.ColorMaterialProperty(
                               this.cesium.Color.CHARTREUSE
                           ),
-                          // 是否贴地
                           clampToGround: true,
                           ...this.state.options?.polyline,
-                      }
-                    : {},
+                      } as Cesium.PolylineGraphics.ConstructorOptions)
+                    : undefined,
             polygon:
                 type !== DrawingTypeEnum.POLYLINE
                     ? {
@@ -736,7 +756,7 @@ export default class DrawingPrimitives extends MouseEvent {
 
                 if (
                     primitive instanceof this.cesium.GroundPrimitive &&
-                    primitive._boundingSpheresKeys[0] === id &&
+                    (primitive as GroundPrimitiveInternal)._boundingSpheresKeys[0] === id &&
                     options?.polygon
                 ) {
                     // 处理位置数据
@@ -760,25 +780,28 @@ export default class DrawingPrimitives extends MouseEvent {
                                 ? this.latLngToCartesians(uniquePositions as LatLng[])
                                 : (uniquePositions as Cesium.Cartesian3[]);
                     } else {
+                        const ground = primitive as GroundPrimitiveInternal;
                         cartesianPositions =
-                            primitive._primitiveOptions.geometryInstances[0].geometry
+                            ground._primitiveOptions.geometryInstances[0].geometry
                                 ._polygonHierarchy.positions;
                     }
 
                     // 创建新的多边形实例
+                    const groundKeys = (primitive as GroundPrimitiveInternal)._boundingSpheresKeys;
                     const polygon = new this.cesium.GeometryInstance({
                         geometry: new this.cesium.PolygonGeometry({
                             polygonHierarchy: new this.cesium.PolygonHierarchy(cartesianPositions),
                         }),
-                        id: primitive._boundingSpheresKeys[0],
+                        id: groundKeys[0],
                     });
 
                     // 创建外观
+                    const groundAppearance = (primitive as GroundPrimitiveInternal)._appearance;
                     const polygonAppearance = new this.cesium.MaterialAppearance({
                         material: this.cesium.Material.fromType('Color', {
                             color:
                                 options.polygon?.color ??
-                                primitive._appearance.material.uniforms.color ?? // 使用原来的颜色
+                                groundAppearance.material.uniforms.color ??
                                 this.cesium.Color.YELLOW.withAlpha(0.3), // 默认颜色作为后备
                         }),
                         faceForward: true,
@@ -802,11 +825,13 @@ export default class DrawingPrimitives extends MouseEvent {
 
                 if (
                     primitive instanceof this.cesium.GroundPolylinePrimitive &&
-                    primitive._primitiveOptions.geometryInstances[0].id === id &&
+                    (primitive as GroundPolylinePrimitiveInternal)._primitiveOptions
+                        .geometryInstances[0].id === id &&
                     options?.polyline
                 ) {
                     // 获取旧的实例
-                    const oldInstance = primitive._primitiveOptions.geometryInstances[0];
+                    const oldInstance = (primitive as GroundPolylinePrimitiveInternal)
+                        ._primitiveOptions.geometryInstances[0];
 
                     // 创建一个新的颜色
                     const newColor = options?.polyline?.color

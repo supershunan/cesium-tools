@@ -4,7 +4,6 @@ import * as Cesium from 'cesium';
 import { useEffect, useState } from 'react';
 import './App.css';
 import MultsCloseToTheGround from '../example/multsCloseToTheGround';
-import EarthProjection from '../components/earthProject/EarthProject';
 import BuildProject from '../components/buildProject/BuildProject';
 import CloseToTheGround from '../example/closeToTheGround';
 import CloseTo3dtitles from '../example/closeTo3dtitles';
@@ -23,7 +22,7 @@ function App() {
 
         const v = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
-            terrain: Cesium.Terrain.fromWorldTerrain(),
+            // terrain: Cesium.Terrain.fromWorldTerrain(),
             // terrain: new Cesium.Terrain(
             //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
             //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
@@ -46,8 +45,8 @@ function App() {
         // });
         v.scene.camera.flyTo({
             destination: Cesium.Cartesian3.fromDegrees(
-                114.48311673420199,
-                44.07954615526154,
+                111.23723753169938,
+                39.71747746041512,
                 10000.0
             ),
             duration: 2.0,
@@ -75,8 +74,6 @@ function App() {
             {/* <CloseToTheGround viewer={viewer as Cesium.Viewer} /> */}
             {/* 多个雷达数据图层渲染 使用 fxt 测雨雷达数据 */}
             {/* <MultsCloseToTheGround viewer={viewer as Cesium.Viewer} /> */}
-            {/* 地球投影图层 使用的 fxt 数据 */}
-            {/* <EarthProjection viewer={viewer as Cesium.Viewer} /> */}
             {/* 3dtiles 模拟墙体变形 */}
             {/* <BuildProject viewer={viewer as Cesium.Viewer} /> */}
             {/* 边坡 */}

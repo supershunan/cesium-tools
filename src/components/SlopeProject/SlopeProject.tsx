@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import * as Cesium from 'cesium';
-import { AnimatedRasterLayer } from '@src/tools/radarLayer/AnimatedRasterLayer';
+import { HardEdgeRasterLayer } from '@src/tools/radarLayer/HardEdgeRasterLayer';
 
 type DatGridResult = {
     header: {
@@ -19,17 +19,18 @@ type DatGridResult = {
 };
 
 export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) {
-    const staticLayer = useRef<AnimatedRasterLayer[]>([]);
+    const staticLayer = useRef<HardEdgeRasterLayer[]>([]);
     const datResultRef = useRef<DatGridResult | null>(null);
     const wmsLayerRef = useRef<Cesium.ImageryLayer | null>(null);
     const [opacity, setOpacity] = useState(0.5);
 
     useEffect(() => {
         readBinaryData();
+        renderDat();
     }, []);
 
     const readBinaryData = async () => {
-        const url = '/public/resources/slope/639198090435133039.dat';
+        const url = '/public/resources/slope/639203079460274842.dat';
         const res = await fetch(url, {
             method: 'GET',
             headers: {
@@ -71,8 +72,8 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             // 头信息
             const rowCount = readUint16();
             const columnCount = readUint16();
-            let minLongitude = readFloat64();
-            let maxLatitude = readFloat64();
+            const minLongitude = readFloat64();
+            const maxLatitude = readFloat64();
             const longitudeResolution = readFloat64();
             const latitudeResolution = readFloat64();
 
@@ -103,8 +104,6 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                 }
             }
 
-            // minLongitude = 114.381735;
-            // maxLatitude = 44.097466;
             const result: DatGridResult = {
                 header: {
                     xSize: columnCount,
@@ -121,8 +120,108 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
                 columnIndexGrid,
             };
             datResultRef.current = result;
-            console.log('DAT', result);
+            const targetRowIndex = 4634;
+            const targetColumnIndex = 142;
+            let deformationValue = null;
+            let gridPosition = null;
+
+            for (let row = 0; row < rowCount; row++) {
+                for (let column = 0; column < columnCount; column++) {
+                    if (
+                        rowIndexGrid[row][column] === targetRowIndex &&
+                        columnIndexGrid[row][column] === targetColumnIndex
+                    ) {
+                        deformationValue = deformationGrid[row][column];
+                        gridPosition = { row, column };
+                        break;
+                    }
+                }
+            }
+
+            // console.log('DAT', result);
+            console.log('新版DAT', {
+                rowIndex: targetRowIndex,
+                columnIndex: targetColumnIndex,
+                deformationValue,
+            });
+            // console.log({
+            //     左上角: {
+            //         longitude: result.header.xStart,
+            //         latitude: result.header.yStart,
+            //     },
+            //     右上角: {
+            //         longitude: result.header.xEnd,
+            //         latitude: result.header.yStart,
+            //     },
+            //     右下角: {
+            //         longitude: result.header.xEnd,
+            //         latitude: result.header.yEnd,
+            //     },
+            //     左下角: {
+            //         longitude: result.header.xStart,
+            //         latitude: result.header.yEnd,
+            //     },
+            // });
         };
+        reader.readAsArrayBuffer(blob);
+    };
+
+    const renderDat = async () => {
+        const url = '/public/resources/slope/639203080386429090.dat';
+        const res = await fetch(url, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/octet-stream',
+            },
+        });
+        if (!res.ok) {
+            return;
+        }
+        const blob = await res.blob();
+
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            const buffer = e?.target?.result as ArrayBufferLike;
+            const littleEndian = true;
+            const view = new DataView(buffer);
+            let offset = 0;
+            if (buffer.byteLength <= 0) {
+                console.error('雷达数据解析失败');
+                return;
+            }
+            const radarRhoLen = view.getInt32(offset, littleEndian);
+            offset += 4;
+            const radarThetaLen = view.getInt32(offset, littleEndian);
+            offset += 4;
+            const radarRhoMin = view.getFloat64(offset, littleEndian);
+            offset += 8;
+            const radarRhoRes = view.getFloat64(offset, littleEndian);
+            offset += 8;
+            const radarThetaMin = view.getFloat64(offset, littleEndian);
+            offset += 8;
+            const radarThetaRes = view.getFloat64(offset, littleEndian);
+            offset += 8;
+            const radarDataMatrix: number[][] = [];
+            for (let i = 0; i < radarRhoLen; i++) {
+                radarDataMatrix[i] = new Array(radarThetaLen);
+            }
+            for (let j = 0; j < radarThetaLen; j++) {
+                for (let i = 0; i < radarRhoLen; i++) {
+                    radarDataMatrix[i][j] = view.getFloat32(offset, littleEndian);
+                    offset += 4;
+                }
+            }
+            const targetRowIndex = 4634;
+            const targetColumnIndex = 142;
+            const deformationValue = radarDataMatrix[targetRowIndex]?.[targetColumnIndex] ?? null;
+            console.log('BSDAT', {
+                rowIndex: targetRowIndex,
+                columnIndex: targetColumnIndex,
+                deformationValue,
+            });
+        };
+
         reader.readAsArrayBuffer(blob);
     };
 
@@ -135,15 +234,15 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
         }
         if (!staticLayer.current.length) {
             staticLayer.current = [
-                new AnimatedRasterLayer(viewer as Cesium.Viewer, {
+                new HardEdgeRasterLayer(viewer as Cesium.Viewer, {
                     clampToGround: true,
                     gradientEnabled: false,
                     colorRamp: [
-                        { maxValue: 1, color: [0, 255, 17] },
-                        { maxValue: 2, color: [0, 102, 255] },
-                        { maxValue: 3, color: [255, 255, 0] },
-                        { maxValue: 4, color: [255, 153, 0] },
-                        { maxValue: 1000, color: [255, 0, 0] },
+                        { maxValue: 10, color: [0, 235, 14] },
+                        { maxValue: 20, color: [255, 254, 49] },
+                        { maxValue: 30, color: [255, 153, 0] },
+                        { maxValue: 40, color: [255, 0, 0] },
+                        { maxValue: 1000, color: [255, 0, 255] },
                     ],
                     interactionOptions: {
                         enabled: true,
@@ -162,7 +261,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             ];
         }
 
-        staticLayer.current[0]?.updateHardEdge({
+        staticLayer.current[0]?.update({
             header: datResult.header,
             grid: datResult.grid,
             rowIndexGrid: datResult.rowIndexGrid,
@@ -177,8 +276,8 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
             return;
         }
         const provider = new Cesium.WebMapServiceImageryProvider({
-            url: 'http://10.1.1.60:8081/geoserver/radarData_2026_07_21_15/wms',
-            layers: 'radarData_2026_07_21_15:639202431961736175',
+            url: 'http://10.1.1.60:8081/geoserver/radarData_2026_07_22_10/wms',
+            layers: 'radarData_2026_07_22_10:639203112423817850',
             tileWidth: 512,
             tileHeight: 512,
             parameters: {

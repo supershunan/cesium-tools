@@ -94,154 +94,6 @@ const DEFAULT_COLOR_STOPS: RasterColorStop[] = [
 /** 遮罩顶点上限：过大时会导致片元着色器逐像素射线法开销过高 */
 const MAX_MASK_VERTEX_COUNT = 256;
 
-/**
- * 直接将 canvas 最新像素上传到 ImageryLayer 缓存中已有的 GPU 纹理。
- *
- * 原理：maximumLevel=0 意味着只有一张 Imagery(0,0,0)，所有地形瓦片共享同一个 WebGL Texture。
- * 用 gl.texImage2D 就地替换像素后，所有瓦片（不论 LOD）在下一帧渲染时都读取到新数据——
- * 彻底绕开 _reload() 的异步管线（requestImage → RECEIVED → _createTexture → callback），
- * 无跳过、无延迟、无缩放不一致。
- *
- * @returns true 已成功上传；false Imagery 尚未 READY（首帧），调用者应回退到 _reload() 等待初始加载。
- */
-function directUpdateHardEdgeTexture(
-    layer: Cesium.ImageryLayer,
-    canvas: HTMLCanvasElement,
-    viewer: Cesium.Viewer
-): boolean {
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    const cache = (layer as any)._imageryCache as Record<string, any> | undefined;
-    if (!cache) return false;
-
-    const gl: WebGLRenderingContext | WebGL2RenderingContext | undefined = (viewer.scene as any)
-        .context?._gl;
-    if (!gl) return false;
-
-    // 与 Cesium.Texture 默认 flipY=true 一致；否则首帧走 ImageryLayer._createTextureWebGL
-    // 与后续 texImage2D 的 Y 方向不一致，栅格地理 UV 与屏上像素错位（遮罩/多边形与数据对不齐）。
-    const prevFlipY = gl.getParameter(gl.UNPACK_FLIP_Y_WEBGL);
-    let updated = false;
-    for (const key in cache) {
-        const imagery = cache[key];
-        // ImageryState.READY === 4
-        if (imagery?.state === 4 && imagery.texture?._texture) {
-            gl.bindTexture(gl.TEXTURE_2D, imagery.texture._texture);
-            gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
-            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
-            gl.bindTexture(gl.TEXTURE_2D, null);
-            updated = true;
-        }
-    }
-    gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, prevFlipY);
-    /* eslint-enable @typescript-eslint/no-explicit-any */
-    return updated;
-}
-
-/**
- * 回退方案：强制 reload（清除 _loadedCallbacks + _reload）。
- * 仅在首帧 Imagery 尚未 READY 时使用；后续帧全部走 directUpdateHardEdgeTexture。
- */
-function forceReloadHardEdgeImageryLayer(layer: Cesium.ImageryLayer, viewer: Cesium.Viewer): void {
-    /* eslint-disable @typescript-eslint/no-explicit-any */
-    const globe = viewer.scene.globe as any;
-    const quadtree = globe?._surface?._quadtree;
-    const layerIndex = (layer as any)?._layerIndex;
-    if (quadtree && layerIndex !== undefined) {
-        quadtree.forEachLoadedTile((tile: any) => {
-            if (tile._loadedCallbacks?.[layerIndex]) {
-                delete tile._loadedCallbacks[layerIndex];
-            }
-        });
-    }
-    /* eslint-enable @typescript-eslint/no-explicit-any */
-    const provider = layer.imageryProvider as { _reload?: () => void };
-    if (typeof provider._reload === 'function') {
-        provider._reload();
-    }
-}
-
-/**
- * 单瓦片 Canvas 影像提供者。
- *
- * requestImage 直接返回 canvas 引用（而非拷贝）。Cesium 在 _createTexture 中调用
- * gl.texImage2D(canvas) 时始终读取 canvas **当前最新像素**。
- *
- * 时序保证：putImageData 在用户代码（宏任务前半段）执行，texImage2D 在渲染循环（宏任务后半段
- * 或下一宏任务）执行，canvas 的像素在整个渲染循环期间是稳定的。因此即使多波 reload 的
- * Imagery 在不同帧创建纹理，最终结果始终一致——所有 texImage2D 都读取同一份最新像素。
- */
-class CanvasHardEdgeImageryProvider {
-    private readonly _tilingScheme: Cesium.GeographicTilingScheme;
-    private readonly _errorEvent = new Cesium.Event();
-    private readonly _canvas: HTMLCanvasElement;
-
-    constructor(rectangle: Cesium.Rectangle, canvas: HTMLCanvasElement) {
-        this._canvas = canvas;
-        this._tilingScheme = new Cesium.GeographicTilingScheme({
-            rectangle,
-            numberOfLevelZeroTilesX: 1,
-            numberOfLevelZeroTilesY: 1,
-        });
-    }
-
-    get rectangle(): Cesium.Rectangle {
-        return this._tilingScheme.rectangle;
-    }
-    get tileWidth(): number {
-        return this._canvas.width;
-    }
-    get tileHeight(): number {
-        return this._canvas.height;
-    }
-    get maximumLevel(): number {
-        return 0;
-    }
-    get minimumLevel(): number {
-        return 0;
-    }
-    get tilingScheme(): Cesium.GeographicTilingScheme {
-        return this._tilingScheme;
-    }
-    get tileDiscardPolicy(): undefined {
-        return undefined;
-    }
-    get errorEvent(): Cesium.Event {
-        return this._errorEvent;
-    }
-    get credit(): undefined {
-        return undefined;
-    }
-    get proxy(): undefined {
-        return undefined;
-    }
-    get hasAlphaChannel(): boolean {
-        return true;
-    }
-
-    requestImage(
-        _x: number,
-        _y: number,
-        _level: number,
-        _request?: Cesium.Request
-    ): Promise<HTMLCanvasElement> | undefined {
-        return Promise.resolve(this._canvas);
-    }
-
-    getTileCredits(_x: number, _y: number, _level: number): Cesium.Credit[] | undefined {
-        return undefined;
-    }
-
-    pickFeatures(
-        _x: number,
-        _y: number,
-        _level: number,
-        _longitude: number,
-        _latitude: number
-    ): undefined {
-        return undefined;
-    }
-}
-
 export class AnimatedRasterLayer {
     private viewer: Cesium.Viewer;
     private primitive: Cesium.Primitive | Cesium.GroundPrimitive | null;
@@ -275,14 +127,6 @@ export class AnimatedRasterLayer {
     private maskPolygon: PolygonMaskCoord[] | null = null;
     private maskCanvasPool: [HTMLCanvasElement, HTMLCanvasElement];
     private maskBufferIndex = 0;
-
-    // updateHardEdge 专用状态（与 update() 完全独立）
-    private hardEdgeImageryLayer: Cesium.ImageryLayer | null = null;
-    /** 与当前硬边界图层一致的范围+栅格尺寸；变化时需重建 ImageryProvider / ImageryLayer */
-    private hardEdgeBoundsKey: string | null = null;
-    private hardEdgeCanvas: HTMLCanvasElement | null = null;
-    private hardEdgeImageData: ImageData | null = null;
-    private hardEdgeHoverEntity: Cesium.Entity | null = null;
 
     /**
      *
@@ -339,7 +183,7 @@ export class AnimatedRasterLayer {
                 const o = Number(frame.opacity);
                 if (Number.isFinite(o)) this.currentOpacity = Math.max(0, Math.min(1, o));
             }
-            this.syncOpacityToPrimitiveOrImageryOnly();
+            this.syncOpacityToPrimitiveOnly();
             if (!frame.skipRequestRender) this.viewer.scene.requestRender();
             return;
         }
@@ -444,26 +288,23 @@ export class AnimatedRasterLayer {
                     skipRequestRender: skipReq,
                 });
             } else {
-                this.syncOpacityToPrimitiveOrImageryOnly();
+                this.syncOpacityToPrimitiveOnly();
                 if (!skipReq) this.viewer.scene.requestRender();
             }
             return;
         }
 
-        this.syncOpacityToPrimitiveOrImageryOnly();
+        this.syncOpacityToPrimitiveOnly();
         if (!skipReq) this.viewer.scene.requestRender();
     }
 
-    /** 仅同步透明度（Material u_layerAlpha / 硬边 ImageryLayer.alpha），不重建、不重绘格点纹理 */
-    private syncOpacityToPrimitiveOrImageryOnly(): void {
+    /** 仅同步 Material 透明度，不重建、不重绘格点纹理 */
+    private syncOpacityToPrimitiveOnly(): void {
         const uniforms = this.material?.uniforms as {
             u_layerAlpha?: number;
         } | null;
         if (uniforms?.u_layerAlpha !== undefined) {
             uniforms.u_layerAlpha = this.currentOpacity;
-        }
-        if (this.hardEdgeImageryLayer) {
-            this.hardEdgeImageryLayer.alpha = this.currentOpacity;
         }
     }
 
@@ -500,19 +341,6 @@ export class AnimatedRasterLayer {
      */
     public setMaskPolygon(coords: PolygonMaskCoord[] | null): void {
         this.maskPolygon = this.normalizeMaskPolygon(coords);
-        const header = this.currentHeader;
-        const grid = this.currentGrid;
-        // 先重绘硬边界（同步 currentRectangle），再更新 u_maskTex，避免遮罩 UV 与范围不同步
-        if (this.hardEdgeImageryLayer && header && grid) {
-            this.updateHardEdge({
-                header,
-                grid,
-                heightMeters: this.currentHeightMeters,
-                opacity: this.currentOpacity,
-            });
-            this.updateMaskTexture();
-            return;
-        }
         this.updateMaskTexture();
         this.viewer.scene.requestRender();
     }
@@ -670,7 +498,6 @@ export class AnimatedRasterLayer {
     public set show(val: boolean) {
         this._show = val;
         if (this.primitive) this.primitive.show = val;
-        if (this.hardEdgeImageryLayer) this.hardEdgeImageryLayer.show = val;
         this.viewer.scene.requestRender();
     }
 
@@ -691,7 +518,6 @@ export class AnimatedRasterLayer {
         this.currentRowIndexGrid = null;
         this.currentColumnIndexGrid = null;
         this.reusedImageData = null;
-        this.destroyHardEdge();
     }
 
     /**
@@ -796,10 +622,6 @@ export class AnimatedRasterLayer {
             this.hoveredCell = null;
             this.updateHoverUniform();
         }
-        if (this.hardEdgeHoverEntity) {
-            this.viewer.entities.remove(this.hardEdgeHoverEntity);
-            this.hardEdgeHoverEntity = null;
-        }
         this.interactionOptions.onCellHover?.(null);
         this.viewer.scene.requestRender();
     }
@@ -845,54 +667,6 @@ export class AnimatedRasterLayer {
                 uniforms.u_hoverCell = new Cesium.Cartesian2(-1, -1);
             }
         }
-        // hardEdge 模式无 shader，用 Entity 矩形叠加高亮
-        this.syncHardEdgeHoverEntity();
-    }
-
-    private syncHardEdgeHoverEntity(): void {
-        if (!this.hardEdgeImageryLayer) return;
-        if (!this.interactionOptions.hoverEnabled || !this.hoveredCell) {
-            if (this.hardEdgeHoverEntity) {
-                this.viewer.entities.remove(this.hardEdgeHoverEntity);
-                this.hardEdgeHoverEntity = null;
-            }
-            return;
-        }
-        const rect = this.buildCellRectangle(this.hoveredCell.xIndex, this.hoveredCell.yIndex);
-        if (!rect) return;
-        const hc = this.interactionOptions.hoverColor ?? Cesium.Color.BLACK;
-        const color = hc.withAlpha(this.interactionOptions.hoverAlpha);
-        if (!this.hardEdgeHoverEntity) {
-            this.hardEdgeHoverEntity = this.viewer.entities.add({
-                rectangle: {
-                    coordinates: rect,
-                    material: color,
-                    classificationType: Cesium.ClassificationType.TERRAIN,
-                },
-            });
-        } else if (this.hardEdgeHoverEntity.rectangle) {
-            this.hardEdgeHoverEntity.rectangle.coordinates = new Cesium.ConstantProperty(rect);
-            this.hardEdgeHoverEntity.rectangle.material = new Cesium.ColorMaterialProperty(color);
-        }
-    }
-
-    private buildCellRectangle(xIndex: number, yIndex: number): Cesium.Rectangle | null {
-        const rect = this.currentRectangle;
-        if (!rect || this.gridWidth <= 0 || this.gridHeight <= 0) return null;
-        if (xIndex < 0 || xIndex >= this.gridWidth || yIndex < 0 || yIndex >= this.gridHeight)
-            return null;
-        const west = Cesium.Math.toDegrees(rect.west);
-        const east = Cesium.Math.toDegrees(rect.east);
-        const south = Cesium.Math.toDegrees(rect.south);
-        const north = Cesium.Math.toDegrees(rect.north);
-        const lonStep = (east - west) / this.gridWidth;
-        const latStep = (north - south) / this.gridHeight;
-        // yIndex=0 在北边（数据北行优先），Entity 矩形用地理坐标（南→北）
-        const cellLatMax = north - latStep * yIndex;
-        const cellLatMin = north - latStep * (yIndex + 1);
-        const cellLonMin = west + lonStep * xIndex;
-        const cellLonMax = west + lonStep * (xIndex + 1);
-        return Cesium.Rectangle.fromDegrees(cellLonMin, cellLatMin, cellLonMax, cellLatMax);
     }
 
     private updateHoverStyleUniforms(): void {
@@ -1497,273 +1271,5 @@ export class AnimatedRasterLayer {
             Math.max(xStart, xEnd),
             Math.max(yStart, yEnd)
         );
-    }
-
-    /**
-     * 以硬边界（NEAREST 过滤）方式渲染一帧数据，颜色完全分明、无插值混色。
-     * 与 update() 相互独立，可随时来回切换调用：
-     * - 调用 updateHardEdge() 时会叠加显示 ImageryLayer 硬边界图层
-     * - 调用 destroyHardEdge() 可随时清除，恢复纯 Primitive（update）渲染
-     *
-     * 同一范围与栅格尺寸下复用单个 ImageryLayer：通过 gl.texImage2D 直接上传 canvas 最新像素到已有 GPU 纹理，
-     * 所有 LOD 的地形瓦片共享同一纹理对象，一次上传即全局更新，无 _reload 异步延迟/跳过/缩放不一致问题。
-     * Imagery 尚未 READY（首帧）时回退到 forceReload 等待初始加载。
-     * 范围或宽高变化时重建 ImageryProvider 并替换图层（此类情况较少）。
-     */
-    public updateHardEdge(frame: AnimatedGridFrame): void {
-        const { header, grid, rowIndexGrid, columnIndexGrid } = frame;
-        if (!Array.isArray(grid) || !grid.length || !Array.isArray(grid[0]) || !grid[0].length)
-            return;
-        const width = grid[0].length;
-        const height = grid.length;
-        if (width <= 0 || height <= 0) return;
-
-        const opacity = frame.opacity ?? 1;
-        const rectangle = this.buildRectangle(header, width, height);
-
-        // 同步拾取/遮罩依赖的状态
-        const sizeChanged = this.gridWidth !== width || this.gridHeight !== height;
-        if (sizeChanged) {
-            this.gridWidth = width;
-            this.gridHeight = height;
-            this.reusedImageData = null;
-            this.canvasPool[0].width = width;
-            this.canvasPool[0].height = height;
-            this.canvasPool[1].width = width;
-            this.canvasPool[1].height = height;
-        }
-        this.currentHeightMeters = frame.heightMeters ?? 0;
-        this.currentOpacity = opacity;
-        this.currentHeader = header;
-        this.currentGrid = grid;
-        this.currentRowIndexGrid = rowIndexGrid ?? null;
-        this.currentColumnIndexGrid = columnIndexGrid ?? null;
-        this.currentRectangle = rectangle;
-
-        const boundsKey = `${rectangle.west}_${rectangle.south}_${rectangle.east}_${rectangle.north}_${width}_${height}`;
-        const needNewLayer = !this.hardEdgeImageryLayer || this.hardEdgeBoundsKey !== boundsKey;
-
-        if (needNewLayer) {
-            // ✅ Fix Bug3: 每次新建 Provider 时同步新建 canvas，保证 Provider 持有的引用与后续 putImageData 的目标一致
-            this.hardEdgeCanvas = document.createElement('canvas');
-            this.hardEdgeCanvas.width = width;
-            this.hardEdgeCanvas.height = height;
-            this.hardEdgeImageData = null;
-        } else {
-            // 复用路径：canvas 尺寸保证与当前帧一致（boundsKey 包含 width/height，相同则尺寸不变）
-            if (
-                !this.hardEdgeCanvas ||
-                this.hardEdgeCanvas.width !== width ||
-                this.hardEdgeCanvas.height !== height
-            ) {
-                this.hardEdgeCanvas = document.createElement('canvas');
-                this.hardEdgeCanvas.width = width;
-                this.hardEdgeCanvas.height = height;
-                this.hardEdgeImageData = null;
-            }
-        }
-
-        const ctx = this.hardEdgeCanvas.getContext('2d');
-        if (!ctx) return;
-        if (
-            !this.hardEdgeImageData ||
-            this.hardEdgeImageData.width !== width ||
-            this.hardEdgeImageData.height !== height
-        ) {
-            this.hardEdgeImageData = ctx.createImageData(width, height);
-        }
-
-        // ✅ 先写像素到 canvas，再操作图层，避免图层 add 之后 canvas 还是空的
-        this.packGridToHardEdge(grid, width, height);
-        ctx.putImageData(this.hardEdgeImageData, 0, 0);
-
-        if (needNewLayer) {
-            // ✅ Fix Bug1: 先移除旧层，再加新层，消灭"双层叠加"的间隙帧
-            const prevLayer = this.hardEdgeImageryLayer;
-            if (prevLayer) {
-                this.viewer.imageryLayers.remove(prevLayer, true);
-                this.hardEdgeImageryLayer = null;
-            }
-
-            // canvas 已写入最新像素，此时再创建 Provider 绑定
-            const provider = new CanvasHardEdgeImageryProvider(rectangle, this.hardEdgeCanvas);
-            const nextLayer = new Cesium.ImageryLayer(
-                provider as unknown as Cesium.ImageryProvider,
-                {
-                    minificationFilter: Cesium.TextureMinificationFilter.NEAREST,
-                    magnificationFilter: Cesium.TextureMagnificationFilter.NEAREST,
-                }
-            );
-            nextLayer.alpha = opacity;
-            nextLayer.show = this._show;
-            this.viewer.imageryLayers.add(nextLayer);
-            this.hardEdgeImageryLayer = nextLayer;
-            this.hardEdgeBoundsKey = boundsKey;
-        } else if (this.hardEdgeImageryLayer) {
-            this.hardEdgeImageryLayer.alpha = opacity;
-            if (
-                !directUpdateHardEdgeTexture(
-                    this.hardEdgeImageryLayer,
-                    this.hardEdgeCanvas,
-                    this.viewer
-                )
-            ) {
-                forceReloadHardEdgeImageryLayer(this.hardEdgeImageryLayer, this.viewer);
-            }
-        }
-
-        if (!frame.skipRequestRender) {
-            this.viewer.scene.requestRender();
-        }
-    }
-
-    /**
-     * 销毁 updateHardEdge() 创建的 ImageryLayer。
-     * 切换回 update() 模式时调用此方法清除硬边界图层。
-     */
-    public destroyHardEdge(): void {
-        if (this.hardEdgeImageryLayer) {
-            this.viewer.imageryLayers.remove(this.hardEdgeImageryLayer, true);
-            this.hardEdgeImageryLayer = null;
-        }
-        this.hardEdgeBoundsKey = null;
-        if (this.hardEdgeHoverEntity) {
-            this.viewer.entities.remove(this.hardEdgeHoverEntity);
-            this.hardEdgeHoverEntity = null;
-        }
-        this.hardEdgeCanvas = null;
-        this.hardEdgeImageData = null;
-    }
-
-    private packGridToHardEdge(grid: number[][], width: number, height: number): void {
-        const packed = this.hardEdgeImageData!.data;
-        const stops = this.colorStops.length ? this.colorStops : DEFAULT_COLOR_STOPS;
-
-        // 预先将 maskPolygon 转为 UV 坐标（[0,1] 范围），供逐像素射线法使用
-        let maskUV: Array<[number, number]> | null = null;
-        if (this.maskPolygon && this.maskPolygon.length >= 3 && this.currentRectangle) {
-            const west = Cesium.Math.toDegrees(this.currentRectangle.west);
-            const east = Cesium.Math.toDegrees(this.currentRectangle.east);
-            const south = Cesium.Math.toDegrees(this.currentRectangle.south);
-            const north = Cesium.Math.toDegrees(this.currentRectangle.north);
-            const lonRange = east - west;
-            const latRange = north - south;
-            if (lonRange > 0 && latRange > 0) {
-                maskUV = this.maskPolygon.map(([lon, lat]) => {
-                    return [
-                        Math.max(0, Math.min(1, (lon - west) / lonRange)),
-                        Math.max(0, Math.min(1, (lat - south) / latRange)),
-                    ];
-                });
-            }
-        }
-
-        for (let y = 0; y < height; y++) {
-            for (let x = 0; x < width; x++) {
-                const idx = (y * width + x) * 4;
-                const value = grid[y]?.[x] ?? NaN;
-
-                if (!Number.isFinite(value) || value === -1000) {
-                    packed[idx] = 0;
-                    packed[idx + 1] = 0;
-                    packed[idx + 2] = 0;
-                    packed[idx + 3] = 0;
-                    continue;
-                }
-
-                // CPU 射线法遮罩：有限分辨率下无法与矢量多边形逐像素重合，仅用「中心点」会在边沿
-                // 出现整块多显/少显；对格子四角+中心共 5 点做多数表决，贴近真实边界。
-                if (maskUV) {
-                    if (!this.cellMajorityInsidePolygonUV(x, y, width, height, maskUV)) {
-                        packed[idx] = 0;
-                        packed[idx + 1] = 0;
-                        packed[idx + 2] = 0;
-                        packed[idx + 3] = 0;
-                        continue;
-                    }
-                }
-
-                const color = this.gradientEnabled
-                    ? this.sampleGradientColor(value, stops)
-                    : this.sampleStepColor(value, stops);
-                packed[idx] = color[0];
-                packed[idx + 1] = color[1];
-                packed[idx + 2] = color[2];
-                packed[idx + 3] = 255;
-            }
-        }
-    }
-
-    /**
-     * 单格内 5 个采样点（四角 + 中心）在地理 UV 下做点在多边形内，≥3 点在内则该格可见。
-     * 与仅用中心点相比，边沿与矢量多边形的贴合度更好（仍受栅格分辨率上限约束）。
-     */
-    private cellMajorityInsidePolygonUV(
-        x: number,
-        y: number,
-        width: number,
-        height: number,
-        poly: Array<[number, number]>
-    ): boolean {
-        const uLeft = x / width;
-        const uMid = (x + 0.5) / width;
-        const uRight = (x + 1) / width;
-        const tSouth = this.clampToGround ? 1 - (y + 1) / height : y / height;
-        const tNorth = this.clampToGround ? 1 - y / height : (y + 1) / height;
-        const tMid = (tSouth + tNorth) * 0.5;
-
-        const samples: Array<[number, number]> = [
-            [uLeft, tSouth],
-            [uRight, tSouth],
-            [uLeft, tNorth],
-            [uRight, tNorth],
-            [uMid, tMid],
-        ];
-        let inside = 0;
-        for (const [u, t] of samples) {
-            if (this.pointInPolygonUV(u, t, poly)) inside++;
-        }
-        return inside >= 3;
-    }
-
-    /** 射线法判断点 (u, t) 是否在 UV 多边形内 */
-    private pointInPolygonUV(u: number, t: number, poly: Array<[number, number]>): boolean {
-        let inside = false;
-        const n = poly.length;
-        for (let i = 0, j = n - 1; i < n; j = i++) {
-            const [xi, yi] = poly[i];
-            const [xj, yj] = poly[j];
-            if (yi > t !== yj > t && u < xi + ((t - yi) / (yj - yi)) * (xj - xi)) {
-                inside = !inside;
-            }
-        }
-        return inside;
-    }
-
-    private sampleStepColor(value: number, stops: RasterColorStop[]): [number, number, number] {
-        for (const stop of stops) {
-            if (value <= stop.maxValue) return stop.color;
-        }
-        return stops[stops.length - 1]?.color ?? [0, 0, 0];
-    }
-
-    private sampleGradientColor(value: number, stops: RasterColorStop[]): [number, number, number] {
-        if (stops.length === 0) return [0, 0, 0];
-        if (value <= stops[0].maxValue) return stops[0].color;
-        for (let i = 1; i < stops.length; i++) {
-            const prev = stops[i - 1];
-            const curr = stops[i];
-            if (value <= curr.maxValue) {
-                const range = curr.maxValue - prev.maxValue;
-                if (range <= 0) return curr.color;
-                const t = (value - prev.maxValue) / range;
-                return [
-                    Math.round(prev.color[0] + (curr.color[0] - prev.color[0]) * t),
-                    Math.round(prev.color[1] + (curr.color[1] - prev.color[1]) * t),
-                    Math.round(prev.color[2] + (curr.color[2] - prev.color[2]) * t),
-                ];
-            }
-        }
-        return stops[stops.length - 1].color;
     }
 }

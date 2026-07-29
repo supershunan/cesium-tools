@@ -30,7 +30,7 @@ export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) 
     }, []);
 
     const readBinaryData = async () => {
-        const url = '/public/resources/slope/639203079460274842.dat';
+        const url = '/public/resources/slope/639204225175307958.dat';
         const res = await fetch(url, {
             method: 'GET',
             headers: {

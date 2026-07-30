@@ -1,6 +1,6 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
-import { compute_geodesicaDistance_3d, compute_placeDistance_2d } from './compute';
+import { computed_WGS84Distance, computed_spaceDistance } from './compute';
 import { MouseStatusEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
 import { LengthActiveOptions } from '.';
@@ -244,14 +244,9 @@ export default class LengthMeasurement extends MouseEvent {
             let distance_2d = 0,
                 distance_3d = 0;
             if (this.options?.clampToGround) {
-                distance_3d = await compute_geodesicaDistance_3d(
-                    Cesium,
-                    start,
-                    end,
-                    this.viewer.terrainProvider
-                );
+                distance_3d = await computed_WGS84Distance(Cesium, start, end);
             } else {
-                distance_2d = compute_placeDistance_2d(Cesium, start, end);
+                distance_2d = computed_spaceDistance(Cesium, start, end);
             }
             if (generation !== this.distanceMoveGeneration) {
                 return;
@@ -265,14 +260,9 @@ export default class LengthMeasurement extends MouseEvent {
         let distance_2d = 0,
             distance_3d = 0;
         if (this.options?.clampToGround) {
-            distance_3d = await compute_geodesicaDistance_3d(
-                Cesium,
-                start,
-                end,
-                this.viewer.terrainProvider
-            );
+            distance_3d = await computed_WGS84Distance(Cesium, start, end);
         } else {
-            distance_2d = compute_placeDistance_2d(Cesium, start, end);
+            distance_2d = computed_spaceDistance(Cesium, start, end);
         }
         if (clickGeneration !== this.distanceClickGeneration) {
             return;

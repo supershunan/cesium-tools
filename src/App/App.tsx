@@ -12,7 +12,7 @@ import SlopeProject from '../components/SlopeProject/SlopeProject';
 
 window.CESIUM_BASE_URL = '/Cesium/';
 const accessToken =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiIzMTg0NGMyMy1hOTI5LTRkZjYtYjBmMC04MDRjZDIxM2Q4MTMiLCJpZCI6MzY3NDEyLCJpYXQiOjE3NjUxMjIwMzd9.WaqRblAV6OnS3xQLvshZh6yg8T87AjN4oU_bb2rqRQQ';
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJkYzk1YTcxZi01ZWJiLTRkMGYtYjVlMi1iNTBkNDdjNjg2NDMiLCJpZCI6MzY0OTY2LCJpYXQiOjE3NjQzODkxMjV9.EtqncM-6-mbaWh6pClSbf8neMzjSYGu3rkEDiFJJjDE';
 
 function App() {
     const [viewer, setViewer] = useState<Cesium.Viewer | null>(null);
@@ -23,11 +23,11 @@ function App() {
         const v = new Cesium.Viewer('cesiumContainer', {
             infoBox: false,
             // terrain: Cesium.Terrain.fromWorldTerrain(),
-            // terrain: new Cesium.Terrain(
-            //     Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
-            //         'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
-            //     )
-            // ),
+            terrain: new Cesium.Terrain(
+                Cesium.ArcGISTiledElevationTerrainProvider.fromUrl(
+                    'https://elevation3d.arcgis.com/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer'
+                )
+            ),
             animation: false,
             timeline: false,
         });
@@ -77,7 +77,7 @@ function App() {
             {/* 3dtiles 模拟墙体变形 */}
             {/* <BuildProject viewer={viewer as Cesium.Viewer} /> */}
             {/* 边坡 */}
-            <SlopeProject viewer={viewer as Cesium.Viewer} />
+            {/* <SlopeProject viewer={viewer as Cesium.Viewer} /> */}
         </div>
     );
 }

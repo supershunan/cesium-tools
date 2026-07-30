@@ -14,7 +14,11 @@
             "default": "./dist/cesium-tools.es.js"
         }
     },
-    "files": ["package.json", "README.md", "dist"],
+    "files": [
+        "package.json",
+        "README.md",
+        "dist"
+    ],
     "sideEffects": false,
     "scripts": {
         "dev": "vite",
@@ -32,6 +36,7 @@
         "react-dom": "^18.0.0"
     },
     "devDependencies": {
+        "@turf/turf": "^7.0.0",
         "@types/d3-delaunay": "^6.0.4",
         "@types/geojson": "^7946.0.14",
         "@types/react": "^18.3.3",
@@ -39,7 +44,6 @@
         "@typescript-eslint/eslint-plugin": "^7.15.0",
         "@typescript-eslint/parser": "^7.15.0",
         "@vitejs/plugin-react": "^4.3.1",
-        "@turf/turf": "^7.0.0",
         "@zip.js/zip.js": "^2.8.11",
         "cesium": "^1.136.0",
         "d3-delaunay": "^6.0.4",
@@ -54,5 +58,8 @@
         "typescript": "^5.2.2",
         "vite": "^5.3.4",
         "vite-plugin-dts": "^4.0.3"
+    },
+    "dependencies": {
+        "geographiclib-geodesic": "^2.2.0"
     }
 }

@@ -1,6 +1,11 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
-import { compute_2DPolygonArea, compute_3DPolygonArea } from './compute';
+import {
+    compute3DPolygonArea,
+    computeEllipsoidalPolygonArea,
+    computePlanarPolygonArea,
+    computeTerrainSurfaceArea,
+} from './compute';
 import { MouseStatusEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
 import type { AreaActiveOptions } from '.';
@@ -26,6 +31,8 @@ export default class AreaMeasurement extends MouseEvent {
     private polygonEntities: { [key: number]: Cesium.Entity | undefined };
     private tipAreaEntity: Cesium.Entity | undefined;
     private tipEntities: Cesium.Entity[];
+    private areaMoveGeneration = 0;
+    private areaClickGeneration = 0;
 
     constructor(
         viewer: Cesium.Viewer,
@@ -44,6 +51,8 @@ export default class AreaMeasurement extends MouseEvent {
         this.polygonEntities = {};
         this.tipAreaEntity = undefined;
         this.tipEntities = [];
+        this.areaMoveGeneration = 0;
+        this.areaClickGeneration = 0;
     }
 
     active(options?: AreaActiveOptions): void {
@@ -79,6 +88,8 @@ export default class AreaMeasurement extends MouseEvent {
         this.polygonEntities = {};
         this.tipAreaEntity = undefined;
         this.tipEntities = [];
+        this.areaMoveGeneration = 0;
+        this.areaClickGeneration = 0;
     }
 
     addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
@@ -90,7 +101,7 @@ export default class AreaMeasurement extends MouseEvent {
     }
 
     protected leftClickEvent(): void {
-        this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+        this.handler.setInputAction(async (e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
@@ -105,13 +116,13 @@ export default class AreaMeasurement extends MouseEvent {
     }
 
     protected rightClickEvent(): void {
-        this.handler.setInputAction((e: { position: Cesium.Cartesian2 }) => {
+        this.handler.setInputAction(async (e: { position: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.position);
             if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
             const index = this.state.curSort;
             const points = this.pointDatas.get(index) ?? [];
-            if (points.length < 2) return;
+            if (points.length < 3) return;
 
             const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
                 return JSON.parse(item);
@@ -121,7 +132,7 @@ export default class AreaMeasurement extends MouseEvent {
                 JSON.stringify(tempPositions[tempPositions.length - 1])
             );
 
-            this.createAreaTip(tempPositions, 'click');
+            await this.createAreaTip(tempPositions, 'click');
 
             this.state.curSort = index + 1;
             this.unRegisterEvents();
@@ -129,7 +140,7 @@ export default class AreaMeasurement extends MouseEvent {
     }
 
     protected mouseMoveEvent(): void {
-        this.handler.setInputAction((e: { endPosition: Cesium.Cartesian2 }) => {
+        this.handler.setInputAction(async (e: { endPosition: Cesium.Cartesian2 }) => {
             const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
             if (!currentPosition || !this.cesium.defined(currentPosition)) return;
 
@@ -148,7 +159,7 @@ export default class AreaMeasurement extends MouseEvent {
             });
 
             if (tempPositions.length > 1) {
-                this.createAreaTip([...tempPositions, currentPosition], 'move');
+                await this.createAreaTip([...tempPositions, currentPosition], 'move');
             }
         }, this.cesium.ScreenSpaceEventType.MOUSE_MOVE);
     }
@@ -195,21 +206,54 @@ export default class AreaMeasurement extends MouseEvent {
         });
     }
 
-    private createAreaTip(descartesPoints: Cesium.Cartesian3[], type: 'click' | 'move') {
+    private async createAreaTip(descartesPoints: Cesium.Cartesian3[], type: 'click' | 'move') {
+        const generation =
+            type === MouseStatusEnum.click ? ++this.areaClickGeneration : ++this.areaMoveGeneration;
+
         this.tipAreaEntity && this.viewer.entities.remove(this.tipAreaEntity);
-        const area2d = compute_2DPolygonArea(descartesPoints);
-        const area3d = compute_3DPolygonArea(this.cesium, descartesPoints);
+        const ellipsoid = this.viewer.scene.globe.ellipsoid;
+
+        const ellipsoidalArea = computeEllipsoidalPolygonArea(
+            this.cesium,
+            descartesPoints,
+            ellipsoid
+        );
+        const cartesianArea = compute3DPolygonArea(this.cesium, descartesPoints);
+        const terrainSurfaceArea = await computeTerrainSurfaceArea(
+            this.cesium,
+            descartesPoints,
+            this.viewer.terrainProvider,
+            {
+                ellipsoid,
+                sampleStepMeters: this.options?.terrainSampleStepMeters,
+                gridSegments: this.options?.terrainGridSegments,
+            }
+        );
+        if (
+            (type === MouseStatusEnum.click && generation !== this.areaClickGeneration) ||
+            (type === MouseStatusEnum.move && generation !== this.areaMoveGeneration)
+        ) {
+            return;
+        }
+
         const area = this.options?.area;
-        const s2 = area2d.toFixed(2);
-        const s3 = area3d.toFixed(2);
+        const ellipsoidalText = ellipsoidalArea.toFixed(2);
+        const cartesianText = cartesianArea.toFixed(2);
+        const terrainSurfaceText = terrainSurfaceArea.toFixed(2);
 
         let text: string;
         if (area?.customRender) {
-            text = area.customRender(area2d, area3d);
+            text = area.customRender(ellipsoidalArea, cartesianArea, terrainSurfaceArea);
         } else if (area?.template) {
-            text = area.template.replace('{}', s2).replace('{}', s3);
+            text = area.template
+                .replace('{}', ellipsoidalText)
+                .replace('{}', cartesianText)
+                .replace('{}', terrainSurfaceText);
         } else {
-            text = `平面面积：${s2}m² \n 测地面积：${s3}m²`;
+            text =
+                `椭球面积：${ellipsoidalText}m²\n` +
+                `笛卡尔面积：${cartesianText}m²\n` +
+                `地形表面积：${terrainSurfaceText}m²`;
         }
 
         const tipEntity = this.viewer.entities.add({

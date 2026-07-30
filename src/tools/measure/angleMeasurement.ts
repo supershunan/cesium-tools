@@ -1,6 +1,6 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
-import { compute_Angle, compute_placeDistance_2d } from './compute';
+import { compute_Angle, computed_spaceDistance } from './compute';
 import { MouseStatusEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
 import type { AngleActiveOptions } from '.';
@@ -247,7 +247,7 @@ export default class AngleMeasurement extends MouseEvent {
         end: Cesium.Cartesian3,
         type: 'click' | 'move'
     ) => {
-        const distance_2d = compute_placeDistance_2d(Cesium, start, end);
+        const distance_2d = computed_spaceDistance(Cesium, start, end);
         this.createTip(start, end, distance_2d, type);
     };
 

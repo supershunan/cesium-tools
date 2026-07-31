@@ -7,7 +7,7 @@ import {
     useTurntableSwing,
     useMeasure,
     useDrawing,
-} from '../../index';
+} from '@src/core';
 import './tools.css';
 
 export default function Tools({ viewer }: { viewer: Cesium.Viewer }) {

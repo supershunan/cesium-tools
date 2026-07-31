@@ -110,5 +110,8 @@
         "vite-plugin-dts": "^4.0.3",
         "vitest": "^2.1.9",
         "vue": "^3.5.40"
+    },
+    "dependencies": {
+        "geographiclib-geodesic": "^2.2.0"
     }
 }

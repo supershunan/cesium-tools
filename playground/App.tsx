@@ -78,7 +78,7 @@ function App() {
             {/* 3dtiles 模拟墙体变形 */}
             {/* <BuildProject viewer={viewer as Cesium.Viewer} /> */}
             {/* 边坡 */}
-            <SlopeProject viewer={viewer as Cesium.Viewer} />
+            {/* <SlopeProject viewer={viewer as Cesium.Viewer} /> */}
         </div>
     );
 }

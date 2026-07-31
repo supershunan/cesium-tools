@@ -24,10 +24,10 @@ export interface LabelOptions {
     /**
      * 自定义标签文案；入参为原始数值（米、度等），便于自行换算或国际化
      * - 长度：value1 为当前线段距离（贴地为测地距离，否则为平面距离）
-     * - 面积：value1 为平面面积、value2 为测地面积（平方米）
+     * - 面积：value1 为椭球面积、value2 为笛卡尔面积、value3 为地形表面积（平方米）
      * - 角度：边长标签 value1 为平面距离；角点标签 value1 为角度（度）
      */
-    customRender?: (value1: number, value2?: number) => string;
+    customRender?: (value1: number, value2?: number, value3?: number, value4?: number) => string;
 }
 
 export interface AngleActiveOptions {
@@ -42,6 +42,10 @@ export interface AreaActiveOptions {
     clampToGround?: boolean;
     pass2D?: boolean;
     pass3D?: boolean;
+    /** 地形表面积采样网格边长，单位米；值越小越精细但越慢。 */
+    terrainSampleStepMeters?: number;
+    /** 未设置 terrainSampleStepMeters 时，最长方向默认切分数量。 */
+    terrainGridSegments?: number;
     /** 默认相当于 `true`。设为 `false` 时不在移动中实时更新面积标签，仅保留多边形预览。 */
     liveUpdateOnMove?: boolean;
     area?: LabelOptions;

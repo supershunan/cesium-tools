@@ -115,10 +115,7 @@ export default class AreaMeasurement extends MouseEvent {
     }
 
     protected rightClickEvent(): void {
-        this.handler.setInputAction(async (e: { position: Cesium.Cartesian2 }) => {
-            const currentPosition = this.viewer.scene.pickPosition(e.position);
-            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
-
+        this.handler.setInputAction(async () => {
             const index = this.state.curSort;
             const points = this.pointDatas.get(index) ?? [];
             if (points.length < 3) return;
@@ -131,10 +128,10 @@ export default class AreaMeasurement extends MouseEvent {
                 JSON.stringify(tempPositions[tempPositions.length - 1])
             );
 
-            await this.createAreaTip(tempPositions, 'click');
-
             this.state.curSort = index + 1;
+            this.areaMoveGeneration += 1;
             this.unRegisterEvents();
+            await this.createAreaTip(tempPositions, 'click');
         }, this.cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 

@@ -1,0 +1,18 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "composite": false,
+        "noEmit": true
+    },
+    "include": [
+        "src/index.ts",
+        "src/core/**/*.ts",
+        "src/react/**/*.ts",
+        "src/vue/**/*.ts",
+        "src/tools/**/*.ts",
+        "src/tools/**/*.tsx",
+        "src/type/**/*.ts",
+        "src/enum/**/*.ts"
+    ],
+    "exclude": ["node_modules", "dist", "playground"]
+}

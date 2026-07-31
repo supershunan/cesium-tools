@@ -1,0 +1,485 @@
+import { useEffect, useRef } from 'react';
+import * as Cesium from 'cesium';
+import { AnimatedRasterLayer } from '@tools/radarLayer/AnimatedRasterLayer';
+import {
+    GridDataReader,
+    GridHeader,
+    applyPolygonMaskToGridResult as applyPolygonMaskToGridResultFromRadar,
+    normalizeGeoJsonMaskPolygons as normalizeGeoJsonMaskPolygonsFromRadar,
+    type LonLat,
+    type MaskableGridResult,
+    type PolygonMask as RadarPolygonMask,
+} from '@tools/radarLayer';
+import shanxi from '../example/陕西省.json';
+
+type GridResult = MaskableGridResult & {
+    flatData?: Float32Array;
+};
+const PERF_TAG = '[mask-perf]';
+
+export default function CloseToTheGround({ viewer }: { viewer: Cesium.Viewer }) {
+    const dataURL = [
+        'pythonfile/SX002/2025-08-09/SX002_20250809120000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809120500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809121000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809121500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809122000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809122500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809123000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809123500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809124000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809124500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809125000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809125500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809130000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809130500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809131000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809131500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809132000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809132500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809133000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809133500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809134000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809134500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809135000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809135500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809140000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809140500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809141000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809141500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809142000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809142500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809143000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809143500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809144000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809144500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809145000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809145500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809150000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809150500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809151000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809151500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809152000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809152500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809153000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809153500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809154000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809154500_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809155000_CR.zip',
+        'pythonfile/SX002/2025-08-09/SX002_20250809155500_CR.zip',
+    ];
+
+    const closeToTheGroundLayer = useRef<AnimatedRasterLayer[]>([]);
+    const staticLayer = useRef<AnimatedRasterLayer[]>([]);
+    const frameIndex = useRef(0);
+    const resultRef = useRef<GridResult | null>(null);
+    const shanxiMaskPolygons = useRef<RadarPolygonMask[]>(
+        normalizeGeoJsonMaskPolygonsFromRadar(shanxi)
+    );
+    const gridResultCache = useRef<Map<string, GridResult>>(new Map());
+    const shanxiBoundaryEntities = useRef<Cesium.Entity[]>([]);
+
+    useEffect(() => {
+        if (!viewer) return;
+        shanxiBoundaryEntities.current.forEach((entity) => {
+            viewer.entities.remove(entity);
+        });
+        shanxiBoundaryEntities.current = [];
+
+        const buildBoundaryPositions = (ring: LonLat[]) => {
+            if (!Array.isArray(ring) || ring.length < 2) {
+                return null;
+            }
+            const points = ring.slice();
+            const first = points[0];
+            const last = points[points.length - 1];
+            if (first && last && (first[0] !== last[0] || first[1] !== last[1])) {
+                points.push(first);
+            }
+            return Cesium.Cartesian3.fromDegreesArray(points.flat());
+        };
+
+        shanxiMaskPolygons.current.forEach((polygon) => {
+            const outerPositions = buildBoundaryPositions(polygon.outer);
+            if (outerPositions) {
+                const entity = viewer.entities.add({
+                    polyline: {
+                        positions: outerPositions,
+                        clampToGround: true,
+                        width: 2,
+                        material: Cesium.Color.YELLOW,
+                    },
+                });
+                shanxiBoundaryEntities.current.push(entity);
+            }
+
+            polygon.holes.forEach((hole) => {
+                const holePositions = buildBoundaryPositions(hole);
+                if (!holePositions) return;
+                const holeEntity = viewer.entities.add({
+                    polyline: {
+                        positions: holePositions,
+                        clampToGround: true,
+                        width: 1,
+                        material: Cesium.Color.ORANGE.withAlpha(0.9),
+                    },
+                });
+                shanxiBoundaryEntities.current.push(holeEntity);
+            });
+        });
+
+        return () => {
+            shanxiBoundaryEntities.current.forEach((entity) => {
+                viewer.entities.remove(entity);
+            });
+            shanxiBoundaryEntities.current = [];
+        };
+    }, [viewer]);
+
+    const loadGridResult = async () => {
+        const totalStartAt = performance.now();
+        const requestUrl = '/public/resources/RADAR_PRE_2.0_20260601000000_result.zip';
+        const cacheKey = requestUrl;
+        const cached = gridResultCache.current.get(cacheKey);
+        if (cached) {
+            const elapsed = performance.now() - totalStartAt;
+            console.info(`${PERF_TAG} loadGridResult cache-hit ${elapsed.toFixed(1)}ms`);
+            return cached;
+        }
+        try {
+            const fetchStartAt = performance.now();
+            const res = await fetch(requestUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/zip',
+                },
+            });
+            if (!res.ok) {
+                return null;
+            }
+            const afterFetchAt = performance.now();
+            const reader = new GridDataReader();
+            const blob = await res.blob();
+            const afterBlobAt = performance.now();
+            const parsed = (await reader.readCompressedGridData(blob)) as GridResult;
+            const afterParseAt = performance.now();
+            const masked = await applyPolygonMaskToGridResultFromRadar(
+                parsed,
+                shanxiMaskPolygons.current,
+                { logTag: PERF_TAG }
+            );
+            const afterMaskAt = performance.now();
+            gridResultCache.current.set(cacheKey, masked);
+            console.info(
+                `${PERF_TAG} loadGridResult total=${(afterMaskAt - totalStartAt).toFixed(1)}ms ` +
+                    `(fetch=${(afterFetchAt - fetchStartAt).toFixed(1)}ms, ` +
+                    `blob=${(afterBlobAt - afterFetchAt).toFixed(1)}ms, ` +
+                    `parse=${(afterParseAt - afterBlobAt).toFixed(1)}ms, ` +
+                    `mask=${(afterMaskAt - afterParseAt).toFixed(1)}ms)`
+            );
+            return masked;
+        } catch (error) {
+            return null;
+        }
+    };
+
+    /** 多层动画数据渲染 */
+    const renderMultiAnimatedLayerFrame = async () => {
+        if (!resultRef.current) {
+            const result = await loadGridResult();
+            resultRef.current = result;
+        }
+        const times = Number(
+            resultRef.current?.header.times ?? resultRef.current?.data?.length ?? 0
+        );
+        const levels = Number(
+            resultRef.current?.header.levels ?? resultRef.current?.data?.[0]?.length ?? 0
+        );
+        if (!times || !levels) {
+            return;
+        }
+
+        if (!closeToTheGroundLayer.current.length) {
+            closeToTheGroundLayer.current = Array.from({ length: levels }, () => {
+                return new AnimatedRasterLayer(viewer as Cesium.Viewer, {
+                    clampToGround: false,
+                    colorRamp: [
+                        { maxValue: 10, color: [62, 160, 239] },
+                        { maxValue: 15, color: [62, 160, 239] },
+                        { maxValue: 20, color: [108, 225, 238] },
+                        { maxValue: 25, color: [96, 214, 63] },
+                        { maxValue: 30, color: [70, 137, 37] },
+                        { maxValue: 35, color: [252, 251, 74] },
+                        { maxValue: 40, color: [223, 195, 73] },
+                        { maxValue: 45, color: [239, 147, 47] },
+                        { maxValue: 50, color: [231, 53, 31] },
+                        { maxValue: 55, color: [184, 43, 41] },
+                        { maxValue: 60, color: [183, 36, 28] },
+                        { maxValue: 65, color: [236, 62, 237] },
+                        { maxValue: 70, color: [132, 39, 179] },
+                        { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
+                    ],
+                });
+            });
+        }
+        const timeIndex = frameIndex.current;
+        const levelList = resultRef.current?.header.levelList ?? [];
+
+        for (let levelIndex = 0; levelIndex < levels; levelIndex++) {
+            const grid = resultRef.current?.getLevelSlice
+                ? resultRef.current?.getLevelSlice(timeIndex, levelIndex)
+                : resultRef.current?.data?.[timeIndex]?.[levelIndex];
+            if (
+                !Array.isArray(grid) ||
+                !grid.length ||
+                !Array.isArray(grid[0]) ||
+                !grid[0].length
+            ) {
+                continue;
+            }
+            const levelHeightRaw = levelList[levelIndex];
+            const levelHeight = Number(levelHeightRaw);
+            const layerHeight =
+                levelIndex === 0 || !Number.isFinite(levelHeight) ? 0 : levelHeight * 10;
+
+            closeToTheGroundLayer.current?.[levelIndex]?.update({
+                header: resultRef.current?.header ?? ({} as GridHeader),
+                grid,
+                heightMeters: layerHeight,
+                opacity: levelIndex === 0 ? 1 : 0.45,
+            });
+        }
+        frameIndex.current++;
+    };
+
+    /** 多层静态数据渲染 */
+    const renderMultiStaticLayerFrame = async (isNext: boolean = true) => {
+        const result = await loadGridResult();
+        if (!result) {
+            return;
+        }
+        const times = Number(result.header.times ?? result.data?.length ?? 0);
+        const levels = Number(result.header.levels ?? result.data?.[0]?.length ?? 0);
+        if (!times || !levels) {
+            return;
+        }
+
+        if (!staticLayer.current.length) {
+            staticLayer.current = Array.from({ length: levels }, () => {
+                return new AnimatedRasterLayer(viewer as Cesium.Viewer, {
+                    clampToGround: true,
+                    gradientEnabled: false,
+                    colorRamp: [
+                        { maxValue: 10, color: [62, 160, 239] },
+                        { maxValue: 15, color: [62, 160, 239] },
+                        { maxValue: 20, color: [108, 225, 238] },
+                        { maxValue: 25, color: [96, 214, 63] },
+                        { maxValue: 30, color: [70, 137, 37] },
+                        { maxValue: 35, color: [252, 251, 74] },
+                        { maxValue: 40, color: [223, 195, 73] },
+                        { maxValue: 45, color: [239, 147, 47] },
+                        { maxValue: 50, color: [231, 53, 31] },
+                        { maxValue: 55, color: [184, 43, 41] },
+                        { maxValue: 60, color: [183, 36, 28] },
+                        { maxValue: 65, color: [236, 62, 237] },
+                        { maxValue: 70, color: [132, 39, 179] },
+                        { maxValue: Number.POSITIVE_INFINITY, color: [174, 148, 237] },
+                    ],
+                    // interactionOptions: {
+                    //     enabled: true,
+                    //     onCellClick: (cell) => {
+                    //         console.log(cell);
+                    //     },
+                    //     hoverEnabled: true,
+                    //     hoverColor: Cesium.Color.RED,
+                    //     hoverAlpha: 0.35,
+                    //     onCellHover: (cell) => {
+                    //         console.log(cell);
+                    //     },
+                    // },
+                });
+            });
+        }
+
+        /**
+         * todo: 实质上对于静态数据，只需要一层数据，多层数据只是为了兼容动画数据，下面的逻辑完全是为了兼容数据格式
+         */
+        for (let levelIndex = 0; levelIndex < levels; levelIndex++) {
+            const grid = result.getLevelSlice
+                ? result.getLevelSlice(0, levelIndex)
+                : result.data?.[0]?.[levelIndex];
+            if (
+                !Array.isArray(grid) ||
+                !grid.length ||
+                !Array.isArray(grid[0]) ||
+                !grid[0].length
+            ) {
+                continue;
+            }
+            staticLayer.current?.[levelIndex]?.update({
+                header: result.header,
+                grid,
+                heightMeters: 0,
+                opacity: 1,
+            });
+        }
+        if (isNext) {
+            frameIndex.current++;
+            if (frameIndex.current >= dataURL.length) {
+                frameIndex.current = 0;
+            }
+        } else {
+            frameIndex.current--;
+            if (frameIndex.current < 0) {
+                frameIndex.current = dataURL.length - 1;
+            }
+        }
+    };
+
+    /**
+     * 使用 GroundPrimitive 绘制多边形，与 AnimatedRasterLayer 同类型，
+     * primitives 后加的在上面，保证显示在雷达图层之上且真正 drape 到地形。
+     * 每次增加点时重建（GroundPrimitive 不支持动态几何），支持半透明。
+     */
+    const createOrUpdatePolygon = () => {
+        if (points.current.length < 3) return;
+
+        if (polygonRef.current) {
+            if (!polygonRef.current.isDestroyed()) {
+                viewer.scene.primitives.remove(polygonRef.current);
+            }
+            polygonRef.current = null;
+        }
+
+        const geometry = new Cesium.PolygonGeometry({
+            polygonHierarchy: new Cesium.PolygonHierarchy([...points.current]),
+            vertexFormat: Cesium.EllipsoidSurfaceAppearance.VERTEX_FORMAT,
+        });
+
+        polygonMaterial.current = Cesium.Material.fromType('Color', {
+            color: Cesium.Color.RED.withAlpha(0.2),
+        });
+
+        polygonRef.current = viewer.scene.primitives.add(
+            new Cesium.GroundPrimitive({
+                geometryInstances: new Cesium.GeometryInstance({ geometry }),
+                appearance: new Cesium.EllipsoidSurfaceAppearance({
+                    material: polygonMaterial.current,
+                    translucent: true,
+                    aboveGround: true,
+                }),
+                asynchronous: false,
+            })
+        );
+    };
+    const points = useRef<Cesium.Cartesian3[]>([]);
+    const polygonRef = useRef<Cesium.GroundPrimitive | null>(null);
+    const polygonMaterial = useRef<Cesium.Material | null>(null);
+    const drawStatus = useRef(false);
+    const maskPoints = useRef<[number, number][]>([]);
+
+    useEffect(() => {
+        if (!viewer) return;
+        const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
+        handler.setInputAction((evt: { position: Cesium.Cartesian2 }) => {
+            let pos: Cesium.Cartesian3 | undefined = viewer.scene.pickPosition(evt.position);
+            if (!pos) {
+                const ray = viewer.camera.getPickRay(evt.position);
+                if (ray) {
+                    pos = viewer.scene.globe.pick(ray, viewer.scene);
+                }
+            }
+            if (
+                !pos ||
+                !Number.isFinite(pos.x) ||
+                !Number.isFinite(pos.y) ||
+                !Number.isFinite(pos.z)
+            )
+                return;
+
+            const carto = Cesium.Cartographic.fromCartesian(pos);
+            if (!Number.isFinite(carto.longitude) || !Number.isFinite(carto.latitude)) return;
+
+            const lat = Cesium.Math.toDegrees(carto.latitude);
+            const lon = Cesium.Math.toDegrees(carto.longitude);
+            console.log([lon, lat]);
+            if (!drawStatus.current) return;
+
+            const point = Cesium.Cartesian3.fromDegrees(lon, lat);
+            if (!Number.isFinite(point.x) || !Number.isFinite(point.y) || !Number.isFinite(point.z))
+                return;
+
+            points.current.push(point);
+            maskPoints.current.push([lon, lat]);
+            createOrUpdatePolygon();
+        }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
+
+        handler.setInputAction((evt: { position: Cesium.Cartesian2 }) => {
+            const pos = viewer.scene.pickPosition(evt.position);
+            if (!pos) return;
+            const carto = Cesium.Cartographic.fromCartesian(pos);
+            const lat = Cesium.Math.toDegrees(carto.latitude);
+            const lon = Cesium.Math.toDegrees(carto.longitude);
+            console.log([lon, lat]);
+            if (!drawStatus.current) return;
+            drawStatus.current = false;
+        }, Cesium.ScreenSpaceEventType.RIGHT_CLICK);
+
+        return () => {
+            return handler.destroy();
+        };
+    }, [viewer]);
+
+    return (
+        <div style={{ position: 'absolute', top: 0, left: 0, zIndex: 1000 }}>
+            <button
+                onClick={() => {
+                    return renderMultiStaticLayerFrame(false);
+                }}
+            >
+                上一帧
+            </button>
+            <button
+                onClick={() => {
+                    return renderMultiStaticLayerFrame(true);
+                }}
+            >
+                下一帧
+            </button>
+            <button
+                onClick={() => {
+                    console.log(maskPoints.current);
+                    staticLayer.current[0]?.setMaskPolygon(maskPoints.current);
+                }}
+            >
+                设置遮罩
+            </button>
+            <button
+                onClick={() => {
+                    staticLayer.current[0]?.setMaskPolygon(null);
+                }}
+            >
+                清除遮罩
+            </button>
+            <button
+                onClick={() => {
+                    return (drawStatus.current = true);
+                }}
+            >
+                创建多边形
+            </button>
+            <button
+                onClick={() => {
+                    const interval = setInterval(() => {
+                        renderMultiStaticLayerFrame();
+                    }, 1000);
+                    return () => {
+                        return clearInterval(interval);
+                    };
+                }}
+            >
+                自动播放
+            </button>
+        </div>
+    );
+}

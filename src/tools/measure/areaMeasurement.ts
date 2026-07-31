@@ -1,0 +1,302 @@
+import * as Cesium from 'cesium';
+import MouseEvent from '../mouseBase/mouseBase';
+import {
+    compute3DPolygonArea,
+    computeEllipsoidalPolygonArea,
+    computeTerrainSurfaceArea,
+} from './compute';
+import { MouseStatusEnum } from '../../enum/enum';
+import { EventCallback } from '../../type/type';
+import type { AreaActiveOptions } from '.';
+
+export default class AreaMeasurement extends MouseEvent {
+    // 1、核心属性
+    protected readonly viewer: Cesium.Viewer;
+    protected readonly handler: Cesium.ScreenSpaceEventHandler;
+    protected readonly cesium: typeof Cesium;
+
+    // 2、集合管理
+    private options?: AreaActiveOptions;
+
+    // 3、状态管理
+    private state = {
+        curSort: 0,
+    };
+
+    // 4、数据管理
+    private pointDatas = new Map<number, string[]>();
+    private tempMovePosition = new Map<number, string>();
+    private pointEntitys: { [key: number]: Cesium.Entity[] };
+    private polygonEntities: { [key: number]: Cesium.Entity | undefined };
+    private tipAreaEntity: Cesium.Entity | undefined;
+    private tipEntities: Cesium.Entity[];
+    private areaMoveGeneration = 0;
+    private areaClickGeneration = 0;
+
+    constructor(
+        viewer: Cesium.Viewer,
+        handler: Cesium.ScreenSpaceEventHandler,
+        cesium: typeof Cesium
+    ) {
+        super(viewer, handler);
+
+        this.viewer = viewer;
+        this.handler = handler;
+        this.cesium = cesium;
+        this.state.curSort = 0;
+        this.pointDatas = new Map<number, string[]>();
+        this.tempMovePosition = new Map<number, string>();
+        this.pointEntitys = {};
+        this.polygonEntities = {};
+        this.tipAreaEntity = undefined;
+        this.tipEntities = [];
+        this.areaMoveGeneration = 0;
+        this.areaClickGeneration = 0;
+    }
+
+    active(options?: AreaActiveOptions): void {
+        this.options = { clampToGround: true, ...options };
+        this.registerEvents();
+    }
+
+    deactivate(): void {
+        this.clear();
+        this.unRegisterEvents();
+    }
+
+    clear(): void {
+        Object.entries(this.pointEntitys).forEach(([, value]) => {
+            value.forEach((entity) => {
+                this.viewer.entities.remove(entity);
+            });
+        });
+        Object.entries(this.polygonEntities).forEach(([, value]) => {
+            if (value) {
+                this.viewer.entities.remove(value);
+            }
+        });
+        this.tipEntities.forEach((entity) => {
+            return this.viewer.entities.remove(entity);
+        });
+        this.tipAreaEntity && this.viewer.entities.remove(this.tipAreaEntity);
+
+        this.state.curSort = 0;
+        this.pointDatas.clear();
+        this.tempMovePosition.clear();
+        this.pointEntitys = {};
+        this.polygonEntities = {};
+        this.tipAreaEntity = undefined;
+        this.tipEntities = [];
+        this.areaMoveGeneration = 0;
+        this.areaClickGeneration = 0;
+    }
+
+    addToolsEventListener<T>(eventName: string, callback: EventCallback<T>) {
+        this.addEventListener(eventName, callback);
+    }
+
+    removeToolsEventListener<T>(eventName: string, callback?: EventCallback<T>) {
+        this.removeEventListener(eventName, callback);
+    }
+
+    protected leftClickEvent(): void {
+        this.handler.setInputAction(async (e: { position: Cesium.Cartesian2 }) => {
+            const currentPosition = this.viewer.scene.pickPosition(e.position);
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
+
+            const index = this.state.curSort;
+            if (!this.pointDatas.has(index)) {
+                this.pointDatas.set(index, []);
+            }
+            this.pointDatas.get(index)?.push(JSON.stringify(currentPosition));
+            this.createPoint(currentPosition);
+            this.drawingPolygon();
+        }, this.cesium.ScreenSpaceEventType.LEFT_CLICK);
+    }
+
+    protected rightClickEvent(): void {
+        this.handler.setInputAction(async (e: { position: Cesium.Cartesian2 }) => {
+            const currentPosition = this.viewer.scene.pickPosition(e.position);
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
+
+            const index = this.state.curSort;
+            const points = this.pointDatas.get(index) ?? [];
+            if (points.length < 3) return;
+
+            const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                return JSON.parse(item);
+            });
+            this.tempMovePosition.set(
+                index,
+                JSON.stringify(tempPositions[tempPositions.length - 1])
+            );
+
+            await this.createAreaTip(tempPositions, 'click');
+
+            this.state.curSort = index + 1;
+            this.unRegisterEvents();
+        }, this.cesium.ScreenSpaceEventType.RIGHT_CLICK);
+    }
+
+    protected mouseMoveEvent(): void {
+        this.handler.setInputAction(async (e: { endPosition: Cesium.Cartesian2 }) => {
+            const currentPosition = this.viewer.scene.pickPosition(e.endPosition);
+            if (!currentPosition || !this.cesium.defined(currentPosition)) return;
+
+            const index = this.state.curSort;
+            if (!this.tempMovePosition) {
+                this.tempMovePosition = new Map<number, string>();
+            }
+            this.tempMovePosition.set(index, JSON.stringify(currentPosition));
+
+            if (this.options?.liveUpdateOnMove === false) {
+                return;
+            }
+
+            const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                return JSON.parse(item);
+            });
+
+            if (tempPositions.length > 1) {
+                await this.createAreaTip([...tempPositions, currentPosition], 'move');
+            }
+        }, this.cesium.ScreenSpaceEventType.MOUSE_MOVE);
+    }
+
+    private createPoint(position: Cesium.Cartesian3) {
+        const index = this.state.curSort;
+        if (!this.pointEntitys[index]) {
+            this.pointEntitys[index] = [];
+        }
+        this.pointEntitys[index].push(
+            this.viewer.entities.add({
+                position: position as Cesium.Cartesian3,
+                point: {
+                    color: this.cesium.Color.YELLOW,
+                    outlineColor: this.cesium.Color.BLACK,
+                    outlineWidth: 1,
+                    pixelSize: 8,
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                },
+            })
+        );
+    }
+
+    private drawingPolygon() {
+        const index = this.state.curSort;
+        if (this.polygonEntities[index]) return;
+
+        this.polygonEntities[index] = this.viewer.entities.add({
+            polygon: {
+                hierarchy: new this.cesium.CallbackProperty(() => {
+                    const tempPositions = [...(this.pointDatas.get(index) || [])].map((item) => {
+                        return JSON.parse(item);
+                    });
+                    if (this.tempMovePosition.get(index)) {
+                        tempPositions.push(JSON.parse(this.tempMovePosition.get(index)!));
+                    }
+                    return new this.cesium.PolygonHierarchy(tempPositions as Cesium.Cartesian3[]);
+                }, false),
+                material: new this.cesium.ColorMaterialProperty(
+                    this.cesium.Color.YELLOW.withAlpha(0.3)
+                ),
+                classificationType: this.cesium.ClassificationType.BOTH,
+            },
+        });
+    }
+
+    private async createAreaTip(descartesPoints: Cesium.Cartesian3[], type: 'click' | 'move') {
+        const generation =
+            type === MouseStatusEnum.click ? ++this.areaClickGeneration : ++this.areaMoveGeneration;
+
+        this.tipAreaEntity && this.viewer.entities.remove(this.tipAreaEntity);
+        const ellipsoid = this.viewer.scene.globe.ellipsoid;
+
+        const ellipsoidalArea = computeEllipsoidalPolygonArea(
+            this.cesium,
+            descartesPoints,
+            ellipsoid
+        );
+        const cartesianArea = compute3DPolygonArea(this.cesium, descartesPoints);
+        const terrainSurfaceArea = await computeTerrainSurfaceArea(
+            this.cesium,
+            descartesPoints,
+            this.viewer.terrainProvider,
+            {
+                ellipsoid,
+                sampleStepMeters: this.options?.terrainSampleStepMeters,
+                gridSegments: this.options?.terrainGridSegments,
+            }
+        );
+        if (
+            (type === MouseStatusEnum.click && generation !== this.areaClickGeneration) ||
+            (type === MouseStatusEnum.move && generation !== this.areaMoveGeneration)
+        ) {
+            return;
+        }
+
+        const area = this.options?.area;
+        const ellipsoidalText = ellipsoidalArea.toFixed(2);
+        const cartesianText = cartesianArea.toFixed(2);
+        const terrainSurfaceText = terrainSurfaceArea.toFixed(2);
+
+        let text: string;
+        if (area?.customRender) {
+            text = area.customRender(ellipsoidalArea, cartesianArea, terrainSurfaceArea);
+        } else if (area?.template) {
+            text = area.template
+                .replace('{}', ellipsoidalText)
+                .replace('{}', cartesianText)
+                .replace('{}', terrainSurfaceText);
+        } else {
+            text =
+                `椭球面积：${ellipsoidalText}m²\n` +
+                `笛卡尔面积：${cartesianText}m²\n` +
+                `地形表面积：${terrainSurfaceText}m²`;
+        }
+
+        const tipEntity = this.viewer.entities.add({
+            position: this.getPolygonLabelPosition(descartesPoints),
+            label: {
+                text,
+                show: area?.show !== false,
+                font: area?.font ?? '12px sans-serif',
+                scale: area?.scale,
+                fillColor: area?.fillColor ?? this.cesium.Color.WHITE,
+                outlineColor: area?.outlineColor ?? this.cesium.Color.BLACK,
+                outlineWidth: area?.outlineWidth ?? 2,
+                style: area?.style ?? this.cesium.LabelStyle.FILL_AND_OUTLINE,
+                showBackground: area?.showBackground ?? false,
+                pixelOffset: area?.pixelOffset ?? new this.cesium.Cartesian2(0, 20),
+                verticalOrigin: area?.verticalOrigin ?? this.cesium.VerticalOrigin.TOP,
+                disableDepthTestDistance:
+                    area?.disableDepthTestDistance ?? Number.POSITIVE_INFINITY,
+                heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
+            },
+        });
+
+        if (type === MouseStatusEnum.click) {
+            this.tipEntities.push(tipEntity);
+        } else {
+            this.tipAreaEntity = tipEntity;
+        }
+    }
+
+    /** 取顶点在 ECEF 下的平均并投影到椭球面，作为面积标签锚点（近似多边形中心） */
+    private getPolygonLabelPosition(points: Cesium.Cartesian3[]): Cesium.Cartesian3 {
+        if (points.length === 0) {
+            return new this.cesium.Cartesian3();
+        }
+        if (points.length === 1) {
+            return points[0];
+        }
+        const sum = new this.cesium.Cartesian3(0, 0, 0);
+        for (const p of points) {
+            this.cesium.Cartesian3.add(sum, p, sum);
+        }
+        this.cesium.Cartesian3.multiplyByScalar(sum, 1 / points.length, sum);
+        const ellipsoid = this.viewer.scene.globe.ellipsoid;
+        const onSurface = ellipsoid.scaleToGeodeticSurface(sum, new this.cesium.Cartesian3());
+        return onSurface ?? sum;
+    }
+}

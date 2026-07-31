@@ -1,0 +1,32 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+.env
+.env.local
+
+# Editor directories and files
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Playground 大体积样例（小文件 grid.json、README 仍提交）
+public/resources/**/*.zip
+public/resources/**/*.dat
+public/resources/**/*.tif
+!public/resources/README.md
+!public/resources/grid.json

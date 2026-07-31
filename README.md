@@ -10,12 +10,12 @@ Cesium 场景常用工具集合：测量、绘制、通视/视域、坡向、转
 
 ## 包入口（多项目 / 多框架）
 
-| 子路径 | 适用场景 |
-|--------|----------|
-| `cesium-tools-fxt/core` | **Vue、原生 TS、React** 通用；工厂函数命名为 `create*`（如 `createMeasure`），与 `use*` 为同一实现 |
-| `cesium-tools-fxt/vue` | Vue 3 **`useCesiumTools`**（绑定 Viewer，自动清理） |
-| `cesium-tools-fxt/react` | React 项目语义化导入（`useMeasure` 等） |
-| `cesium-tools-fxt` | 与 `core` 等价的全量导出（兼容旧版） |
+| 子路径                   | 适用场景                                                                                           |
+| ------------------------ | -------------------------------------------------------------------------------------------------- |
+| `cesium-tools-fxt/core`  | **Vue、原生 TS、React** 通用；工厂函数命名为 `create*`（如 `createMeasure`），与 `use*` 为同一实现 |
+| `cesium-tools-fxt/vue`   | Vue 3 **`useCesiumTools`**（绑定 Viewer，自动清理）                                                |
+| `cesium-tools-fxt/react` | React 项目语义化导入（`useMeasure` 等）                                                            |
+| `cesium-tools-fxt`       | 与 `core` 等价的全量导出（兼容旧版）                                                               |
 
 仓库内 **`playground/`** 仅为本地联调 Demo（`npm run dev`），**不会**打进 npm 的 `dist`。  
 样例数据见 [`public/resources/README.md`](public/resources/README.md)（`npm run playground:check-data` 检查缺失）。  
@@ -91,34 +91,34 @@ git push --follow-tags
 ```tsx
 import * as Cesium from 'cesium';
 import {
-  useMeasure,
-  useDrawing,
-  useVisualFieldAnalysis,
-  useVisibilityAnalysis,
-  useSlopeDirectionAnalysis,
-  useTurntableSwing,
-  useCesiumToolsManage,
+    useMeasure,
+    useDrawing,
+    useVisualFieldAnalysis,
+    useVisibilityAnalysis,
+    useSlopeDirectionAnalysis,
+    useTurntableSwing,
+    useCesiumToolsManage,
 } from 'cesium-tools-fxt';
 
 function MapTools({ viewer }: { viewer: Cesium.Viewer }) {
-  const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
-    viewer,
-    Cesium
-  );
-  const { drawing, drawingEntity } = useDrawing(viewer, Cesium);
-  const visualFieldAnalysis = useVisualFieldAnalysis();
-  const visibilityAnalysis = useVisibilityAnalysis();
-  const slopeDirectionAnalysis = useSlopeDirectionAnalysis();
-  const turntableSwing = useTurntableSwing();
+    const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
+        viewer,
+        Cesium
+    );
+    const { drawing, drawingEntity } = useDrawing(viewer, Cesium);
+    const visualFieldAnalysis = useVisualFieldAnalysis();
+    const visibilityAnalysis = useVisibilityAnalysis();
+    const slopeDirectionAnalysis = useSlopeDirectionAnalysis();
+    const turntableSwing = useTurntableSwing();
 
-  useEffect(() => {
-    visualFieldAnalysis.setInstance(viewer);
-    visibilityAnalysis.setInstance(viewer);
-    slopeDirectionAnalysis.setInstance(viewer);
-    turntableSwing.setInstance(viewer);
-  }, [viewer]);
+    useEffect(() => {
+        visualFieldAnalysis.setInstance(viewer);
+        visibilityAnalysis.setInstance(viewer);
+        slopeDirectionAnalysis.setInstance(viewer);
+        turntableSwing.setInstance(viewer);
+    }, [viewer]);
 
-  return null;
+    return null;
 }
 ```
 
@@ -138,9 +138,9 @@ const viewerRef = shallowRef<Cesium.Viewer | null>(null);
 const tools = useCesiumTools(viewerRef, Cesium);
 
 onMounted(() => {
-  const v = new Cesium.Viewer('cesiumContainer');
-  viewerRef.value = v;
-  tools.value?.measure.measureDistance.active({ clampToGround: true });
+    const v = new Cesium.Viewer('cesiumContainer');
+    viewerRef.value = v;
+    tools.value?.measure.measureDistance.active({ clampToGround: true });
 });
 </script>
 ```
@@ -152,10 +152,10 @@ onMounted(() => {
 ```ts
 import * as Cesium from 'cesium';
 import {
-  createMeasure,
-  createVisualFieldAnalysis,
-  AnimatedRasterLayer,
-  HardEdgeRasterLayer,
+    createMeasure,
+    createVisualFieldAnalysis,
+    AnimatedRasterLayer,
+    HardEdgeRasterLayer,
 } from 'cesium-tools-fxt/core';
 
 // 在 onMounted 或初始化 Viewer 之后：
@@ -175,23 +175,23 @@ visual.active();
 
 `import { … } from 'cesium-tools-fxt'` 包含：
 
-| 导出 | 说明 |
-|------|------|
-| `GridDataReader` | 雷达/格点 ZIP 解压与解析（可选 Worker） |
-| `readGridHeaderFromFile` / `readGridDataFromFile` | 从 Blob/File 读头或全量 |
-| `readGridFromFileInput` | 从 `File` 读取 `.zip`（推荐；失败 **throw**） |
-| `handleFileUpload` | 兼容旧版 `<input type="file">` 事件封装 |
-| `shouldFlipLatitudeRowsForCesium` | 是否按 Cesium 贴图方向翻转纬度行 |
-| `AnimatedRasterLayer` | 格点贴地/Primitive 着色层 |
-| `HardEdgeRasterLayer` | 硬边界单瓦片 Canvas 影像层 |
-| `EarthProjection` | 格点投影到地球 |
-| `createMeasure` / `useMeasure` | 测量（距离/面积/角度/地表高度） |
-| `createDrawing` / `useDrawing` | Primitive + Entity 绘制 |
-| `createVisualFieldAnalysis` / `useVisualFieldAnalysis` | 通视分析 |
-| `createVisibilityAnalysis` / `useVisibilityAnalysis` | 视域分析 |
-| `createSlopeDirectionAnalysis` / `useSlopeDirectionAnalysis` | 坡向分析 |
-| `createTurntableSwing` / `useTurntableSwing` | 雷达转台 |
-| `createCesiumToolsEventBus` / `useCesiumToolsManage` | 全局事件总线 |
+| 导出                                                         | 说明                                          |
+| ------------------------------------------------------------ | --------------------------------------------- |
+| `GridDataReader`                                             | 雷达/格点 ZIP 解压与解析（可选 Worker）       |
+| `readGridHeaderFromFile` / `readGridDataFromFile`            | 从 Blob/File 读头或全量                       |
+| `readGridFromFileInput`                                      | 从 `File` 读取 `.zip`（推荐；失败 **throw**） |
+| `handleFileUpload`                                           | 兼容旧版 `<input type="file">` 事件封装       |
+| `shouldFlipLatitudeRowsForCesium`                            | 是否按 Cesium 贴图方向翻转纬度行              |
+| `AnimatedRasterLayer`                                        | 格点贴地/Primitive 着色层                     |
+| `HardEdgeRasterLayer`                                        | 硬边界单瓦片 Canvas 影像层                    |
+| `EarthProjection`                                            | 格点投影到地球                                |
+| `createMeasure` / `useMeasure`                               | 测量（距离/面积/角度/地表高度）               |
+| `createDrawing` / `useDrawing`                               | Primitive + Entity 绘制                       |
+| `createVisualFieldAnalysis` / `useVisualFieldAnalysis`       | 通视分析                                      |
+| `createVisibilityAnalysis` / `useVisibilityAnalysis`         | 视域分析                                      |
+| `createSlopeDirectionAnalysis` / `useSlopeDirectionAnalysis` | 坡向分析                                      |
+| `createTurntableSwing` / `useTurntableSwing`                 | 雷达转台                                      |
+| `createCesiumToolsEventBus` / `useCesiumToolsManage`         | 全局事件总线                                  |
 
 类型：`Measure`、`MeasurementActions`、`DrawingActions`、`VisualFieldAnalysis`、`VisibilityAnalysisProps`、`SlopDerectionAnalysis`、`TurntableSwingProps`、`DrawingTypeEnum`、`Points`；格点侧另有 `GridHeader`、`GridFrame`、`AnimatedRasterLayerHeader`、`AnimatedGridFrame`、`AnimatedGridCellInfo`、`DynamicRasterInteractionOptions`、`RasterColorStop`、`PolygonMaskCoord`、`AnimatedRasterLayerOptions` 等（见下节）。
 
@@ -200,12 +200,10 @@ visual.active();
 ## 测量 `useMeasure(viewer, Cesium)`
 
 ```ts
-const {
-  measureDistance,
-  measureArea,
-  measureAngle,
-  measureTheHeightOfTheGround,
-} = useMeasure(viewer, Cesium);
+const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
+    viewer,
+    Cesium
+);
 ```
 
 每个子工具均提供：
@@ -217,12 +215,12 @@ const {
 
 ### 鼠标操作
 
-| 工具 | 操作说明 |
-|------|----------|
-| **距离** `measureDistance` | **左键** 依次加点折线；**右键** 结束当前折线段并开始下一段（若继续测量） |
-| **面积** `measureArea` | **左键** 加顶点；**右键** 闭合并完成当前多边形 |
-| **角度** `measureAngle` | **左键** 加折线顶点（第三点起显示夹角）；**右键** 结束（至少 3 点） |
-| **地表高度** `measureTheHeightOfTheGround` | **左键** 拾取一点并显示高度；**右键** 结束工具 |
+| 工具                                       | 操作说明                                                                 |
+| ------------------------------------------ | ------------------------------------------------------------------------ |
+| **距离** `measureDistance`                 | **左键** 依次加点折线；**右键** 结束当前折线段并开始下一段（若继续测量） |
+| **面积** `measureArea`                     | **左键** 加顶点；**右键** 闭合并完成当前多边形                           |
+| **角度** `measureAngle`                    | **左键** 加折线顶点（第三点起显示夹角）；**右键** 结束（至少 3 点）      |
+| **地表高度** `measureTheHeightOfTheGround` | **左键** 拾取一点并显示高度；**右键** 结束工具                           |
 
 ### 常用选项摘要
 
@@ -258,11 +256,11 @@ const {
 
 ```ts
 measureDistance.active({
-  clampToGround: true,
-  liveUpdateOnMove: true,
-  line: {
-    customRender: (meters) => `约 ${(meters / 1000).toFixed(3)} km`,
-  },
+    clampToGround: true,
+    liveUpdateOnMove: true,
+    line: {
+        customRender: (meters) => `约 ${(meters / 1000).toFixed(3)} km`,
+    },
 });
 ```
 
@@ -431,7 +429,7 @@ bus.removeEventListener('myChannel', handler);
 
 ```ts
 measureDistance.addToolsEventListener('cesiumToolsFxt', (e) => {
-  console.log(e.detail);
+    console.log(e.detail);
 });
 ```
 
@@ -441,24 +439,24 @@ measureDistance.addToolsEventListener('cesiumToolsFxt', (e) => {
 
 ### `DrawingEntityOptions`（`drawingEntity.active`）
 
-| 属性 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| type | `DrawingTypeEnum` | 是 | 绘制类型 |
-| point / polyline / polygon / billboard / label | Entity 相关配置 | 否 | 样式 |
+| 属性                                           | 类型              | 必填 | 说明     |
+| ---------------------------------------------- | ----------------- | ---- | -------- |
+| type                                           | `DrawingTypeEnum` | 是   | 绘制类型 |
+| point / polyline / polygon / billboard / label | Entity 相关配置   | 否   | 样式     |
 
 ### `CreatePrimitiveOptions`（`drawing.create`）
 
-| 属性 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| type | `DrawingTypeEnum` | 是 | 绘制类型 |
-| point / polyline / polygon / polylinPolygon / billboard / label | Primitive 相关配置 | 否 | 样式 |
+| 属性                                                            | 类型               | 必填 | 说明     |
+| --------------------------------------------------------------- | ------------------ | ---- | -------- |
+| type                                                            | `DrawingTypeEnum`  | 是   | 绘制类型 |
+| point / polyline / polygon / polylinPolygon / billboard / label | Primitive 相关配置 | 否   | 样式     |
 
 ### `EditPrimitiveOptions`（`drawing.edit`）
 
-| 属性 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| type | `DrawingTypeEnum` | 否 | 绘制类型 |
-| point / polyline / polygon / billboard / label | 集合或样式 | 否 | 编辑用 |
+| 属性                                           | 类型              | 必填 | 说明     |
+| ---------------------------------------------- | ----------------- | ---- | -------- |
+| type                                           | `DrawingTypeEnum` | 否   | 绘制类型 |
+| point / polyline / polygon / billboard / label | 集合或样式        | 否   | 编辑用   |
 
 `CommonPrimitiveProps` 可包含 `showLabel?` 等扩展字段。
 

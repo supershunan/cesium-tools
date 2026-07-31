@@ -50,11 +50,7 @@ export default class PlotDrawTip {
     }
 
     updatePosition(position: Cesium.Cartesian3) {
-        const canvasPosition = cartesian3ToCanvas(
-            this.viewer.scene,
-            position,
-            this._canvasScratch
-        );
+        const canvasPosition = cartesian3ToCanvas(this.viewer.scene, position, this._canvasScratch);
         if (canvasPosition) {
             this.tooltip.style.left = `${canvasPosition.x}px`;
             this.tooltip.style.top = `${canvasPosition.y}px`;

@@ -4,17 +4,17 @@
 
 ## 仓库内保留（小文件）
 
-| 文件 | 用途 |
-|------|------|
+| 文件        | 用途                    |
+| ----------- | ----------------------- |
 | `grid.json` | BuildProject 等网格示例 |
 
 ## 需本地放置（已 gitignore）
 
-| 路径 | 引用位置 |
-|------|----------|
-| `slope/*.dat` | `playground/components/SlopeProject` |
-| `slope/*.tif` | 可选，本地 GDAL/预览 |
-| `*.zip` | 雷达格点 Demo（如 `closeToTheGround` 等） |
+| 路径          | 引用位置                                  |
+| ------------- | ----------------------------------------- |
+| `slope/*.dat` | `playground/components/SlopeProject`      |
+| `slope/*.tif` | 可选，本地 GDAL/预览                      |
+| `*.zip`       | 雷达格点 Demo（如 `closeToTheGround` 等） |
 
 将文件放到对应目录后，在仓库根目录执行：
 

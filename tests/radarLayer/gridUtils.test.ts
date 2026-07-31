@@ -13,9 +13,9 @@ describe('shouldFlipLatitudeRowsForCesium', () => {
     });
 
     it('显式 flipLatitudeRowsForCesium 优先', () => {
-        expect(shouldFlipLatitudeRowsForCesium({ flipLatitudeRowsForCesium: true, yDelta: -1 })).toBe(
-            true
-        );
+        expect(
+            shouldFlipLatitudeRowsForCesium({ flipLatitudeRowsForCesium: true, yDelta: -1 })
+        ).toBe(true);
         expect(
             shouldFlipLatitudeRowsForCesium({ flipLatitudeRowsForCesium: false, yDelta: 1 })
         ).toBe(false);

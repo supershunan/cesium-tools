@@ -23,4 +23,6 @@
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
 
-import{a}from"./chunk-ILB4KG4E.js";import"./chunk-JDAHMWM5.js";export{a as default};
+import { a } from './chunk-ILB4KG4E.js';
+import './chunk-JDAHMWM5.js';
+export { a as default };

@@ -782,8 +782,8 @@ export default class DrawingPrimitives extends MouseEvent {
                     } else {
                         const ground = primitive as GroundPrimitiveInternal;
                         cartesianPositions =
-                            ground._primitiveOptions.geometryInstances[0].geometry
-                                ._polygonHierarchy.positions;
+                            ground._primitiveOptions.geometryInstances[0].geometry._polygonHierarchy
+                                .positions;
                     }
 
                     // 创建新的多边形实例

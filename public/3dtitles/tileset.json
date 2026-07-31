@@ -1,1 +1,27 @@
-{"asset":{"version":"1.0","generatetool":"OSGBLab(www.osgblab.com)","gltfUpAxis":"Y"},"extensionsUsed":["KHR_materials_unlit"],"geometricError":1546.52692,"refine":"REPLACE","root":{"boundingVolume":{"sphere":[-1840605.07812,5255299.39637,3100726.86709,1546.52692]},"geometricError":1546.52692,"children":[{"boundingVolume":{"sphere":[-1840605.07812,5255299.39637,3100726.86709,1546.52692]},"geometricError":2232.04024,"children":[{"boundingVolume":{"sphere":[-1840605.07812,5255299.39637,3100726.86709,1546.52692]},"geometricError":256,"content":{"uri":"Block\/Block.json"}}]}]}}
+{
+    "asset": { "version": "1.0", "generatetool": "OSGBLab(www.osgblab.com)", "gltfUpAxis": "Y" },
+    "extensionsUsed": ["KHR_materials_unlit"],
+    "geometricError": 1546.52692,
+    "refine": "REPLACE",
+    "root": {
+        "boundingVolume": { "sphere": [-1840605.07812, 5255299.39637, 3100726.86709, 1546.52692] },
+        "geometricError": 1546.52692,
+        "children": [
+            {
+                "boundingVolume": {
+                    "sphere": [-1840605.07812, 5255299.39637, 3100726.86709, 1546.52692]
+                },
+                "geometricError": 2232.04024,
+                "children": [
+                    {
+                        "boundingVolume": {
+                            "sphere": [-1840605.07812, 5255299.39637, 3100726.86709, 1546.52692]
+                        },
+                        "geometricError": 256,
+                        "content": { "uri": "Block\/Block.json" }
+                    }
+                ]
+            }
+        ]
+    }
+}

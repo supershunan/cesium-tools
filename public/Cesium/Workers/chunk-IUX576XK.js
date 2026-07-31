@@ -23,4 +23,15 @@
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
 
-import{c as e}from"./chunk-QDJTHWTA.js";function r(t){t=t??e.EMPTY_OBJECT,this.position=t.position,this.normal=t.normal,this.st=t.st,this.bitangent=t.bitangent,this.tangent=t.tangent,this.color=t.color}var n=r;export{n as a};
+import { c as e } from './chunk-QDJTHWTA.js';
+function r(t) {
+    ((t = t ?? e.EMPTY_OBJECT),
+        (this.position = t.position),
+        (this.normal = t.normal),
+        (this.st = t.st),
+        (this.bitangent = t.bitangent),
+        (this.tangent = t.tangent),
+        (this.color = t.color));
+}
+var n = r;
+export { n as a };

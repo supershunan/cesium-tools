@@ -23,4 +23,57 @@
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
 
-import{a as f}from"./chunk-CYZH6ZIM.js";import"./chunk-YMJY54J4.js";import"./chunk-OUPSOZ4F.js";import{a as u}from"./chunk-ILB4KG4E.js";import"./chunk-VJHOZLST.js";import"./chunk-RNCQLKJ3.js";import"./chunk-NPKIHRIX.js";import"./chunk-33M5C4LG.js";import"./chunk-X2JOWFTB.js";import"./chunk-KIJM7B3H.js";import"./chunk-P44F6KLE.js";import"./chunk-GSMLTRAL.js";import"./chunk-XO2FNJZK.js";import"./chunk-CM5O7VPK.js";import"./chunk-IB27QQGF.js";import"./chunk-RGFEE67W.js";import"./chunk-KXT7EZPS.js";import"./chunk-ZIOQOCPQ.js";import"./chunk-SY2GINYP.js";import"./chunk-KCR7AORG.js";import"./chunk-QDJTHWTA.js";import"./chunk-2YWR3G22.js";import"./chunk-HTSQLHXI.js";import"./chunk-JDAHMWM5.js";function h(c,d){let e=f.upsampleMesh(c),t=e.vertices.buffer,i=e.indices.buffer,s=e.westIndicesSouthToNorth.buffer,o=e.southIndicesEastToWest.buffer,r=e.eastIndicesNorthToSouth.buffer,n=e.northIndicesWestToEast.buffer;return d.push(t,i,s,o,r,n),{verticesBuffer:t,indicesBuffer:i,vertexCountWithoutSkirts:e.vertexCountWithoutSkirts,indexCountWithoutSkirts:e.indexCountWithoutSkirts,encoding:e.encoding,westIndicesBuffer:s,southIndicesBuffer:o,eastIndicesBuffer:r,northIndicesBuffer:n,minimumHeight:e.minimumHeight,maximumHeight:e.maximumHeight,boundingSphere:e.boundingSphere3D,orientedBoundingBox:e.orientedBoundingBox,horizonOcclusionPoint:e.horizonOcclusionPoint}}var I=u(h);export{I as default};
+import { a as f } from './chunk-CYZH6ZIM.js';
+import './chunk-YMJY54J4.js';
+import './chunk-OUPSOZ4F.js';
+import { a as u } from './chunk-ILB4KG4E.js';
+import './chunk-VJHOZLST.js';
+import './chunk-RNCQLKJ3.js';
+import './chunk-NPKIHRIX.js';
+import './chunk-33M5C4LG.js';
+import './chunk-X2JOWFTB.js';
+import './chunk-KIJM7B3H.js';
+import './chunk-P44F6KLE.js';
+import './chunk-GSMLTRAL.js';
+import './chunk-XO2FNJZK.js';
+import './chunk-CM5O7VPK.js';
+import './chunk-IB27QQGF.js';
+import './chunk-RGFEE67W.js';
+import './chunk-KXT7EZPS.js';
+import './chunk-ZIOQOCPQ.js';
+import './chunk-SY2GINYP.js';
+import './chunk-KCR7AORG.js';
+import './chunk-QDJTHWTA.js';
+import './chunk-2YWR3G22.js';
+import './chunk-HTSQLHXI.js';
+import './chunk-JDAHMWM5.js';
+function h(c, d) {
+    let e = f.upsampleMesh(c),
+        t = e.vertices.buffer,
+        i = e.indices.buffer,
+        s = e.westIndicesSouthToNorth.buffer,
+        o = e.southIndicesEastToWest.buffer,
+        r = e.eastIndicesNorthToSouth.buffer,
+        n = e.northIndicesWestToEast.buffer;
+    return (
+        d.push(t, i, s, o, r, n),
+        {
+            verticesBuffer: t,
+            indicesBuffer: i,
+            vertexCountWithoutSkirts: e.vertexCountWithoutSkirts,
+            indexCountWithoutSkirts: e.indexCountWithoutSkirts,
+            encoding: e.encoding,
+            westIndicesBuffer: s,
+            southIndicesBuffer: o,
+            eastIndicesBuffer: r,
+            northIndicesBuffer: n,
+            minimumHeight: e.minimumHeight,
+            maximumHeight: e.maximumHeight,
+            boundingSphere: e.boundingSphere3D,
+            orientedBoundingBox: e.orientedBoundingBox,
+            horizonOcclusionPoint: e.horizonOcclusionPoint,
+        }
+    );
+}
+var I = u(h);
+export { I as default };

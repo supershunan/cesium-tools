@@ -23,4 +23,6 @@
  * See https://github.com/CesiumGS/cesium/blob/main/LICENSE.md for full licensing details.
  */
 
-var e={NONE:0,GEODESIC:1,RHUMB:2},t=Object.freeze(e);export{t as a};
+var e = { NONE: 0, GEODESIC: 1, RHUMB: 2 },
+    t = Object.freeze(e);
+export { t as a };

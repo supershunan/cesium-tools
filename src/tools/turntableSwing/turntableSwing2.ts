@@ -43,7 +43,8 @@ export default class TurntableSwing {
 
         const cartesian3Center = Cesium.Cartographic.toCartesian(cartographicCenter); // 返回一个新的 Cartesian3 坐标
         /** 原点的四维坐标 */
-        const cartesian4Center = new Cesium.Cartesian4( // 创建四维笛卡尔坐标
+        const cartesian4Center = new Cesium.Cartesian4(
+            // 创建四维笛卡尔坐标
             cartesian3Center.x,
             cartesian3Center.y,
             cartesian3Center.z,

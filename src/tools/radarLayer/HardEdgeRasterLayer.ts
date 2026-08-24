@@ -252,11 +252,62 @@ export class HardEdgeRasterLayer {
     }
 
     public setColorRamp(colorRamp: HardEdgeColorStop[]): void {
+        const unchanged =
+            this.colorRamp.length === colorRamp.length &&
+            this.colorRamp.every((stop, index) => {
+                const nextStop = colorRamp[index];
+                return (
+                    nextStop !== undefined &&
+                    stop.maxValue === nextStop.maxValue &&
+                    stop.color[0] === nextStop.color[0] &&
+                    stop.color[1] === nextStop.color[1] &&
+                    stop.color[2] === nextStop.color[2]
+                );
+            });
+        if (unchanged) return;
+
         this.colorRamp = colorRamp.slice();
+        this.redrawCurrentGrid();
     }
 
     public setGradientEnabled(enabled: boolean): void {
+        if (this.gradientEnabled === enabled) return;
         this.gradientEnabled = enabled;
+        this.redrawCurrentGrid();
+    }
+
+    /** 使用缓存的网格数据重绘色带，无需重新加载源数据。 */
+    private redrawCurrentGrid(): void {
+        if (
+            !this.currentGrid ||
+            !this.currentRectangle ||
+            !this.canvas ||
+            this.gridWidth <= 0 ||
+            this.gridHeight <= 0
+        ) {
+            return;
+        }
+
+        const context = this.canvas.getContext('2d');
+        if (!context) return;
+        if (
+            !this.imageData ||
+            this.imageData.width !== this.gridWidth ||
+            this.imageData.height !== this.gridHeight
+        ) {
+            this.imageData = context.createImageData(this.gridWidth, this.gridHeight);
+        }
+
+        this.packGrid(this.currentGrid, this.gridWidth, this.gridHeight, this.currentRectangle);
+        context.putImageData(this.imageData, 0, 0);
+
+        if (
+            this.imageryLayerValue &&
+            !directUpdateTexture(this.imageryLayerValue, this.canvas, this.viewer)
+        ) {
+            forceReload(this.imageryLayerValue, this.viewer);
+        }
+        this.viewer.scene.requestRender();
     }
 
     public setMaskPolygon(maskPolygon: Array<[number, number]> | null): void {

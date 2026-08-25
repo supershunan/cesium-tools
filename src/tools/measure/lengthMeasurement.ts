@@ -1,9 +1,9 @@
 import * as Cesium from 'cesium';
 import MouseEvent from '../mouseBase/mouseBase';
-import { computed_WGS84Distance, computed_spaceDistance } from './compute';
 import { MouseStatusEnum } from '../../enum/enum';
 import { EventCallback } from '../../type/type';
 import { LengthActiveOptions } from '.';
+import { computeTerrainSurfaceDistance, computed_WGS84Distance } from './new-compute';
 
 export default class LengthMeasurement extends MouseEvent {
     // 1、核心属性
@@ -244,9 +244,14 @@ export default class LengthMeasurement extends MouseEvent {
             let distance_2d = 0,
                 distance_3d = 0;
             if (this.options?.clampToGround) {
-                distance_3d = await computed_WGS84Distance(Cesium, start, end);
+                distance_3d = await computeTerrainSurfaceDistance(
+                    Cesium,
+                    start,
+                    end,
+                    this.viewer.terrainProvider
+                );
             } else {
-                distance_2d = computed_spaceDistance(Cesium, start, end);
+                distance_2d = computed_WGS84Distance(Cesium, start, end);
             }
             if (generation !== this.distanceMoveGeneration) {
                 return;
@@ -260,10 +265,16 @@ export default class LengthMeasurement extends MouseEvent {
         let distance_2d = 0,
             distance_3d = 0;
         if (this.options?.clampToGround) {
-            distance_3d = await computed_WGS84Distance(Cesium, start, end);
+            distance_3d = await computeTerrainSurfaceDistance(
+                Cesium,
+                start,
+                end,
+                this.viewer.terrainProvider
+            );
         } else {
-            distance_2d = computed_spaceDistance(Cesium, start, end);
+            distance_2d = computed_WGS84Distance(Cesium, start, end);
         }
+
         if (clickGeneration !== this.distanceClickGeneration) {
             return;
         }
@@ -307,7 +318,7 @@ export default class LengthMeasurement extends MouseEvent {
         } else if (line?.template) {
             text = line.template.replace('{}', primaryStr);
         } else {
-            text = use3d ? `贴地距离${primaryStr}m` : `直线距离${primaryStr}m`;
+            text = use3d ? `贴地距离${primaryStr}m` : `测地线距离${primaryStr}m`;
         }
 
         const tipEntity = this.viewer.entities.add({

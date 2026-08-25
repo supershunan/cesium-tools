@@ -69,7 +69,6 @@
         "@turf/turf": "^7.0.0",
         "@zip.js/zip.js": "^2.8.11",
         "cesium": "^1.119.0",
-        "d3-delaunay": "^6.0.4",
         "react": "^18.0.0",
         "react-dom": "^18.0.0",
         "vue": "^3.3.0"
@@ -96,7 +95,6 @@
         "@vitejs/plugin-react": "^4.3.1",
         "@zip.js/zip.js": "^2.8.11",
         "cesium": "^1.136.0",
-        "d3-delaunay": "^6.0.4",
         "eslint": "^8.57.0",
         "eslint-config-prettier": "^9.1.0",
         "eslint-config-ts-fxt": "^1.0.1",
@@ -112,6 +110,7 @@
         "vue": "^3.5.40"
     },
     "dependencies": {
+        "delaunator": "^5.1.0",
         "geographiclib-geodesic": "^2.2.0"
     }
 }

@@ -24,7 +24,7 @@ export interface LabelOptions {
     /**
      * 自定义标签文案；入参为原始数值（米、度等），便于自行换算或国际化
      * - 长度：value1 为当前线段距离（贴地为测地距离，否则为平面距离）
-     * - 面积：value1 为椭球面积、value2 为笛卡尔面积、value3 为地形表面积（平方米）
+     * - 面积：value1 为水平面积（椭球面积）、value2 坡面面积（地形表面积）
      * - 角度：边长标签 value1 为平面距离；角点标签 value1 为角度（度）
      */
     customRender?: (value1: number, value2?: number, value3?: number, value4?: number) => string;
@@ -53,6 +53,8 @@ export interface AreaActiveOptions {
 
 export interface LengthActiveOptions {
     clampToGround?: boolean;
+    /** 贴地距离的地形采样间距，单位米，默认 10 米。 */
+    terrainSampleStepMeters?: number;
     /** 默认相当于 `true`。设为 `false` 时不在移动中实时更新测距标签，仅保留折线预览。 */
     liveUpdateOnMove?: boolean;
     line?: LabelOptions;

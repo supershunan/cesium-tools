@@ -46,6 +46,8 @@ export interface AreaActiveOptions {
     terrainSampleStepMeters?: number;
     /** 未设置 terrainSampleStepMeters 时，最长方向默认切分数量。 */
     terrainGridSegments?: number;
+    /** 地形服务返回高程的统一修正量，单位米；默认 0。 */
+    terrainHeightOffsetMeters?: number;
     /** 默认相当于 `true`。设为 `false` 时不在移动中实时更新面积标签，仅保留多边形预览。 */
     liveUpdateOnMove?: boolean;
     area?: LabelOptions;
@@ -55,6 +57,8 @@ export interface LengthActiveOptions {
     clampToGround?: boolean;
     /** 贴地距离的地形采样间距，单位米，默认 10 米。 */
     terrainSampleStepMeters?: number;
+    /** 地形服务返回高程的统一修正量，单位米；默认 0。 */
+    terrainHeightOffsetMeters?: number;
     /** 默认相当于 `true`。设为 `false` 时不在移动中实时更新测距标签，仅保留折线预览。 */
     liveUpdateOnMove?: boolean;
     line?: LabelOptions;

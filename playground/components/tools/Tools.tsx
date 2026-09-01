@@ -10,6 +10,9 @@ import {
 } from '@src/core';
 import './tools.css';
 
+/** 当前 DSM Terrain 的高程基准修正量，切换 Terrain 时只需修改这里。 */
+const CURRENT_TERRAIN_HEIGHT_OFFSET_METERS = 0;
+
 export default function Tools({ viewer }: { viewer: Cesium.Viewer }) {
     const [measure, setMeasure] = useState<Cesium.Viewer>();
     const { measureDistance, measureArea, measureAngle } = useMeasure(
@@ -46,6 +49,7 @@ export default function Tools({ viewer }: { viewer: Cesium.Viewer }) {
     const handleDistance = () => {
         measureDistance.active({
             clampToGround: true,
+            terrainHeightOffsetMeters: CURRENT_TERRAIN_HEIGHT_OFFSET_METERS,
             line: {
                 // customRender: (meters) => {
                 //     return `距离自定义${(meters / 1000).toFixed(3)}km`;
@@ -56,6 +60,7 @@ export default function Tools({ viewer }: { viewer: Cesium.Viewer }) {
 
     const handleArea = () => {
         measureArea.active({
+            terrainHeightOffsetMeters: CURRENT_TERRAIN_HEIGHT_OFFSET_METERS,
             area: {
                 // customRender: (area2d, area3d) => {
                 //     return `平面 ${area2d.toFixed(2)} m²，贴地 ${area3d?.toFixed(2) ?? '—'} m²`;

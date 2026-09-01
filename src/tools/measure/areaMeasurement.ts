@@ -150,8 +150,7 @@ export default class AreaMeasurement extends MouseEvent {
             this.state.curSort = index + 1;
             this.areaMoveGeneration += 1;
             this.unRegisterEvents();
-            console.log('wkkk', tempPositions);
-            this.createTerrainPoint(1, tempPositions);
+            // this.createTerrainPoint(1, tempPositions);
             await this.createAreaTip(tempPositions, 'click');
         }, this.cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
@@ -240,6 +239,7 @@ export default class AreaMeasurement extends MouseEvent {
                     ellipsoid,
                     sampleStepMeters: this.options?.terrainSampleStepMeters,
                     gridSegments: this.options?.terrainGridSegments,
+                    terrainHeightOffsetMeters: this.options?.terrainHeightOffsetMeters,
                 }
             )
         ).area;
@@ -323,6 +323,7 @@ export default class AreaMeasurement extends MouseEvent {
                 ellipsoid: this.viewer.scene.globe.ellipsoid,
                 sampleStepMeters: accuracy,
                 gridSegments: this.options?.terrainGridSegments,
+                terrainHeightOffsetMeters: this.options?.terrainHeightOffsetMeters,
             }
         );
         if (generation !== this.terrainSampleGeneration) return result.area;

@@ -248,7 +248,11 @@ export default class LengthMeasurement extends MouseEvent {
                     Cesium,
                     start,
                     end,
-                    this.viewer.terrainProvider
+                    this.viewer.terrainProvider,
+                    {
+                        sampleStepMeters: this.options?.terrainSampleStepMeters,
+                        terrainHeightOffsetMeters: this.options?.terrainHeightOffsetMeters,
+                    }
                 );
             } else {
                 distance_2d = computed_WGS84Distance(Cesium, start, end);
@@ -269,7 +273,11 @@ export default class LengthMeasurement extends MouseEvent {
                 Cesium,
                 start,
                 end,
-                this.viewer.terrainProvider
+                this.viewer.terrainProvider,
+                {
+                    sampleStepMeters: this.options?.terrainSampleStepMeters,
+                    terrainHeightOffsetMeters: this.options?.terrainHeightOffsetMeters,
+                }
             );
         } else {
             distance_2d = computed_WGS84Distance(Cesium, start, end);

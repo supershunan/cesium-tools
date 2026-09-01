@@ -19,6 +19,8 @@ export type DelaunayTerrainSurfaceAreaOptions = {
     /** 未指定 sampleStepMeters 时，最长边方向的切分数量。 */
     gridSegments?: number;
     maxSamplePoints?: number;
+    /** 地形服务返回高程的统一修正量，单位米。 */
+    terrainHeightOffsetMeters?: number;
     ellipsoid?: CesiumTypes.Ellipsoid;
 };
 
@@ -39,6 +41,8 @@ export type TerrainSurfaceDistanceOptions = {
     sampleStepMeters?: number;
     /** 防止超长路径产生过多地形请求。 */
     maxSamplePoints?: number;
+    /** 地形服务返回高程的统一修正量，单位米。 */
+    terrainHeightOffsetMeters?: number;
     ellipsoid?: CesiumTypes.Ellipsoid;
 };
 
@@ -286,6 +290,7 @@ export const computeDelaunayTerrainSurfaceArea = async (
     const samples = sampledCartographics.map((cartographic, index): TerrainSurfaceSamplePoint => {
         const normalized = Cesium.Cartographic.clone(cartographic);
         if (!Number.isFinite(normalized.height)) normalized.height = 0;
+        normalized.height += options.terrainHeightOffsetMeters ?? 0;
         return {
             localPosition: localSamples[index].localPosition,
             kind: localSamples[index].kind,
@@ -438,6 +443,7 @@ export const computeTerrainSurfaceDistance = async (
     for (const sampled of sampledCartographics) {
         const cartographic = Cesium.Cartographic.clone(sampled);
         if (!Number.isFinite(cartographic.height)) cartographic.height = 0;
+        cartographic.height += options.terrainHeightOffsetMeters ?? 0;
         const current = ellipsoid.cartographicToCartesian(cartographic, new Cesium.Cartesian3());
         if (previous) distance += Cesium.Cartesian3.distance(previous, current);
         previous = current;

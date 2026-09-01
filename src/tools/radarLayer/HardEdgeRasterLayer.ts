@@ -676,7 +676,7 @@ export class HardEdgeRasterLayer {
             for (let x = 0; x < width; x++) {
                 const index = (y * width + x) * 4;
                 const value = grid[y]?.[x] ?? Number.NaN;
-                if (!Number.isFinite(value) || value === -1000 || value === 0) {
+                if (!Number.isFinite(value) || value === -1000) {
                     packed[index] = 0;
                     packed[index + 1] = 0;
                     packed[index + 2] = 0;

@@ -1,18 +1,10 @@
 import { defineConfig } from 'vite';
 import path from 'path';
 
-const external = [
-    'react',
-    'react-dom',
-    'react/jsx-runtime',
-    'react/jsx-dev-runtime',
-    'cesium',
-    '@turf/turf',
-    '@zip.js/zip.js',
-    'd3-delaunay',
-];
+const external = ['cesium', '@turf/turf', '@zip.js/zip.js'];
 
 export default defineConfig({
+    base: './',
     resolve: {
         alias: {
             '@src': path.resolve(__dirname, './src'),
@@ -25,20 +17,17 @@ export default defineConfig({
             entry: path.resolve(__dirname, './src/index.ts'),
             name: 'CesiumToolsFxt',
             formats: ['umd'],
-            fileName: () => 'cesium-tools.umd.js',
+            fileName: () => {
+                return 'cesium-tools.umd.cjs';
+            },
         },
         rollupOptions: {
             external,
             output: {
                 globals: {
                     cesium: 'Cesium',
-                    react: 'React',
-                    'react-dom': 'ReactDOM',
-                    'react/jsx-runtime': 'jsxRuntime',
-                    'react/jsx-dev-runtime': 'jsxDevRuntime',
                     '@turf/turf': 'turf',
                     '@zip.js/zip.js': 'zip',
-                    'd3-delaunay': 'd3',
                 },
             },
         },

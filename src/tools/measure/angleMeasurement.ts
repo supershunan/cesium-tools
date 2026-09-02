@@ -159,6 +159,7 @@ export default class AngleMeasurement extends MouseEvent {
 
             this.state.curSort = index + 1;
             this.unRegisterEvents();
+            this.dispatch('fxtDrawEnd', { msg: 'success' });
         }, this.cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 

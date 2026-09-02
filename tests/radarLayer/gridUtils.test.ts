@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
     shouldFlipLatitudeRowsForCesium,
     normalizeGeoJsonMaskPolygons,
@@ -73,7 +73,14 @@ describe('readGridFromFileInput', () => {
 
     it('接受 .ZIP 扩展名并尝试解析', async () => {
         const file = new File(['not-a-zip'], 'DATA.ZIP', { type: 'application/zip' });
-        await expect(readGridFromFileInput(file)).rejects.toThrow();
+        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {
+            return undefined;
+        });
+        try {
+            await expect(readGridFromFileInput(file)).rejects.toThrow();
+        } finally {
+            errorSpy.mockRestore();
+        }
     });
 });
 

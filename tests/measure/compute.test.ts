@@ -1,23 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { compute_2DPolygonArea } from '../../src/tools/measure/compute';
+import * as Cesium from 'cesium';
+import { computePlanarPolygonArea } from '../../src/tools/measure/compute';
 
-describe('compute_2DPolygonArea', () => {
-    it('单位正方形面积为 1', () => {
+describe('computePlanarPolygonArea', () => {
+    it('赤道附近约 1 米见方的面积约为 1 平方米', () => {
+        const ellipsoid = Cesium.Ellipsoid.WGS84;
+        const equatorialRadius = ellipsoid.radii.x;
+        const meridionalRadiusAtEquator = ellipsoid.radii.z ** 2 / equatorialRadius;
+        const oneMeterLongitude = 1 / equatorialRadius;
+        const oneMeterLatitude = 1 / meridionalRadiusAtEquator;
         const square = [
-            { x: 0, y: 0, z: 0 },
-            { x: 1, y: 0, z: 0 },
-            { x: 1, y: 1, z: 0 },
-            { x: 0, y: 1, z: 0 },
+            Cesium.Cartesian3.fromRadians(0, 0),
+            Cesium.Cartesian3.fromRadians(oneMeterLongitude, 0),
+            Cesium.Cartesian3.fromRadians(oneMeterLongitude, oneMeterLatitude),
+            Cesium.Cartesian3.fromRadians(0, oneMeterLatitude),
         ];
-        expect(compute_2DPolygonArea(square)).toBeCloseTo(1, 6);
+        expect(computePlanarPolygonArea(Cesium, square)).toBeCloseTo(1, 2);
     });
 
     it('少于 3 个点面积为 0', () => {
-        expect(compute_2DPolygonArea([{ x: 0, y: 0, z: 0 }])).toBe(0);
+        expect(computePlanarPolygonArea(Cesium, [new Cesium.Cartesian3()])).toBe(0);
         expect(
-            compute_2DPolygonArea([
-                { x: 0, y: 0, z: 0 },
-                { x: 1, y: 0, z: 0 },
+            computePlanarPolygonArea(Cesium, [
+                new Cesium.Cartesian3(),
+                new Cesium.Cartesian3(1, 0, 0),
             ])
         ).toBe(0);
     });

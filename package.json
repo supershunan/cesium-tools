@@ -1,33 +1,18 @@
 {
     "name": "cesium-tools-fxt",
-    "version": "1.2.1",
-    "description": "Cesium 场景工具库：测量、绘制、通视/视域、坡向、雷达格点栅格等（支持 React / Vue / 纯 TS）",
+    "version": "2.0.0",
+    "description": "框架无关的 Cesium 场景工具库：测量、绘制、通视/视域、坡向、雷达格点栅格等",
     "type": "module",
     "license": "MIT",
-    "main": "./dist/cesium-tools.umd.js",
+    "main": "./dist/cesium-tools.umd.cjs",
     "module": "./dist/cesium-tools.es.js",
     "types": "./dist/cesium-tools.d.ts",
     "exports": {
         ".": {
             "types": "./dist/cesium-tools.d.ts",
             "import": "./dist/cesium-tools.es.js",
-            "require": "./dist/cesium-tools.umd.js",
+            "require": "./dist/cesium-tools.umd.cjs",
             "default": "./dist/cesium-tools.es.js"
-        },
-        "./core": {
-            "types": "./dist/core.d.ts",
-            "import": "./dist/core.es.js",
-            "default": "./dist/core.es.js"
-        },
-        "./react": {
-            "types": "./dist/react.d.ts",
-            "import": "./dist/react.es.js",
-            "default": "./dist/react.es.js"
-        },
-        "./vue": {
-            "types": "./dist/vue.d.ts",
-            "import": "./dist/vue.es.js",
-            "default": "./dist/vue.es.js"
         }
     },
     "files": [
@@ -47,10 +32,11 @@
     ],
     "repository": {
         "type": "git",
-        "url": "git+https://github.com/supershunan/cesium-tools.git"
+        "url": "https://gitcode.com/mypattern/full-radar.git",
+        "directory": "packages/common-utils"
     },
     "bugs": {
-        "url": "https://github.com/supershunan/cesium-tools/issues"
+        "url": "https://gitcode.com/mypattern/full-radar/issues"
     },
     "homepage": "https://www.npmjs.com/package/cesium-tools-fxt",
     "scripts": {
@@ -68,46 +54,23 @@
     "peerDependencies": {
         "@turf/turf": "^7.0.0",
         "@zip.js/zip.js": "^2.8.11",
-        "cesium": "^1.119.0",
-        "react": "^18.0.0",
-        "react-dom": "^18.0.0",
-        "vue": "^3.3.0"
-    },
-    "peerDependenciesMeta": {
-        "react": {
-            "optional": true
-        },
-        "react-dom": {
-            "optional": true
-        },
-        "vue": {
-            "optional": true
-        }
+        "cesium": "^1.119.0"
     },
     "devDependencies": {
         "@turf/turf": "^7.0.0",
-        "@types/d3-delaunay": "^6.0.4",
         "@types/geojson": "^7946.0.14",
-        "@types/react": "^18.3.3",
-        "@types/react-dom": "^18.3.0",
         "@typescript-eslint/eslint-plugin": "^7.15.0",
         "@typescript-eslint/parser": "^7.15.0",
-        "@vitejs/plugin-react": "^4.3.1",
         "@zip.js/zip.js": "^2.8.11",
         "cesium": "^1.136.0",
         "eslint": "^8.57.0",
         "eslint-config-prettier": "^9.1.0",
         "eslint-config-ts-fxt": "^1.0.1",
-        "eslint-plugin-react-hooks": "^4.6.2",
-        "eslint-plugin-react-refresh": "^0.4.7",
         "prettier": "3.3.3",
-        "react": "^18.3.1",
-        "react-dom": "^18.3.1",
         "typescript": "^5.2.2",
         "vite": "^5.3.4",
         "vite-plugin-dts": "^4.0.3",
-        "vitest": "^2.1.9",
-        "vue": "^3.5.40"
+        "vitest": "^2.1.9"
     },
     "dependencies": {
         "delaunator": "^5.1.0",

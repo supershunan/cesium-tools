@@ -1,25 +1,35 @@
 # [cesium-tools-fxt](https://www.npmjs.com/package/cesium-tools-fxt)
 
-Cesium 场景常用工具集合：测量、绘制、通视/视域、坡向、转台模拟、雷达格点栅格等。  
-**框架无关核心** + **React 便捷入口**，Vue 3 可直接使用 `core` 子路径（无需安装 React）。
+框架无关的 Cesium 场景工具集合：测量、绘制、通视/视域、坡向、转台模拟、雷达格点栅格等。
 
-- 建议 **Cesium**：`^1.119.0`（开发依赖已对齐较新版本，请以 peer 为准）
-- 建议 **Node**：`^18.18.2` 或更高
+-   **Cesium peer**：`^1.119.0`
+-   **Node.js（本地开发）**：建议 `18.18.2` 或更高
+
+## 目录
+
+-   [包内容](#包内容)
+-   [安装](#安装)
+-   [快速开始](#快速开始)
+-   [API 总览](#api-总览)
+-   [功能说明](#功能说明)
+-   [本地开发、测试与发布](#本地开发测试与发布)
+-   [常见问题](#常见问题)
 
 ---
 
-## 包入口（多项目 / 多框架）
+## 包内容
 
-| 子路径                   | 适用场景                                                                                           |
-| ------------------------ | -------------------------------------------------------------------------------------------------- |
-| `cesium-tools-fxt/core`  | **Vue、原生 TS、React** 通用；工厂函数命名为 `create*`（如 `createMeasure`），与 `use*` 为同一实现 |
-| `cesium-tools-fxt/vue`   | Vue 3 **`useCesiumTools`**（绑定 Viewer，自动清理）                                                |
-| `cesium-tools-fxt/react` | React 项目语义化导入（`useMeasure` 等）                                                            |
-| `cesium-tools-fxt`       | 与 `core` 等价的全量导出（兼容旧版）                                                               |
+npm 包只提供一个入口：
 
-仓库内 **`playground/`** 仅为本地联调 Demo（`npm run dev`），**不会**打进 npm 的 `dist`。  
-样例数据见 [`public/resources/README.md`](public/resources/README.md)（`npm run playground:check-data` 检查缺失）。  
-Vue 也可查看源码 [`docs/examples/vue/useCesiumTools.ts`](docs/examples/vue/useCesiumTools.ts)。
+```ts
+import { createMeasure, GridDataReader } from 'cesium-tools-fxt';
+```
+
+发布产物仅包含框架无关的工具代码、类型声明和 `GridDataReader` Worker，不包含 React/Vue 封装、Playground、样例数据或 Cesium 静态资源。
+
+仓库内 **`playground/`** 仅为本地联调 Demo，**不会**打进 npm 的 `dist`。
+
+样例数据说明位于仓库的 `public/resources/README.md`，启动和检查命令见[本地开发、测试与发布](#本地开发测试与发布)。
 
 ---
 
@@ -31,123 +41,17 @@ npm install cesium-tools-fxt
 
 以下由 **peerDependencies** 声明，需在业务工程中安装：
 
-`cesium`、`@turf/turf`、`@zip.js/zip.js`、`d3-delaunay`
-
-使用 **`/vue`** 时再安装 `vue`；使用 **`/react` 或根入口的 `use*`** 时再安装 `react`、`react-dom`（仅 **`/core`** 时可不装框架 peer，npm 已标为 optional）。
+`cesium`、`@turf/turf`、`@zip.js/zip.js`
 
 ```bash
-# Vue 3（推荐 /vue）
-npm install cesium-tools-fxt vue cesium @turf/turf @zip.js/zip.js d3-delaunay
-
-# Vue / 纯 TS（仅 core）
-npm install cesium-tools-fxt cesium @turf/turf @zip.js/zip.js d3-delaunay
-
-# React
-npm install cesium-tools-fxt react react-dom cesium @turf/turf @zip.js/zip.js d3-delaunay
+npm install cesium-tools-fxt cesium @turf/turf @zip.js/zip.js
 ```
+
+包不依赖 React 或 Vue，可在任意能提供 `Cesium.Viewer` 的 JavaScript/TypeScript 项目中使用。
 
 ---
 
-## 本地开发与联调
-
-在本仓库根目录：`npm install` → 复制 `.env.example` 为 `.env` 并填写 `VITE_CESIUM_ION_TOKEN`（仅 playground 需要）→ `npm run dev`。
-
-在其它项目中联调：`npm link`（本仓库）+ `npm link cesium-tools-fxt`（业务项目）。
-
----
-
-## 测试
-
-单元测试针对**不依赖 Cesium 画布**的纯逻辑（格点工具、面积计算、类型映射等）。集成 Cesium 的能力请在 playground 里手动验证。
-
-```bash
-# 安装依赖后
-npm test              # 跑一遍全部用例并退出
-npm run test:watch    # 监听文件变更，开发时用
-npm run typecheck     # 仅库类型检查（与 CI 一致）
-```
-
-发布前会自动执行：`typecheck` → `test` → `build`（见 `prepublishOnly`）。CI 在 PR / push 分支时同样会跑 `npm test`。
-
-用例目录：`tests/`（如 `tests/radarLayer/gridUtils.test.ts`）。
-
----
-
-## 发包注意
-
-- 发布前本地：`npm run typecheck && npm run test && npm run build`（`prepublishOnly` 会自动执行这三步）
-- CI 在 push **`v*` 标签** 时发布 npm（例如 `git tag v1.2.0 && git push origin v1.2.0`）
-- 请将 `package.json` 的 `repository` 与 GitHub 仓库保持一致
-
-```bash
-npm version minor
-git push --follow-tags
-```
-
----
-
-## 快速开始（React 示例）
-
-```tsx
-import * as Cesium from 'cesium';
-import {
-    useMeasure,
-    useDrawing,
-    useVisualFieldAnalysis,
-    useVisibilityAnalysis,
-    useSlopeDirectionAnalysis,
-    useTurntableSwing,
-    useCesiumToolsManage,
-} from 'cesium-tools-fxt';
-
-function MapTools({ viewer }: { viewer: Cesium.Viewer }) {
-    const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
-        viewer,
-        Cesium
-    );
-    const { drawing, drawingEntity } = useDrawing(viewer, Cesium);
-    const visualFieldAnalysis = useVisualFieldAnalysis();
-    const visibilityAnalysis = useVisibilityAnalysis();
-    const slopeDirectionAnalysis = useSlopeDirectionAnalysis();
-    const turntableSwing = useTurntableSwing();
-
-    useEffect(() => {
-        visualFieldAnalysis.setInstance(viewer);
-        visibilityAnalysis.setInstance(viewer);
-        slopeDirectionAnalysis.setInstance(viewer);
-        turntableSwing.setInstance(viewer);
-    }, [viewer]);
-
-    return null;
-}
-```
-
-**约定**：除下文单独说明外，多数交互工具为 **左键** 选点/绘制，**右键** 结束当前操作。
-
----
-
-## 快速开始（Vue 3 示例）
-
-```vue
-<script setup lang="ts">
-import { shallowRef, onMounted } from 'vue';
-import * as Cesium from 'cesium';
-import { useCesiumTools } from 'cesium-tools-fxt/vue';
-
-const viewerRef = shallowRef<Cesium.Viewer | null>(null);
-const tools = useCesiumTools(viewerRef, Cesium);
-
-onMounted(() => {
-    const v = new Cesium.Viewer('cesiumContainer');
-    viewerRef.value = v;
-    tools.value?.measure.measureDistance.active({ clampToGround: true });
-});
-</script>
-```
-
-也可仅用 **`core`** 手动 `createMeasure` 等，见下文；组合式封装见 **`cesium-tools-fxt/vue`**。
-
-### 仅用 core（无 composable）
+## 快速开始
 
 ```ts
 import * as Cesium from 'cesium';
@@ -156,9 +60,9 @@ import {
     createVisualFieldAnalysis,
     AnimatedRasterLayer,
     HardEdgeRasterLayer,
-} from 'cesium-tools-fxt/core';
+} from 'cesium-tools-fxt';
 
-// 在 onMounted 或初始化 Viewer 之后：
+const viewer = new Cesium.Viewer('cesiumContainer');
 const measure = createMeasure(viewer, Cesium);
 measure.measureDistance.active({ clampToGround: true });
 
@@ -167,13 +71,15 @@ visual.setInstance(viewer);
 visual.active();
 ```
 
-在 `onUnmounted` 中调用各工具的 `deactivate` / `clear` / `cleanInstance`（使用 **`/vue`** 的 `useCesiumTools` 时会自动清理分析类实例）。
+工具使用完毕或 Viewer 销毁前，调用对应的 `deactivate`、`clear`、`cleanInstance` 或 `destroy`。
+
+**约定**：除下文单独说明外，多数交互工具为 **左键** 选点/绘制，**右键** 结束当前操作。
 
 ---
 
-## 从包入口导出的 API
+## API 总览
 
-`import { … } from 'cesium-tools-fxt'` 包含：
+以下 API 均从 `cesium-tools-fxt` 根入口导出。
 
 | 导出                                                         | 说明                                          |
 | ------------------------------------------------------------ | --------------------------------------------- |
@@ -193,11 +99,13 @@ visual.active();
 | `createTurntableSwing` / `useTurntableSwing`                 | 雷达转台                                      |
 | `createCesiumToolsEventBus` / `useCesiumToolsManage`         | 全局事件总线                                  |
 
-类型：`Measure`、`MeasurementActions`、`DrawingActions`、`VisualFieldAnalysis`、`VisibilityAnalysisProps`、`SlopDerectionAnalysis`、`TurntableSwingProps`、`DrawingTypeEnum`、`Points`；格点侧另有 `GridHeader`、`GridFrame`、`AnimatedRasterLayerHeader`、`AnimatedGridFrame`、`AnimatedGridCellInfo`、`DynamicRasterInteractionOptions`、`RasterColorStop`、`PolygonMaskCoord`、`AnimatedRasterLayerOptions` 等（见下节）。
+类型：`Measure`、`MeasurementActions`、`DrawingActions`、`PrimitiveDrawingActions`、`EntityDrawingActions`、`VisualFieldAnalysis`、`VisibilityAnalysisProps`、`SlopDerectionAnalysis`、`TurntableSwingProps`、`DrawingTypeEnum`、`Points`；格点侧另有 `GridHeader`、`GridFrame`、`AnimatedRasterLayerHeader`、`AnimatedGridFrame`、`AnimatedRasterLayerOptions`、`HardEdgeRasterFrame`、`HardEdgeRasterLayerOptions` 等；`EarthProjection` 另导出 `GridDataHeader`、`GridData`、`ColorRule`、`ColorMode`、`EarthProjectionOptions`。
 
 ---
 
-## 测量 `useMeasure(viewer, Cesium)`
+## 功能说明
+
+### 测量 `useMeasure(viewer, Cesium)`
 
 ```ts
 const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround } = useMeasure(
@@ -208,12 +116,12 @@ const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround 
 
 每个子工具均提供：
 
-- `active(options?)`：开始测量
-- `deactivate()`：注销交互（会销毁内部 `ScreenSpaceEventHandler`）
-- `clear()`：清除当前工具产生的实体与标注
-- `addToolsEventListener(eventName, callback)` / `removeToolsEventListener(eventName, callback?)`：监听自定义事件（见下文「事件」）
+-   `active(options?)`：开始测量
+-   `deactivate()`：注销交互（会销毁内部 `ScreenSpaceEventHandler`）
+-   `clear()`：清除当前工具产生的实体与标注
+-   `addToolsEventListener(eventName, callback)` / `removeToolsEventListener(eventName, callback?)`：监听自定义事件（见下文「事件」）
 
-### 鼠标操作
+#### 鼠标操作
 
 | 工具                                       | 操作说明                                                                 |
 | ------------------------------------------ | ------------------------------------------------------------------------ |
@@ -222,35 +130,35 @@ const { measureDistance, measureArea, measureAngle, measureTheHeightOfTheGround 
 | **角度** `measureAngle`                    | **左键** 加折线顶点（第三点起显示夹角）；**右键** 结束（至少 3 点）      |
 | **地表高度** `measureTheHeightOfTheGround` | **左键** 拾取一点并显示高度；**右键** 结束工具                           |
 
-### 常用选项摘要
+#### 常用选项摘要
 
 **距离** `LengthActiveOptions`：
 
-- `clampToGround?`：是否贴地测距（贴地时使用地形/椭球相关距离）
-- `liveUpdateOnMove?`：默认等价 `true`；设为 `false` 则移动鼠标时不更新距离标签，仅预览折线
-- `line?`：`LabelOptions`（`template`、`customRender`、`font`、颜色、`heightReference` 贴地标签等）
+-   `clampToGround?`：是否贴地测距（贴地时使用地形/椭球相关距离）
+-   `liveUpdateOnMove?`：默认等价 `true`；设为 `false` 则移动鼠标时不更新距离标签，仅预览折线
+-   `line?`：`LabelOptions`（`template`、`customRender`、`font`、颜色、`heightReference` 贴地标签等）
 
 **面积** `AreaActiveOptions`：
 
-- `clampToGround?`、`liveUpdateOnMove?`
-- `area?`：标签与 `customRender(area2d, area3d)`（平方米）
+-   `clampToGround?`、`liveUpdateOnMove?`
+-   `area?`：标签与 `customRender(area2d, area3d)`（平方米）
 
 **角度** `AngleActiveOptions`：
 
-- `clampToGround?`、`liveUpdateOnMove?`
-- `distance?`：边长标签样式
-- `angle?`：角度标签样式
+-   `clampToGround?`、`liveUpdateOnMove?`
+-   `distance?`：边长标签样式
+-   `angle?`：角度标签样式
 
 **高度** `TheHeightOfTheGroundActiveOptions`：
 
-- `clampToGround`（必填）
-- `height?`：标签样式
+-   `clampToGround`（必填）
+-   `height?`：标签样式
 
 **标签 `LabelOptions`（节选）**：
 
-- `customRender?(value1: number, value2?: number): string`：自定义文案（距离/面积/角度含义见类型注释）
-- `template?`：占位 `{}` 替换数字字符串；面积模板可按顺序替换 **两个** `{}`（平面、测地）
-- `show?`：默认显示；`false` 隐藏标签
+-   `customRender?(value1: number, value2?: number): string`：自定义文案（距离/面积/角度含义见类型注释）
+-   `template?`：占位 `{}` 替换数字字符串；面积模板可按顺序替换 **两个** `{}`（平面、测地）
+-   `show?`：默认显示；`false` 隐藏标签
 
 示例（距离，米换算公里）：
 
@@ -266,57 +174,57 @@ measureDistance.active({
 
 ---
 
-## 绘制 `useDrawing(viewer, Cesium)`
+### 绘制 `useDrawing(viewer, Cesium)`
 
 返回 **`drawing`**（Primitive 路线）与 **`drawingEntity`**（Entity 路线），接口形状相同：
 
-- `active(options?)`：进入绘制
-- `deactivate()` / `clear()`
-- `create(id, positions, options)`：用已有坐标生成图形
-- `edit(id, viewer, options)`：编辑
-- `addToolsEventListener` / `removeToolsEventListener`
+-   `active(options?)`：进入绘制
+-   `deactivate()` / `clear()`
+-   `create(id, positions, options)`：用已有坐标生成图形
+-   `edit(id, viewer, options)`：编辑
+-   `addToolsEventListener` / `removeToolsEventListener`
 
-`DrawingTypeEnum` 当前包含：`point`、`billboard`、`face`（具体以类型定义为准）。
+`DrawingTypeEnum` 当前包含：`POINT`、`POLYLINE`、`POLYGON`、`POLYGON_AND_POLYLINE`、`BILLBOARD`、`LABEL`。
 
-绘制 **面** 时，多边形至少需要 **两个** 已选点后再右键结束，否则无法成面（与实现一致）。
+绘制折线或面时至少需要 **3 个** 已选点后再右键结束，否则本次绘制不会完成。
 
 ---
 
-## 通视分析 `useVisualFieldAnalysis()`
+### 通视分析 `useVisualFieldAnalysis()`
 
 基于观测点、目标方向与视锥，在场景上叠加 **可见/不可见** 颜色（后处理 + 阴影贴图）。建议在 **3D**、有地形且开启深度时效果更稳定。
 
-### 初始化
+#### 初始化
 
 ```ts
 const visualFieldAnalysis = useVisualFieldAnalysis();
 visualFieldAnalysis.setInstance(viewer);
 ```
 
-### 鼠标操作
+#### 鼠标操作
 
-- **第一次左键**：观测点（起点）
-- **移动鼠标**：预览视锥与通视
-- **第二次左键**：目标点（结束本次分析并固定结果）
+-   **第一次左键**：观测点（起点）
+-   **移动鼠标**：预览视锥与通视
+-   **第二次左键**：目标点（结束本次分析并固定结果）
 
 （两次均为 **左键**，不是右键。）
 
-### API
+#### API
 
-- `active(options?)`：`options` 可选，为 `{ startText?, endText? }`，用于提示文案
-- `deactivate()` / `clear()`
-- `getInstance()`：内部 `ViewShed` 实例（高级用法）
-- `setViewShedOptions(options)`：`ViewShedOptionalOptions`（水平/垂直角、颜色、`softShadows`、`size` 等，不含观测坐标）
-- `cleanInstance()`：销毁内部 handler 并清空引用（切换 Viewer 前建议调用）
+-   `active(options?)`：`options` 可选，为 `{ startText?, endText? }`，用于提示文案
+-   `deactivate()` / `clear()`
+-   `getInstance()`：内部 `ViewShed` 实例（高级用法）
+-   `setViewShedOptions(options)`：`ViewShedOptionalOptions`（水平/垂直角、颜色、`softShadows`、`size` 等，不含观测坐标）
+-   `cleanInstance()`：销毁内部 handler 并清空引用（切换 Viewer 前建议调用）
 
-### 环境与性能说明
+#### 环境与性能说明
 
-- 分析期间会临时修改 `Globe.shadows`、`viewer.shadows`、`depthTestAgainstTerrain` 等，结束后在 `clear` / `ViewShed.clear` 中会恢复。
-- 若使用 **3D Tiles**，需让模型参与阴影（例如 `tileset.shadows = Cesium.ShadowMode.ENABLED`），否则遮挡可能不完整。
+-   分析期间会临时修改 `Globe.shadows`、`viewer.shadows`、`depthTestAgainstTerrain` 等，结束后在 `clear` / `ViewShed.clear` 中会恢复。
+-   若使用 **3D Tiles**，需让模型参与阴影（例如 `tileset.shadows = Cesium.ShadowMode.ENABLED`），否则遮挡可能不完整。
 
 ---
 
-## 视域/透视分析 `useVisibilityAnalysis()`
+### 视域/透视分析 `useVisibilityAnalysis()`
 
 ```ts
 const visibilityAnalysis = useVisibilityAnalysis();
@@ -324,17 +232,17 @@ visibilityAnalysis.setInstance(viewer);
 visibilityAnalysis.active();
 ```
 
-### 鼠标操作
+#### 鼠标操作
 
-- **第一次左键**：起点
-- **移动鼠标**：预览
-- **第二次左键**：终点并完成
+-   **第一次左键**：起点
+-   **移动鼠标**：预览
+-   **第二次左键**：终点并完成
 
 提供 `deactivate`、`clear`、`getInstance`、`cleanInstance`、事件监听，形态与通视类似（无 `setViewShedOptions`）。
 
 ---
 
-## 坡向分析 `useSlopeDirectionAnalysis()`
+### 坡向分析 `useSlopeDirectionAnalysis()`
 
 ```ts
 const slope = useSlopeDirectionAnalysis();
@@ -343,16 +251,16 @@ slope.setDistance(30); // 可选，网格粒度，单位 km，最小 20
 slope.active();
 ```
 
-### 鼠标操作
+#### 鼠标操作
 
-- **左键**：依次添加区域顶点并预览多边形
-- **右键**：闭合区域（至少 **3** 个点）并执行分析
+-   **左键**：依次添加区域顶点并预览多边形
+-   **右键**：闭合区域（至少 **3** 个点）并执行分析
 
 `setDistance(km)`：小于 `20` 会抛错。
 
 ---
 
-## 模拟雷达转台 `useTurntableSwing()`
+### 模拟雷达转台 `useTurntableSwing()`
 
 ```ts
 const turntable = useTurntableSwing();
@@ -360,50 +268,50 @@ turntable.setInstance(viewer);
 turntable.active();
 ```
 
-### 鼠标操作
+#### 鼠标操作
 
-- **左键一次**：在点击位置创建转台并完成交互
+-   **左键一次**：在点击位置创建转台并完成交互
 
 `globalTurntableMethod()`：返回可对转台做进一步操作的方法集合（偏角、内外径、颜色等，以类型 `GlobalTurntableMethods` 为准）。
 
 ---
 
-## 雷达格点与动画栅格（`radarLayer`）
+### 雷达格点与动画栅格（`radarLayer`）
 
 依赖 **`@zip.js/zip.js`**（已在 peer 中声明）。数据一般为 **`.zip`**：内含一段长度前缀的 **UTF-8 JSON 头** + 二进制格点体（具体字段以解析结果 `header` 为准，常见含 `times`、`levels`、`xSize`、`ySize`、起止经纬度等）。
 
 **类型说明**：包内有两套相近的 `GridHeader` 概念——ZIP 解析模块导出 **`GridHeader` / `GridFrame`**（头里可含 `flipLatitudeRowsForCesium`）；动画图层使用 **`AnimatedRasterLayerHeader` / `AnimatedGridFrame`**（头里可含 `timeList` 等）。向 `AnimatedRasterLayer.update` 传入的 `frame.header` 需与图层所需字段一致（通常与解析得到的地理范围、`xSize`/`ySize` 等对齐即可）。
 
-### 纬度行方向 `shouldFlipLatitudeRowsForCesium(header)`
+#### 纬度行方向 `shouldFlipLatitudeRowsForCesium(header)`
 
 根据 `yDelta`、`yStart`/`yEnd` 或显式 `flipLatitudeRowsForCesium`，判断格点行序是否应按 Cesium 纹理 **北向上** 的规则翻转，避免贴图南北镜像。`GridDataReader` 在生成 `getLevelSlice` 等结果时已应用该逻辑。
 
-### `GridDataReader`
+#### `GridDataReader`
 
-- **`readHeaderOnly(compressedFile: Blob)`**：只解析头，返回 `header`、`dataOffset`、`estimatedDataSize` 等。
-- **`readCompressedGridData(compressedFile: Blob)`**：完整解析；在支持 `Worker` 时优先走 `gridReader.worker`，否则主线程解压解析。成功时返回 `header` 与 **`getValue` / `getTimeSlice` / `getLevelSlice` / `getLatLonSlice`**（扁平或嵌套数据下均提供统一访问方式）。
-- 静态调试（可选）：`GridDataReader.setDebugEnabled(true)` 开启解析过程日志
-- 静态性能（可选）：`GridDataReader.setPerfEnabled(true)`、`resetPerfStats()`、`getPerfStats()`
+-   **`readHeaderOnly(compressedFile: Blob)`**：只解析头，返回 `header`、`dataOffset`、`estimatedDataSize` 等。
+-   **`readCompressedGridData(compressedFile: Blob)`**：完整解析；在支持 `Worker` 时优先走 `gridReader.worker`，否则主线程解压解析。成功时返回 `header` 与 **`getValue` / `getTimeSlice` / `getLevelSlice` / `getLatLonSlice`**（扁平或嵌套数据下均提供统一访问方式）。
+-   静态调试（可选）：`GridDataReader.setDebugEnabled(true)` 开启解析过程日志
+-   静态性能（可选）：`GridDataReader.setPerfEnabled(true)`、`resetPerfStats()`、`getPerfStats()`
 
-### 便捷函数
+#### 便捷函数
 
-- **`readGridHeaderFromFile(file)`** / **`readGridDataFromFile(file)`**：传入 `Blob`/`File`
-- **`readGridFromFileInput(file, readData?)`**：推荐；校验扩展名并在失败时 **throw**
-- **`handleFileUpload(event, readData?)`**：兼容旧 API，内部调用 `readGridFromFileInput`
+-   **`readGridHeaderFromFile(file)`** / **`readGridDataFromFile(file)`**：传入 `Blob`/`File`
+-   **`readGridFromFileInput(file, readData?)`**：推荐；校验扩展名并在失败时 **throw**
+-   **`handleFileUpload(event, readData?)`**：兼容旧 API，内部调用 `readGridFromFileInput`
 
-### `AnimatedRasterLayer(viewer, options?)`
+#### `AnimatedRasterLayer(viewer, options?)`
 
 将 **`AnimatedGridFrame`** 绘制为贴地/Primitive 栅格。
 
 **实例方法（节选）**：`update(frame)`、`setColorRamp`、`setMaskPolygon`、`setGradientEnabled`、`setInteractionOptions`、`pickValue`、`destroy()`。
 
-### `HardEdgeRasterLayer(viewer, options?)`
+#### `HardEdgeRasterLayer(viewer, options?)`
 
 硬边界模式：单瓦片 Canvas + 影像层，边界与数据严格对齐。使用 **`update(frame)`** 更新帧，**`destroy()`** 销毁。
 
 ---
 
-## 全局事件 `useCesiumToolsManage()`
+### 全局事件 `useCesiumToolsManage()`
 
 ```ts
 const bus = useCesiumToolsManage();
@@ -416,14 +324,14 @@ bus.removeEventListener('myChannel', handler);
 
 ---
 
-## 工具完成事件 `cesiumToolsFxt`
+### 工具完成事件 `cesiumToolsFxt`
 
 多数工具在绘制/分析结束时会派发（具体以各工具 `dispatch` 为准），`ToolsEventTypeEnum` 中与包内工具相关的取值包括：
 
-- `lengthMeasurement`、`areaMeasurement`、`angleMeasurement`、`theHeightMeasurement`
-- `visualFieldAnalysis`、`visibilityAnalysis`
-- `slopDirectionAnalysis`
-- `turntableSwing`（枚举值为 `'theTurntableSwing'`）
+-   `lengthMeasurement`、`areaMeasurement`、`angleMeasurement`、`theHeightMeasurement`
+-   `visualFieldAnalysis`、`visibilityAnalysis`
+-   `slopDirectionAnalysis`
+-   `turntableSwing`（枚举值为 `'theTurntableSwing'`）
 
 示例：
 
@@ -435,23 +343,23 @@ measureDistance.addToolsEventListener('cesiumToolsFxt', (e) => {
 
 ---
 
-## 参数表（绘制，摘自类型定义）
+### 参数表（绘制，摘自类型定义）
 
-### `DrawingEntityOptions`（`drawingEntity.active`）
+#### `DrawingEntityOptions`（`drawingEntity.active`）
 
 | 属性                                           | 类型              | 必填 | 说明     |
 | ---------------------------------------------- | ----------------- | ---- | -------- |
 | type                                           | `DrawingTypeEnum` | 是   | 绘制类型 |
 | point / polyline / polygon / billboard / label | Entity 相关配置   | 否   | 样式     |
 
-### `CreatePrimitiveOptions`（`drawing.create`）
+#### `CreatePrimitiveOptions`（`drawing.create`）
 
 | 属性                                                            | 类型               | 必填 | 说明     |
 | --------------------------------------------------------------- | ------------------ | ---- | -------- |
 | type                                                            | `DrawingTypeEnum`  | 是   | 绘制类型 |
 | point / polyline / polygon / polylinPolygon / billboard / label | Primitive 相关配置 | 否   | 样式     |
 
-### `EditPrimitiveOptions`（`drawing.edit`）
+#### `EditPrimitiveOptions`（`drawing.edit`）
 
 | 属性                                           | 类型              | 必填 | 说明     |
 | ---------------------------------------------- | ----------------- | ---- | -------- |
@@ -459,6 +367,39 @@ measureDistance.addToolsEventListener('cesiumToolsFxt', (e) => {
 | point / polyline / polygon / billboard / label | 集合或样式        | 否   | 编辑用   |
 
 `CommonPrimitiveProps` 可包含 `showLabel?` 等扩展字段。
+
+---
+
+## 本地开发、测试与发布
+
+以下命令均在 monorepo 根目录执行：
+
+```bash
+pnpm install
+pnpm dev:cesium-tools
+```
+
+Playground 使用 Cesium ion 数据时，可在 `packages/common-utils/.env.local` 中配置：
+
+```dotenv
+VITE_CESIUM_ION_TOKEN=your_token
+```
+
+仓库中的 `playground/` 仅用于本地联调，不会进入 npm 包。样例数据说明位于 `public/resources/README.md`，缺失检查命令为：
+
+```bash
+pnpm --filter cesium-tools-fxt playground:check-data
+```
+
+单元测试覆盖不依赖 Cesium 画布的纯逻辑；Cesium 集成功能需在 Playground 手动验证：
+
+```bash
+pnpm --filter cesium-tools-fxt typecheck
+pnpm --filter cesium-tools-fxt test
+pnpm --filter cesium-tools-fxt build
+```
+
+发布前应同步更新 `package.json` 版本与 [`CHANGELOG.md`](CHANGELOG.md)。`prepublishOnly` 会依次执行 `typecheck`、`test` 和 `build`。建议先运行 `npm publish --dry-run` 核对最终文件清单，再由发布者执行 `npm publish`。
 
 ---
 

@@ -3,7 +3,6 @@ import MouseEvent from '../mouseBase/mouseBase';
 import {
     computeDelaunayTerrainSurfaceArea,
     computeEllipsoidalPolygonArea,
-    DEFAULT_TERRAIN_SAMPLE_STEP_METERS,
     type TerrainSurfaceSamplePoint,
 } from './new-compute';
 import { MouseStatusEnum } from '../../enum/enum';
@@ -150,8 +149,8 @@ export default class AreaMeasurement extends MouseEvent {
             this.state.curSort = index + 1;
             this.areaMoveGeneration += 1;
             this.unRegisterEvents();
-            // this.createTerrainPoint(1, tempPositions);
             await this.createAreaTip(tempPositions, 'click');
+            this.dispatch('fxtDrawEnd', { msg: 'success' });
         }, this.cesium.ScreenSpaceEventType.RIGHT_CLICK);
     }
 
@@ -306,143 +305,5 @@ export default class AreaMeasurement extends MouseEvent {
         const ellipsoid = this.viewer.scene.globe.ellipsoid;
         const onSurface = ellipsoid.scaleToGeodeticSurface(sum, new this.cesium.Cartesian3());
         return onSurface ?? sum;
-    }
-
-    /** 调用公共地表面积计算，并渲染其内部采样点、边界点和 ENU 方向。 */
-    private async createTerrainPoint(
-        measurementIndex: number,
-        points: Cesium.Cartesian3[],
-        accuracy = DEFAULT_TERRAIN_SAMPLE_STEP_METERS
-    ): Promise<number> {
-        const generation = ++this.terrainSampleGeneration;
-        const result = await computeDelaunayTerrainSurfaceArea(
-            this.cesium,
-            points,
-            this.viewer.terrainProvider,
-            {
-                ellipsoid: this.viewer.scene.globe.ellipsoid,
-                sampleStepMeters: accuracy,
-                gridSegments: this.options?.terrainGridSegments,
-                terrainHeightOffsetMeters: this.options?.terrainHeightOffsetMeters,
-            }
-        );
-        if (generation !== this.terrainSampleGeneration) return result.area;
-        this.terrainSamplePoints.set(measurementIndex, result.samples);
-
-        const primitive = this.viewer.scene.primitives.add(
-            new this.cesium.PointPrimitiveCollection()
-        );
-        result.samples.forEach((sample) => {
-            const isBoundary = sample.kind === 'boundary';
-            primitive.add({
-                position: sample.position,
-                pixelSize: isBoundary ? 6 : 4,
-                color: (isBoundary ? this.cesium.Color.MAGENTA : this.cesium.Color.CYAN).withAlpha(
-                    0.9
-                ),
-                outlineColor: this.cesium.Color.BLACK.withAlpha(0.75),
-                outlineWidth: 1,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            });
-        });
-        this.terrainSamplePrimitives.push(primitive);
-        this.createSamplingDirectionGuides(
-            result.enuToFixed,
-            Math.max(
-                10,
-                Math.min(result.stepMeters * 1.5, Math.max(result.width, result.height) * 0.35)
-            )
-        );
-        this.viewer.scene.requestRender();
-        const debugData = {
-            inputPositions: points.map((point) => ({
-                x: point.x,
-                y: point.y,
-                z: point.z,
-            })),
-
-            area: result.area,
-            stepMeters: result.stepMeters,
-            width: result.width,
-            height: result.height,
-
-            localRing: result.localRing,
-
-            samples: result.samples.map((sample) => ({
-                kind: sample.kind,
-
-                localPosition: sample.localPosition,
-
-                longitude: this.cesium.Math.toDegrees(sample.cartographic.longitude),
-                latitude: this.cesium.Math.toDegrees(sample.cartographic.latitude),
-                height: sample.cartographic.height,
-
-                position: {
-                    x: sample.position.x,
-                    y: sample.position.y,
-                    z: sample.position.z,
-                },
-            })),
-
-            triangleIndices: result.triangleIndices,
-        };
-
-        console.log('terrain-area-debug:', JSON.stringify(debugData, null, 2));
-        return result.area;
-    }
-
-    /** 绘制当前采样坐标系的正东（E）和正北（N）方向。 */
-    private createSamplingDirectionGuides(enuToFixed: Cesium.Matrix4, guideLength: number): void {
-        const toWorld = (east: number, north: number) =>
-            this.cesium.Matrix4.multiplyByPoint(
-                enuToFixed,
-                new this.cesium.Cartesian3(east, north, 0),
-                new this.cesium.Cartesian3()
-            );
-        const origin = toWorld(0, 0);
-        const eastEnd = toWorld(guideLength, 0);
-        const northEnd = toWorld(0, guideLength);
-
-        const originEntity = this.viewer.entities.add({
-            position: origin,
-            point: {
-                pixelSize: 7,
-                color: this.cesium.Color.WHITE,
-                outlineColor: this.cesium.Color.BLACK,
-                outlineWidth: 2,
-                heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-        });
-        const createArrow = (end: Cesium.Cartesian3, color: Cesium.Color, text: string) =>
-            this.viewer.entities.add({
-                position: end,
-                polyline: {
-                    positions: [origin, end],
-                    width: 6,
-                    clampToGround: true,
-                    material: new this.cesium.PolylineArrowMaterialProperty(color),
-                    zIndex: 20,
-                },
-                label: {
-                    text,
-                    font: 'bold 15px sans-serif',
-                    fillColor: color,
-                    outlineColor: this.cesium.Color.WHITE,
-                    outlineWidth: 3,
-                    style: this.cesium.LabelStyle.FILL_AND_OUTLINE,
-                    showBackground: true,
-                    backgroundColor: this.cesium.Color.BLACK.withAlpha(0.65),
-                    pixelOffset: new this.cesium.Cartesian2(0, -18),
-                    heightReference: this.cesium.HeightReference.CLAMP_TO_GROUND,
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                },
-            });
-
-        this.terrainSampleGuideEntities.push(
-            originEntity,
-            createArrow(eastEnd, this.cesium.Color.RED, '东 E'),
-            createArrow(northEnd, this.cesium.Color.BLUE, '北 N')
-        );
     }
 }

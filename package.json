@@ -32,13 +32,12 @@
     ],
     "repository": {
         "type": "git",
-        "url": "https://gitcode.com/mypattern/full-radar.git",
-        "directory": "packages/common-utils"
+        "url": "https://github.com/supershunan/cesium-tools.git"
     },
     "bugs": {
-        "url": "https://gitcode.com/mypattern/full-radar/issues"
+        "url": "https://github.com/supershunan/cesium-tools/issues"
     },
-    "homepage": "https://www.npmjs.com/package/cesium-tools-fxt",
+    "homepage": "https://github.com/supershunan/cesium-tools#readme",
     "scripts": {
         "dev": "vite",
         "build": "vite build --config vite.config.lib.ts && vite build --config vite.config.umd.ts",
